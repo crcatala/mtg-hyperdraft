@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { serverNow, useStore } from "../store";
 import { TopBar } from "../components/TopBar";
+import { SplitButton, type SplitItem } from "../components/SplitButton";
 import { CardView } from "../components/CardView";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { AnchoredPreview } from "../components/AnchoredPreview";
@@ -41,6 +42,7 @@ export function Draft() {
   const cards = useStore((s) => s.cards);
   const send = useStore((s) => s.send);
   const toast = useStore((s) => s.toast);
+  const solo = useStore((s) => s.mode === "solo");
   const d = view.draft!;
   const pack = d.pack;
 
@@ -181,6 +183,38 @@ export function Draft() {
   const closeZoom = useCallback(() => setZoom(null), []);
   const selectedName = selected.length === 1 && need.picks === 1 ? cards[view.instances[selected[0]]?.cardId]?.name : undefined;
 
+  // The same bot logic the debug console uses. Finishing the whole draft only makes sense solo:
+  // online it would auto-pick for your friends too.
+  const autoPickItems: SplitItem[] = [
+    {
+      label: need.burns > 0 ? "Auto-pick & burn for me" : "Auto-pick for me",
+      description: (
+        <>
+          <b>Let the bot choose this pick.</b> It takes the strongest card{need.picks > 1 ? "s" : ""} for the colors you're drafting (CubeCobra rating,
+          rarity, and what you've already picked){need.burns > 0 ? ", and burns the weakest" : ""}. Your pack then passes as usual.
+        </>
+      ),
+      onSelect: () => {
+        sfx.pick();
+        send({ t: "debug", cmd: "autoPickMe" });
+      },
+    },
+    ...(solo
+      ? [
+          {
+            label: "Finish the draft",
+            description: (
+              <>
+                <b>Auto-pick everything that's left</b>, for you and every bot, and jump straight to deckbuilding. Handy for a quick game. Can't be undone.
+              </>
+            ),
+            danger: true,
+            onSelect: () => send({ t: "debug", cmd: "finishDraft" }),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="screen draft">
       <TopBar
@@ -233,9 +267,17 @@ export function Draft() {
                 <span className="spacer" />
                 {pack.deadline && <PickTimer deadline={pack.deadline} />}
                 {stage === "revealed" && (
-                  <button className="btn primary pick-btn" disabled={!readyToConfirm || leaving} onClick={() => confirm()}>
+                  <SplitButton
+                    className="primary"
+                    mainClassName="pick-btn"
+                    disabled={!readyToConfirm || leaving}
+                    onClick={() => confirm()}
+                    menuLabel="Auto-pick options"
+                    menuDisabled={leaving}
+                    items={autoPickItems}
+                  >
                     {need.burns > 0 ? "Confirm" : selectedName ? `Pick ${selectedName}` : "Pick"} ✦
-                  </button>
+                  </SplitButton>
                 )}
               </div>
               <PackFan

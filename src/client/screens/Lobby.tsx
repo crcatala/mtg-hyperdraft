@@ -5,6 +5,8 @@ import { CardView } from "../components/CardView";
 import type { DraftConfig, GameConfig, Player } from "../../shared/types";
 import { MAX_HUMANS, MAX_SEATS } from "../../shared/types";
 import { cardsNeeded } from "../../shared/draft";
+import { quickstart, STARTER_CUBE } from "../quickstart";
+import { presetSource } from "../../shared/presets";
 
 const SAMPLE_CUBES = [
   { label: "Vintage Cube", value: "https://cubecobra.com/cube/list/vintage" },
@@ -15,10 +17,12 @@ const SAMPLE_CUBES = [
 export function Lobby() {
   const view = useStore((s) => s.view)!;
   const send = useStore((s) => s.send);
+  const solo = useStore((s) => s.mode === "solo");
   const me = view.players.find((p) => p.id === view.you);
   const isHost = !!me?.isHost;
   const humans = view.players.filter((p) => !p.isBot);
   const waitingOn = humans.filter((p) => !p.ready);
+  const importing = view.importStatus.state === "running";
 
   return (
     <div className="screen lobby">
@@ -26,11 +30,24 @@ export function Lobby() {
         <NameEditor />
       </TopBar>
       <div className="lobby-grid scroll">
+        {solo && (
+          <section className="panel solo-banner">
+            <div>
+              <h2>Solo draft</h2>
+              <p className="muted">
+                You and bots, running entirely in your browser: no account, no server. Nothing is saved, so closing the tab ends the game.
+              </p>
+            </div>
+            <button className="btn primary big" disabled={importing || !!me?.ready} onClick={quickstart}>
+              {importing ? "Importing…" : `⚡ Quick start: ${STARTER_CUBE.name}`}
+            </button>
+          </section>
+        )}
         <section className="panel lobby-players">
           <div className="section-head">
             <h2>Players</h2>
             <span className="muted">
-              {humans.length}/{MAX_HUMANS} friends · {view.players.length}/{MAX_SEATS} seats
+              {solo ? `${view.players.length}/${MAX_SEATS} seats` : `${humans.length}/${MAX_HUMANS} friends · ${view.players.length}/${MAX_SEATS} seats`}
             </span>
           </div>
           <ul className="seat-list">
@@ -97,6 +114,7 @@ function CubePanel({ isHost }: { isHost: boolean }) {
   const view = useStore((s) => s.view)!;
   const cards = useStore((s) => s.cards);
   const send = useStore((s) => s.send);
+  const solo = useStore((s) => s.mode === "solo");
   const [source, setSource] = useState("");
   const [showMissing, setShowMissing] = useState(false);
   const running = view.importStatus.state === "running";
@@ -150,6 +168,17 @@ function CubePanel({ isHost }: { isHost: boolean }) {
         <p className="muted">{isHost ? "Import a cube to draft from." : "Waiting for the host to import a cube…"}</p>
       )}
 
+      {isHost && !cube && (
+        <div className="starter-cube">
+          <button className="btn violet" disabled={running} onClick={() => send({ t: "import", source: presetSource(STARTER_CUBE.id) })}>
+            ⚡ Use the {STARTER_CUBE.name}
+          </button>
+          <span className="faint small-print">
+            {STARTER_CUBE.cards} cards, bundled with the site so it loads instantly. Or import any cube below.
+          </span>
+        </div>
+      )}
+
       {isHost && (
         <div className="import-box">
           <label className="label" htmlFor="import">
@@ -176,8 +205,8 @@ function CubePanel({ isHost }: { isHost: boolean }) {
             ))}
           </div>
           <p className="faint small-print">
-            Accepts CubeCobra URLs, one name per line, "4 Card Name", Arena "(SET) 123" lines and CubeCobra CSV exports. Card data is looked up on Scryfall and saved
-            with the lobby.
+            Accepts CubeCobra URLs, one name per line, "4 Card Name", Arena "(SET) 123" lines and CubeCobra CSV exports. Card data is looked up on Scryfall
+            {solo ? " straight from your browser." : " and saved with the lobby."}
           </p>
         </div>
       )}

@@ -153,8 +153,25 @@ export interface RoomView {
 
 export type ServerMessage =
   | { t: "welcome"; you: string; secret: string; code: string }
+  /** Sent before closing with CLOSE.claim: the game has started, pick a free seat to rejoin. */
+  | { t: "claim"; seats: { id: string; name: string }[] }
+  /**
+   * The server is ending this session for good (e.g. the room was deleted). Sent right before the
+   * close so the client can stop at once: the close event itself can lag behind by seconds while the
+   * closing handshake finishes.
+   */
+  | { t: "closed"; code: number; message: string }
   | { t: "state"; view: RoomView }
   | { t: "cards"; cards: CardMap }
   | { t: "drag"; by: string; id: string; x: number; y: number }
   | { t: "error"; message: string }
   | { t: "pong" };
+
+/** WebSocket close codes the server uses. Any 4xxx close is final: the client doesn't retry. */
+export const CLOSE = {
+  refused: 4403,
+  notFound: 4404,
+  claim: 4409,
+  deleted: 4410,
+  offline: 4503,
+} as const;

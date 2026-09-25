@@ -4,14 +4,25 @@
   "main": "./src/worker/index.ts",
   "compatibility_date": "2026-09-01",
   "assets": {
+    // Lets the Worker and Durable Objects read static files (e.g. bundled preset cubes).
+    "binding": "ASSETS",
     // Built client (Vite output) is served as static assets; unknown paths fall back to index.html.
     "not_found_handling": "single-page-application",
     // API + websocket routes hit the Worker before static assets.
     "run_worker_first": ["/api/*"]
   },
   "durable_objects": {
-    "bindings": [{ "name": "ROOMS", "class_name": "RoomDurableObject" }]
+    "bindings": [
+      { "name": "ROOMS", "class_name": "RoomDurableObject" },
+      { "name": "INVITES", "class_name": "InviteDurableObject" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomDurableObject"] }],
+  // Never edit an applied migration; append a new tag instead.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["RoomDurableObject"] },
+    { "tag": "v2", "new_sqlite_classes": ["InviteDurableObject"] }
+  ],
+  // Secrets (not in this file): ROOM_CODE_SECRET, INVITE_CODES, and optionally ONLINE_ENABLED.
+  // Set them with `npx wrangler secret put <NAME>`; locally they come from .dev.vars.
   "observability": { "enabled": true }
 }

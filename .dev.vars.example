@@ -1,0 +1,12 @@
+# Local development secrets. `npm run dev` copies this to .dev.vars (gitignored) if it's missing.
+# In production set real values with `npx wrangler secret put <NAME>`; never reuse these.
+
+# Signs room codes so forged codes are rejected before reaching a Durable Object.
+ROOM_CODE_SECRET="dev-only-room-code-secret"
+
+# Invite codes that may host online rooms: `label:key` pairs, comma-separated.
+# Magic link for this one: http://localhost:3000/?invite=dev-invite-key
+INVITE_CODES="dev:dev-invite-key"
+
+# Kill switch: uncomment to turn online rooms off (solo mode keeps working).
+# ONLINE_ENABLED="false"

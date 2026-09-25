@@ -786,3 +786,86 @@ kbd {
     transform: translateY(6px) scale(0.98);
   }
 }
+
+/* ---------- split button + tooltip ---------- */
+
+.split-btn {
+  display: inline-flex;
+  align-items: stretch;
+  min-width: 0;
+}
+.split-btn .split-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  min-width: 0;
+}
+.split-btn .split-caret {
+  padding: 0 10px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left-width: 0;
+  /* The separator: a darker hairline with a highlight, so the caret reads as its own control. */
+  box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.28), inset 2px 0 0 rgba(255, 255, 255, 0.28);
+}
+.split-btn .split-caret svg {
+  transition: transform 0.15s;
+}
+.split-btn.open .split-caret svg {
+  transform: rotate(180deg);
+}
+.split-btn .btn.primary.split-caret {
+  box-shadow: 0 6px 24px rgba(244, 197, 91, 0.25), inset 1px 0 0 rgba(90, 55, 0, 0.35), inset 2px 0 0 rgba(255, 255, 255, 0.35);
+}
+/* Keep the caret fully visible when only the main half is disabled (nothing selected yet). */
+.split-btn .split-main:disabled + .split-caret:not(:disabled) {
+  opacity: 1;
+}
+.split-menu {
+  min-width: 210px;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 270px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(30, 25, 50, 0.98);
+  border: 1px solid rgba(183, 155, 255, 0.35);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.3);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 450;
+  line-height: 1.5;
+  pointer-events: none;
+  animation: tooltip-in 0.14s ease-out;
+}
+.tooltip b {
+  color: var(--gold-2);
+  font-weight: 700;
+}
+.tooltip.side-left {
+  --tip-from: translateX(4px);
+}
+.tooltip.side-right {
+  --tip-from: translateX(-4px);
+}
+.tooltip.side-top {
+  --tip-from: translateY(4px);
+}
+.tooltip.side-bottom {
+  --tip-from: translateY(-4px);
+}
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: var(--tip-from, none);
+  }
+}
+.tip-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  align-items: baseline;
+  white-space: nowrap;
+}

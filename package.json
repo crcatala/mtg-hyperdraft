@@ -5,13 +5,17 @@
   "description": "HyperDraft — browser MTG cube drafting + 3D tabletop for up to 4 friends (React Three Fiber + Cloudflare Durable Objects)",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/ensure-dev-vars.mjs",
     "dev": "vite",
     "build": "vite build",
+    "prepreview": "node scripts/ensure-dev-vars.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "deploy": "vite build && wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "invite:new": "node scripts/new-invite.mjs",
+    "presets:build": "node scripts/build-presets.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",

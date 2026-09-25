@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRoomState, Room, type ImportResult } from "../src/shared/room";
+import { createRoomState, Room, SeatClaimNeeded, type ImportResult } from "../src/shared/room";
 import { basicIds, makeCube, testDeps } from "./fixtures";
 import type { ClientMessage } from "../src/shared/protocol";
 
@@ -119,5 +119,121 @@ describe("room flow", () => {
     const a = room.join({});
     const view = room.viewFor(a.playerId);
     expect(JSON.stringify(view)).not.toContain(a.secret);
+  });
+
+  it("keeps the invite id out of player views", () => {
+    const deps = testDeps();
+    const room = new Room(createRoomState("ABCDEFG", deps.now(), "sam"), {}, deps);
+    const a = room.join({});
+    expect(room.state.inviteId).toBe("sam");
+    expect(JSON.stringify(room.viewFor(a.playerId))).not.toContain("sam");
+  });
+
+  it("summarizes the room for the invite ledger", () => {
+    const { room } = newRoom();
+    const a = room.join({ name: "Alice" });
+    room.join({ name: "Bob" });
+    send(room, a.playerId, { t: "addBot" });
+    expect(room.summary()).toEqual({ phase: "lobby", players: ["Alice", "Bob"], bots: 1, cubeName: null, cardCount: 0 });
+    room.applyImport(importResult(300));
+    expect(room.summary()).toMatchObject({ cubeName: "Test Cube", cardCount: 300 });
+  });
+
+  it("replaces card data when a new cube is imported", () => {
+    const { room } = newRoom();
+    room.join({});
+    room.applyImport(importResult(300));
+    room.applyImport({ ...importResult(50), name: "Small" });
+    expect(Object.keys(room.cards)).toHaveLength(50 + 6);
+  });
+});
+
+describe("rejoining a started game", () => {
+  function startedRoom() {
+    const { room, deps } = newRoom();
+    const a = room.join({ name: "Alice" });
+    const b = room.join({ name: "Bob" });
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "setReady", ready: true });
+    send(room, b.playerId, { t: "setReady", ready: true });
+    expect(room.state.phase).toBe("drafting");
+    return { room, deps, a, b };
+  }
+
+  it("offers disconnected seats to a joiner without a valid secret", () => {
+    const { room, a, b } = startedRoom();
+    expect(() => room.join({ name: "Alice (phone)" })).toThrow(/every seat is in use/);
+    room.setConnected(b.playerId, false);
+    try {
+      room.join({ name: "Bob (phone)" });
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(SeatClaimNeeded);
+      expect((err as SeatClaimNeeded).seats).toEqual([{ id: b.playerId, name: "Bob" }]);
+    }
+    expect(() => room.join({ claim: a.playerId })).toThrow(/already playing as Alice/);
+  });
+
+  it("hands a claimed seat a new secret and retires the old one", () => {
+    const { room, b } = startedRoom();
+    room.setConnected(b.playerId, false);
+    const claimed = room.join({ claim: b.playerId });
+    expect(claimed.playerId).toBe(b.playerId);
+    expect(claimed.secret).not.toBe(b.secret);
+    expect(room.state.players.find((p) => p.id === b.playerId)?.connected).toBe(true);
+    room.setConnected(b.playerId, false);
+    // The old device's secret no longer works; it gets the seat picker instead.
+    expect(() => room.join({ playerId: b.playerId, secret: b.secret })).toThrow(SeatClaimNeeded);
+    expect(room.join({ playerId: b.playerId, secret: claimed.secret }).playerId).toBe(b.playerId);
+  });
+
+  it("joins as a new player in the lobby even with a claim", () => {
+    const { room } = newRoom();
+    const a = room.join({ name: "A" });
+    room.setConnected(a.playerId, false);
+    expect(room.join({ claim: a.playerId }).playerId).not.toBe(a.playerId);
+  });
+});
+
+describe("draft clock while nobody is here", () => {
+  function timedDraft() {
+    const { room, deps } = newRoom();
+    const a = room.join({ name: "A" });
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "addBot" });
+    send(room, a.playerId, { t: "config", draft: { pickTimerSec: 30 } });
+    send(room, a.playerId, { t: "setReady", ready: true });
+    return { room, deps, a };
+  }
+
+  it("pauses when the last human leaves and gives the time back on return", () => {
+    const { room, deps, a } = timedDraft();
+    const deadline = room.nextAlarm()!;
+    expect(deadline).toBe(deps.now() + 30_000);
+
+    deps.advance(10_000);
+    room.setConnected(a.playerId, false);
+    expect(room.nextAlarm()).toBeNull();
+
+    // Two weeks later, nothing has been auto-picked.
+    deps.advance(14 * 24 * 3_600_000);
+    expect(room.tick()).toBe(false);
+    expect(room.state.draft!.picks[a.playerId]).toHaveLength(0);
+
+    room.join({ playerId: a.playerId, secret: room.state.secrets[a.playerId] });
+    expect(room.nextAlarm()).toBe(deps.now() + 20_000);
+    deps.advance(20_000);
+    expect(room.tick()).toBe(true);
+    expect(room.state.draft!.picks[a.playerId]).toHaveLength(1);
+  });
+
+  it("syncs connection flags with the sockets actually present", () => {
+    const { room, a } = timedDraft();
+    expect(room.syncConnections(new Set())).toBe(true);
+    expect(room.state.players.find((p) => p.id === a.playerId)?.connected).toBe(false);
+    expect(room.nextAlarm()).toBeNull();
+    expect(room.syncConnections(new Set())).toBe(false);
+    expect(room.syncConnections(new Set([a.playerId]))).toBe(true);
+    expect(room.nextAlarm()).not.toBeNull();
   });
 });

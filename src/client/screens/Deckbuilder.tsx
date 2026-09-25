@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useStore } from "../store";
 import { NameEditor, TopBar } from "../components/TopBar";
+import { Tooltip } from "../components/Tooltip";
 import { CardView } from "../components/CardView";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import type { BasicCounts, BasicLand, CardData, CardInstance, CardMap, Color, DeckState } from "../../shared/types";
@@ -77,6 +78,9 @@ export function Deckbuilder() {
   const [dragging, setDragging] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [zoom, setZoom] = useState<{ area: Area; key: string } | null>(null);
+  // Hover hints teach right-click/drag. Each section stops showing them once you've moved a card
+  // out of it: taking a card from the pool doesn't mean you know how to put one back.
+  const [learned, setLearned] = useState<Record<Area, boolean>>({ main: false, side: false });
 
   const server = view.deck!;
   // Optimistic local copy until the server echoes it back (or 3s pass, e.g. after a rejected change).
@@ -109,6 +113,7 @@ export function Deckbuilder() {
     const main = deck.main.filter((x) => x !== iid);
     const side = deck.side.filter((x) => x !== iid);
     (to === "main" ? main : side).push(iid);
+    setLearned((l) => ({ ...l, [to === "main" ? "side" : "main"]: true }));
     commit({ ...deck, main, side });
   };
 
@@ -264,6 +269,8 @@ export function Deckbuilder() {
             cardWidth={cardW}
             dragging={dragging}
             setDragging={setDragging}
+            locked={deck.ready}
+            hints={!learned.main}
           />
           <CardArea
             title={`Pool / sideboard · ${deck.side.length}`}
@@ -279,6 +286,8 @@ export function Deckbuilder() {
             dragging={dragging}
             setDragging={setDragging}
             filter={colorFilter}
+            locked={deck.ready}
+            hints={!learned.side}
           />
         </div>
         <aside className="db-side panel scroll">
@@ -330,6 +339,32 @@ interface CardAreaProps {
   filter?: Set<Color | "C">;
   /** Rendered at the right end of the section's title row. */
   extra?: ReactNode;
+  /** Deck is readied: moves are refused until the player unreadies. */
+  locked: boolean;
+  /** Show the right-click/drag hover hint (the "locked" hint always shows). */
+  hints: boolean;
+}
+
+/** Hover hint on each card, so first-timers find right-click and drag. */
+function CardHint({ area, locked }: { area: Area; locked: boolean }) {
+  if (locked) {
+    return (
+      <>
+        Your deck is locked in. <b>Unready</b> to make changes.
+      </>
+    );
+  }
+  const inDeck = area === "main";
+  return (
+    <div className="tip-keys">
+      <b>Right-click</b>
+      <span>{inDeck ? "move back to the pool" : "add to your deck"}</span>
+      <b>Drag</b>
+      <span>{inDeck ? "into the pool" : "into the deck"}</span>
+      <b>Click</b>
+      <span>select · click again to zoom</span>
+    </div>
+  );
 }
 
 /** Cards of one area split into mana-value columns + a lands column, each sorted by colour then name. */
@@ -356,9 +391,10 @@ function layoutArea(ids: string[], instances: Record<string, CardInstance>, card
   return { cols, lands };
 }
 
-function CardArea({ title, area, ids, instances, cards, onMove, onClickCard, onMoveOther, selected, cardWidth, dragging, setDragging, filter, extra }: CardAreaProps) {
+function CardArea({ title, area, ids, instances, cards, onMove, onClickCard, onMoveOther, selected, cardWidth, dragging, setDragging, filter, extra, locked, hints }: CardAreaProps) {
   const [over, setOver] = useState(false);
   const columns = useMemo(() => layoutArea(ids, instances, cards, filter), [ids, instances, cards, filter]);
+  const hint = locked || hints ? <CardHint area={area} locked={locked} /> : null;
 
   return (
     <section
@@ -389,25 +425,26 @@ function CardArea({ title, area, ids, instances, cards, onMove, onClickCard, onM
                 const inst = instances[iid];
                 const isSel = selected === iid;
                 return (
-                  <div
-                    key={iid}
-                    data-iid={iid}
-                    className={`db-card${isSel ? " is-selected" : ""}`}
-                    style={{ "--k": k } as React.CSSProperties}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("text/plain", iid);
-                      setDragging(iid);
-                    }}
-                    onDragEnd={() => setDragging(null)}
-                    onClick={() => onClickCard(iid, area)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      onMoveOther(iid);
-                    }}
-                  >
-                    <CardView card={cards[inst.cardId]} foil={inst.foil} width={cardWidth} glow={false} selected={isSel} />
-                  </div>
+                  <Tooltip key={iid} follow placement="right" delay={500} content={hint}>
+                    <div
+                      data-iid={iid}
+                      className={`db-card${isSel ? " is-selected" : ""}`}
+                      style={{ "--k": k } as React.CSSProperties}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", iid);
+                        setDragging(iid);
+                      }}
+                      onDragEnd={() => setDragging(null)}
+                      onClick={() => onClickCard(iid, area)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        onMoveOther(iid);
+                      }}
+                    >
+                      <CardView card={cards[inst.cardId]} foil={inst.foil} width={cardWidth} glow={false} selected={isSel} />
+                    </div>
+                  </Tooltip>
                 );
               })}
             </div>

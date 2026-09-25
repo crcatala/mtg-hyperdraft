@@ -1,6 +1,6 @@
 // WebSocket connection to the room Durable Object with automatic reconnect.
 
-import type { ClientMessage, ServerMessage } from "../shared/protocol";
+import { CLOSE, type ClientMessage, type ServerMessage } from "../shared/protocol";
 import { loadIdentity, loadName, saveIdentity } from "./identity";
 import { useStore } from "./store";
 
@@ -8,37 +8,42 @@ let socket: WebSocket | null = null;
 let retry = 0;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let currentCode: string | null = null;
+let claim: string | null = null;
 let queue: string[] = [];
 
-export async function createRoom(): Promise<string> {
-  const res = await fetch("/api/rooms", { method: "POST" });
-  const body = (await res.json()) as { code?: string; error?: string };
-  if (!res.ok || !body.code) throw new Error(body.error ?? "Could not create a room.");
-  return body.code;
-}
+const CLOSE_MESSAGES: Record<number, string> = {
+  [CLOSE.notFound]: "This room doesn't exist. Check the code?",
+  [CLOSE.deleted]: "This room was deleted.",
+  [CLOSE.offline]: "Online rooms are turned off right now.",
+};
 
 export async function roomExists(code: string): Promise<boolean> {
   const res = await fetch(`/api/rooms/${encodeURIComponent(code)}/info`);
   return res.ok;
 }
 
-export function connect(code: string) {
-  if (currentCode === code && socket && socket.readyState <= WebSocket.OPEN) return;
+/** Connects to a room. `claimSeat` takes over that free seat (after the server offered it). */
+export function connect(code: string, claimSeat?: string) {
+  if (!claimSeat && currentCode === code && socket && socket.readyState <= WebSocket.OPEN) return;
   disconnect();
   currentCode = code;
+  claim = claimSeat ?? null;
   retry = 0;
+  useStore.setState({ mode: "online", sendImpl: sendRaw, claimSeats: [] });
   open();
 }
 
 export function disconnect() {
   currentCode = null;
+  claim = null;
+  queue = [];
   clearTimeout(retryTimer);
   if (socket) {
     socket.onclose = null;
     socket.close();
     socket = null;
   }
-  useStore.setState({ status: "idle", view: null, fatal: null, cards: {} });
+  useStore.setState({ status: "idle", view: null, fatal: null, cards: {}, claimSeats: [] });
 }
 
 function open() {
@@ -50,6 +55,7 @@ function open() {
     params.set("pid", id.pid);
     params.set("secret", id.secret);
   }
+  if (claim) params.set("claim", claim);
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/api/rooms/${code}/ws?${params}`);
   socket = ws;
@@ -57,6 +63,13 @@ function open() {
   let welcomed = false;
   let refusal: string | null = null;
   useStore.setState({ status: retry === 0 ? "connecting" : "reconnecting" });
+
+  const stop = (update: Partial<ReturnType<typeof useStore.getState>>) => {
+    ws.onclose = null;
+    ws.close();
+    socket = null;
+    useStore.setState(update);
+  };
 
   ws.onopen = () => {
     retry = 0;
@@ -73,6 +86,7 @@ function open() {
     switch (msg.t) {
       case "welcome":
         welcomed = true;
+        claim = null;
         saveIdentity(msg.code, { pid: msg.you, secret: msg.secret });
         break;
       case "state":
@@ -84,14 +98,19 @@ function open() {
       case "drag":
         useStore.setState((s) => ({ drags: { ...s.drags, [msg.id]: { by: msg.by, x: msg.x, y: msg.y, at: performance.now() } } }));
         break;
+      case "claim":
+        // The game started without us (or we're on a new device): show the seat picker.
+        stop({ status: "claim", claimSeats: msg.seats });
+        break;
+      case "closed":
+        // Final: don't wait for the close event (it can trail the message by seconds).
+        stop({ status: "failed", fatal: msg.message || CLOSE_MESSAGES[msg.code] || "This room is no longer available." });
+        break;
       case "error":
         if (!welcomed) {
           // Refused join: stop here rather than waiting for (or retrying after) the close.
           refusal = msg.message;
-          ws.onclose = null;
-          ws.close();
-          socket = null;
-          useStore.setState({ status: "failed", fatal: refusal });
+          stop({ status: "failed", fatal: refusal });
           break;
         }
         store.toast(msg.message, "error");
@@ -103,9 +122,9 @@ function open() {
 
   ws.onclose = (event) => {
     socket = null;
-    // Refused joins (4403/4404, or an error before welcome) are final — don't hammer the room.
-    if (refusal || event.code === 4403 || event.code === 4404) {
-      useStore.setState({ status: "failed", fatal: refusal ?? "Could not join this room." });
+    // 4xxx closes are the server saying "don't come back" (refused, missing, deleted, offline).
+    if (refusal || (event.code >= 4000 && event.code < 5000)) {
+      useStore.setState({ status: "failed", fatal: refusal ?? CLOSE_MESSAGES[event.code] ?? "Could not join this room." });
       return;
     }
     if (!currentCode) return;
@@ -120,5 +139,3 @@ export function sendRaw(msg: ClientMessage) {
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(text);
   else if (msg.t !== "drag") queue.push(text);
 }
-
-useStore.setState({ sendImpl: sendRaw });

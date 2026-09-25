@@ -1,50 +1,91 @@
 // One Durable Object per room. Thin shell around the pure `Room` engine:
-// websockets (hibernation API), persistence to DO storage, alarms for pick timers, and cube imports.
+// websockets (hibernation API), persistence to DO storage, alarms for pick timers, cube imports,
+// and summaries pushed to the invite that owns the room ("My rooms").
 
 import { DurableObject } from "cloudflare:workers";
-import type { Env } from "./index";
-import { clientMessageSchema, type ServerMessage } from "../shared/protocol";
-import { createRoomState, Room, RoomError, type ImportResult } from "../shared/room";
-import type { BasicLand, CardData, CardMap, RoomState } from "../shared/types";
-import { BASIC_NAMES } from "../shared/types";
-import { parseImport, type ImportEntry } from "../shared/importParser";
-import { fetchCubeCobra, resolveEntries } from "../shared/cardSources";
+import { inviteStub, type Env } from "./env";
+import { CLOSE, clientMessageSchema, type ServerMessage } from "../shared/protocol";
+import { createRoomState, Room, RoomError, SeatClaimNeeded } from "../shared/room";
+import type { CardData, CardMap, RoomState } from "../shared/types";
+import { importCube } from "../shared/importCube";
 
 interface Attachment {
   playerId: string;
 }
 
+/** The last summary sent to the invite ledger, so unchanged summaries aren't re-sent. */
+interface Pushed {
+  key: string;
+  at: number;
+}
+
 const CARD_CHUNK = 150; // Cards per storage key (values must stay well under 2 MB).
+/** Activity alone (no summary change) refreshes "last active" at most this often. */
+const ACTIVITY_PUSH_MS = 30 * 60 * 1000;
+/** If a pick deadline has passed but a tick couldn't advance the draft, retry this much later. */
+const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
 
 export class RoomDurableObject extends DurableObject<Env> {
   private room: Room | null = null;
+  private pushed: Pushed = { key: "", at: 0 };
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    // With hibernation the constructor runs on every wake-up, so keep this to one storage read.
+    // With hibernation the constructor runs on every wake-up, so keep this to a couple of reads.
     ctx.blockConcurrencyWhile(async () => {
-      const state = await ctx.storage.get<RoomState>("state");
+      const head = await ctx.storage.get<unknown>(["state", "cardChunks", "pushed"]);
+      const state = head.get("state") as RoomState | undefined;
       if (!state) return;
-      const chunks = (await ctx.storage.get<number>("cardChunks")) ?? 0;
+      const chunks = (head.get("cardChunks") as number | undefined) ?? 0;
+      this.pushed = (head.get("pushed") as Pushed | undefined) ?? this.pushed;
       const cards: CardMap = {};
       if (chunks > 0) {
         const stored = await ctx.storage.get<CardData[]>(Array.from({ length: chunks }, (_, i) => `cards:${i}`));
         for (const list of stored.values()) for (const c of list) cards[c.id] = c;
       }
       this.room = new Room(state, cards, { now: () => Date.now(), rng: Math.random });
+
+      // Sockets can drop without close events (deploys, restarts). Trust the sockets we still hold.
+      const here = new Set(ctx.getWebSockets().map((ws) => (ws.deserializeAttachment() as Attachment | null)?.playerId ?? ""));
+      if (this.room.syncConnections(here)) {
+        await this.saveState();
+        await this.scheduleAlarm();
+        this.broadcastState();
+      }
     });
   }
+
+  // --- RPC (called by the Worker and the invite ledger) ------------------------------------------
+
+  /** Creates the room. Returns false if this code is already in use. */
+  async init(code: string, inviteId: string): Promise<boolean> {
+    if (this.room) return false;
+    this.room = new Room(createRoomState(code, Date.now(), inviteId), {}, { now: () => Date.now(), rng: Math.random });
+    await this.saveState();
+    return true;
+  }
+
+  /** Deletes the room: closes sockets and wipes storage, after which Cloudflare drops the object. */
+  async destroy(): Promise<void> {
+    for (const ws of this.ctx.getWebSockets()) {
+      this.sendTo(ws, { t: "closed", code: CLOSE.deleted, message: "This room was deleted." });
+      try {
+        ws.close(CLOSE.deleted, "room deleted");
+      } catch {
+        /* already closing */
+      }
+    }
+    this.room = null;
+    this.pushed = { key: "", at: 0 };
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+  }
+
+  // --- HTTP + websockets -----------------------------------------------------------------------
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const [code, action] = url.pathname.split("/").filter(Boolean);
-
-    if (action === "init" && request.method === "POST") {
-      if (this.room) return new Response("exists", { status: 409 });
-      this.room = new Room(createRoomState(code, Date.now()), {}, { now: () => Date.now(), rng: Math.random });
-      await this.saveState();
-      return new Response("created", { status: 201 });
-    }
 
     if (action === "info") {
       if (!this.room) return Response.json({ error: "No such room." }, { status: 404 });
@@ -60,7 +101,7 @@ export class RoomDurableObject extends DurableObject<Env> {
 
       if (!this.room) {
         this.sendTo(server, { t: "error", message: `Room ${code} doesn't exist. Check the code?` });
-        server.close(4404, "no such room");
+        server.close(CLOSE.notFound, "no such room");
         return new Response(null, { status: 101, webSocket: client });
       }
 
@@ -69,16 +110,24 @@ export class RoomDurableObject extends DurableObject<Env> {
           playerId: url.searchParams.get("pid") ?? undefined,
           secret: url.searchParams.get("secret") ?? undefined,
           name: url.searchParams.get("name") ?? undefined,
+          claim: url.searchParams.get("claim") ?? undefined,
         });
         server.serializeAttachment({ playerId: joined.playerId } satisfies Attachment);
         this.sendTo(server, { t: "welcome", you: joined.playerId, secret: joined.secret, code: this.room.state.code });
         this.sendTo(server, { t: "cards", cards: this.room.cards });
         await this.saveState();
         this.broadcastState();
+        await this.scheduleAlarm();
+        await this.pushSummary(true);
       } catch (err) {
-        const message = err instanceof RoomError ? err.message : "Could not join the room.";
-        this.sendTo(server, { t: "error", message });
-        server.close(4403, "join refused");
+        if (err instanceof SeatClaimNeeded) {
+          this.sendTo(server, { t: "claim", seats: err.seats });
+          server.close(CLOSE.claim, "pick a seat");
+        } else {
+          const message = err instanceof RoomError ? err.message : "Could not join the room.";
+          this.sendTo(server, { t: "error", message });
+          server.close(CLOSE.refused, "join refused");
+        }
       }
       return new Response(null, { status: 101, webSocket: client });
     }
@@ -108,6 +157,7 @@ export class RoomDurableObject extends DurableObject<Env> {
       await this.saveState();
       this.broadcastState();
       await this.scheduleAlarm();
+      await this.pushSummary(true);
     }
     if (result.importSource) void this.runImport(result.importSource);
   }
@@ -127,63 +177,38 @@ export class RoomDurableObject extends DurableObject<Env> {
     if (!stillConnected && this.room.setConnected(att.playerId, false)) {
       await this.saveState();
       this.broadcastState();
+      // The last human leaving pauses the pick clock, which clears the alarm.
+      await this.scheduleAlarm();
+      await this.pushSummary(true);
     }
   }
 
   async alarm(): Promise<void> {
     if (!this.room) return;
-    if (this.room.tick()) {
+    const progressed = this.room.tick();
+    if (progressed) {
       await this.saveState();
       this.broadcastState();
+      await this.pushSummary(false);
     }
-    await this.scheduleAlarm();
+    await this.scheduleAlarm(progressed);
   }
 
   // --- imports --------------------------------------------------------------------------------
 
   private async runImport(source: string) {
     const room = this.room!;
-    const progress = async (message: string) => {
-      room.setImportProgress(message);
-      this.broadcastState();
-    };
     try {
-      const parsed = parseImport(source);
-      let name: string;
-      let entries: ImportEntry[];
-      let warnings: string[] = [];
-      if (parsed.kind === "cubecobra") {
-        await progress("Fetching cube from CubeCobra…");
-        const cube = await fetchCubeCobra(parsed.id, fetch);
-        name = cube.name;
-        entries = cube.entries;
-      } else {
-        name = "Custom list";
-        entries = parsed.entries;
-        warnings = parsed.warnings;
-      }
-      if (entries.length === 0) throw new Error("No cards found in that list.");
-
-      const res = await resolveEntries(entries, fetch, { onProgress: (m) => void progress(m) });
-      const basicEntries = (Object.keys(BASIC_NAMES) as BasicLand[]).map((b) => ({ name: BASIC_NAMES[b], count: 1 }));
-      const basics = await resolveEntries(basicEntries, fetch, { delayMs: 100 });
-      const basicIds: ImportResult["basics"] = {};
-      for (const card of basics.cards) {
-        const key = (Object.keys(BASIC_NAMES) as BasicLand[]).find((b) => BASIC_NAMES[b] === card.name);
-        if (key) basicIds[key] = card.id;
-      }
-
-      if (res.pool.length === 0) throw new Error("None of those cards were found on Scryfall.");
-      for (const k of Object.keys(room.cards)) delete room.cards[k];
-      room.applyImport({
-        name: parsed.kind === "list" ? `${name} (${res.pool.length} cards)` : name,
-        source: parsed.kind === "cubecobra" ? `cubecobra:${parsed.id}` : "pasted list",
-        cards: [...res.cards, ...basics.cards],
-        pool: res.pool,
-        notFound: res.notFound,
-        warnings: [...warnings, ...res.warnings],
-        basics: basicIds,
-      });
+      const result = await importCube(
+        source,
+        fetch,
+        (message) => {
+          room.setImportProgress(message);
+          this.broadcastState();
+        },
+        (path) => this.env.ASSETS.fetch(new URL(path, "https://assets.local")),
+      );
+      room.applyImport(result);
       await this.saveCards();
     } catch (err) {
       room.failImport(err instanceof Error ? err.message : "Import failed.");
@@ -191,6 +216,7 @@ export class RoomDurableObject extends DurableObject<Env> {
     await this.saveState();
     this.broadcast({ t: "cards", cards: room.cards });
     this.broadcastState();
+    await this.pushSummary(true);
   }
 
   // --- persistence + messaging ----------------------------------------------------------------
@@ -209,10 +235,47 @@ export class RoomDurableObject extends DurableObject<Env> {
     if (old > count) await this.ctx.storage.delete(Array.from({ length: old - count }, (_, i) => `cards:${count + i}`));
   }
 
-  private async scheduleAlarm() {
-    const at = this.room?.nextAlarm() ?? null;
-    if (at === null) await this.ctx.storage.deleteAlarm();
-    else await this.ctx.storage.setAlarm(Math.max(at, Date.now() + 50));
+  /**
+   * Keeps the storage alarm in line with the next pick deadline. Only writes when it changes
+   * (every setAlarm/deleteAlarm is a billed write). `progressed` = false means the last tick did
+   * nothing: if a deadline is still overdue, back off instead of re-firing every few milliseconds.
+   */
+  private async scheduleAlarm(progressed = true) {
+    const current = await this.ctx.storage.getAlarm();
+    let next = this.room?.nextAlarm() ?? null;
+    if (next !== null) {
+      const now = Date.now();
+      if (!progressed && next <= now) {
+        console.warn(`Room ${this.room?.state.code}: pick deadline overdue but nothing advanced; backing off.`);
+        next = now + STUCK_ALARM_BACKOFF_MS;
+      } else {
+        next = Math.max(next, now + 50);
+      }
+    }
+    if (next === current) return;
+    if (next === null) await this.ctx.storage.deleteAlarm();
+    else await this.ctx.storage.setAlarm(next);
+  }
+
+  /**
+   * Tells the invite ledger about this room when its summary changes (players, phase, cube), or
+   * on activity at most every ACTIVITY_PUSH_MS. Best effort: failures only cost freshness.
+   */
+  private async pushSummary(activity: boolean) {
+    const room = this.room;
+    const inviteId = room?.state.inviteId;
+    if (!room || !inviteId) return;
+    const summary = room.summary();
+    const key = JSON.stringify(summary);
+    const now = Date.now();
+    if (key === this.pushed.key && !(activity && now - this.pushed.at >= ACTIVITY_PUSH_MS)) return;
+    this.pushed = { key, at: now };
+    try {
+      await this.ctx.storage.put("pushed", this.pushed);
+      await inviteStub(this.env, inviteId).updateRoom(inviteId, room.state.code, summary, now);
+    } catch (err) {
+      console.error(`Room ${room.state.code}: could not update invite ledger`, err);
+    }
   }
 
   private sendTo(ws: WebSocket, msg: ServerMessage) {
