@@ -21,8 +21,8 @@ Durable Objects inside `workerd` on your machine. The first `npm run dev` copies
 `.dev.vars` (local secrets, gitignored), which includes a dev invite: open
 <http://localhost:3000/?invite=dev-invite-key> once to be able to host online rooms locally.
 
-**Solo playtest:** click **Play solo vs bots** on the home page, then **Quick start** (imports the Vintage
-Cube and readies you up). Press <kbd>`</kbd> (backtick) for the debug console: **Skip to table** jumps
+**Solo playtest:** click **Play solo vs bots** on the home page, then **Quick start** (loads the bundled
+Hypercube and readies you up). Press <kbd>`</kbd> (backtick) for the debug console: **Skip to table** jumps
 straight to the tabletop with an auto-built deck. The same tools work in online rooms.
 
 **Multiple players on one machine:** open the room link with `?as=2`, `?as=3`… in other tabs — each alias
@@ -48,7 +48,8 @@ src/
     table.ts         tabletop actions + per-player views that hide hands/libraries/face-down cards
     room.ts          whole room state machine: lobby → drafting → deckbuilding → playing
     protocol.ts      zod-validated client messages, server messages, per-player RoomView
-    importCube.ts    import pipeline (CubeCobra/list → Scryfall), shared by the DO and solo mode
+    importCube.ts    import pipeline (preset/CubeCobra/list → Scryfall), shared by the DO and solo mode
+    presets.ts       cubes bundled as static snapshots (public/presets/*.json)
     roomCode.ts      signed room codes (HMAC check characters)
     invites.ts       invite codes, quotas, "My rooms" ledger, idle expiry
   worker/        Cloudflare Worker + Durable Objects
@@ -67,7 +68,10 @@ src/
 - **The server is authoritative.** Each player only ever receives their own view: other packs, other
   hands, libraries and face-down cards are stripped server-side (`tableViewFor`, `Room.viewFor`).
 - **Card data** is fetched once per lobby from Scryfall (and CubeCobra for cube links) and stored in the
-  room's Durable Object. **Images** are loaded lazily by each browser straight from Scryfall's CDN; until
+  room's Durable Object. The **bundled Hypercube** (`public/presets/hypercube.json`, ~80 KB gzipped) skips
+  those lookups: one click, loaded as a static file by the browser (solo) or through the Worker's `ASSETS`
+  binding (online rooms). Refresh it, or add presets to `src/shared/presets.ts`, with
+  `npm run presets:build`. **Images** are loaded lazily by each browser straight from Scryfall's CDN; until
   an image arrives, cards are drawn from their text (name, cost, type, rules, P/T).
 - **Reconnects:** your seat is remembered in `localStorage` per room, so refreshing or closing the tab
   rejoins the same seat. From another device or browser, a started game offers the seats nobody is using

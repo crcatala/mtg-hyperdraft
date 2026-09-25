@@ -14,7 +14,8 @@
     "test": "vitest run",
     "deploy": "vite build && wrangler deploy",
     "cf-typegen": "wrangler types",
-    "invite:new": "node scripts/new-invite.mjs"
+    "invite:new": "node scripts/new-invite.mjs",
+    "presets:build": "node scripts/build-presets.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",

@@ -1,15 +1,32 @@
-// Turns an import source (CubeCobra link or pasted list) into an ImportResult. Shared by the room
-// Durable Object and offline solo mode, which runs the same lookups straight from the browser
-// (Scryfall and CubeCobra both allow cross-origin requests).
+// Turns an import source (bundled preset, CubeCobra link or pasted list) into an ImportResult. Shared
+// by the room Durable Object and offline solo mode, which runs the same lookups straight from the
+// browser (Scryfall and CubeCobra both allow cross-origin requests).
 
 import type { BasicLand } from "./types";
 import { BASIC_NAMES } from "./types";
 import { parseImport, type ImportEntry } from "./importParser";
 import { fetchCubeCobra, resolveEntries, type FetchLike } from "./cardSources";
 import type { ImportResult } from "./room";
+import { checkPreset, presetFor, presetPath } from "./presets";
 
-/** Throws an Error with a player-facing message when the import fails. */
-export async function importCube(source: string, fetchFn: FetchLike, onProgress: (message: string) => void): Promise<ImportResult> {
+/**
+ * Throws an Error with a player-facing message when the import fails. `fetchAsset` loads the site's
+ * own static files (bundled presets): the browser can use plain fetch, the Worker uses its ASSETS binding.
+ */
+export async function importCube(
+  source: string,
+  fetchFn: FetchLike,
+  onProgress: (message: string) => void,
+  fetchAsset: (path: string) => Promise<Response> = fetchFn,
+): Promise<ImportResult> {
+  const preset = presetFor(source);
+  if (preset) {
+    onProgress(`Loading the bundled ${preset.name}…`);
+    const res = await fetchAsset(presetPath(preset));
+    if (!res.ok) throw new Error(`Couldn't load the bundled ${preset.name} (${res.status}).`);
+    return checkPreset(await res.json(), preset);
+  }
+
   const parsed = parseImport(source);
   let name: string;
   let entries: ImportEntry[];

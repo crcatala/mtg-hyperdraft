@@ -199,10 +199,15 @@ export class RoomDurableObject extends DurableObject<Env> {
   private async runImport(source: string) {
     const room = this.room!;
     try {
-      const result = await importCube(source, fetch, (message) => {
-        room.setImportProgress(message);
-        this.broadcastState();
-      });
+      const result = await importCube(
+        source,
+        fetch,
+        (message) => {
+          room.setImportProgress(message);
+          this.broadcastState();
+        },
+        (path) => this.env.ASSETS.fetch(new URL(path, "https://assets.local")),
+      );
       room.applyImport(result);
       await this.saveCards();
     } catch (err) {

@@ -4,6 +4,8 @@
   "main": "./src/worker/index.ts",
   "compatibility_date": "2026-09-01",
   "assets": {
+    // Lets the Worker and Durable Objects read static files (e.g. bundled preset cubes).
+    "binding": "ASSETS",
     // Built client (Vite output) is served as static assets; unknown paths fall back to index.html.
     "not_found_handling": "single-page-application",
     // API + websocket routes hit the Worker before static assets.

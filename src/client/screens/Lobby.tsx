@@ -5,7 +5,8 @@ import { CardView } from "../components/CardView";
 import type { DraftConfig, GameConfig, Player } from "../../shared/types";
 import { MAX_HUMANS, MAX_SEATS } from "../../shared/types";
 import { cardsNeeded } from "../../shared/draft";
-import { quickstart } from "../quickstart";
+import { quickstart, STARTER_CUBE } from "../quickstart";
+import { presetSource } from "../../shared/presets";
 
 const SAMPLE_CUBES = [
   { label: "Vintage Cube", value: "https://cubecobra.com/cube/list/vintage" },
@@ -38,7 +39,7 @@ export function Lobby() {
               </p>
             </div>
             <button className="btn primary big" disabled={importing || !!me?.ready} onClick={quickstart}>
-              {importing ? "Importing…" : "⚡ Quick start: Vintage Cube"}
+              {importing ? "Importing…" : `⚡ Quick start: ${STARTER_CUBE.name}`}
             </button>
           </section>
         )}
@@ -165,6 +166,17 @@ function CubePanel({ isHost }: { isHost: boolean }) {
         </div>
       ) : (
         <p className="muted">{isHost ? "Import a cube to draft from." : "Waiting for the host to import a cube…"}</p>
+      )}
+
+      {isHost && !cube && (
+        <div className="starter-cube">
+          <button className="btn violet" disabled={running} onClick={() => send({ t: "import", source: presetSource(STARTER_CUBE.id) })}>
+            ⚡ Use the {STARTER_CUBE.name}
+          </button>
+          <span className="faint small-print">
+            {STARTER_CUBE.cards} cards, bundled with the site so it loads instantly. Or import any cube below.
+          </span>
+        </div>
       )}
 
       {isHost && (

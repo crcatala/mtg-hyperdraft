@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import type { DebugCommand } from "../../shared/protocol";
-import { quickstart, SAMPLE_CUBE } from "../quickstart";
+import { quickstart, SAMPLE_CUBE, STARTER_CUBE } from "../quickstart";
 
 export function DebugConsole() {
   const open = useStore((s) => s.debug.open);
@@ -66,10 +66,10 @@ export function DebugConsole() {
               {view.phase === "lobby" && (
                 <>
                   <button className="btn small primary" onClick={quickstart} disabled={!isHost}>
-                    Solo quickstart (Vintage Cube + bots)
+                    Quickstart ({STARTER_CUBE.name} + bots)
                   </button>
                   <button className="btn small" onClick={() => send({ t: "import", source: SAMPLE_CUBE })} disabled={!isHost}>
-                    Import sample cube
+                    Import Vintage Cube (live lookup)
                   </button>
                   <button className="btn small" onClick={() => send({ t: "addBot" })} disabled={!isHost}>
                     Add bot

@@ -2,6 +2,8 @@ import type { InviteDurableObject } from "./inviteObject";
 import type { RoomDurableObject } from "./roomObject";
 
 export interface Env {
+  /** The built client (Workers Static Assets), including bundled preset cubes. */
+  ASSETS: Fetcher;
   /** One Durable Object per room, addressed by room code. */
   ROOMS: DurableObjectNamespace<RoomDurableObject>;
   /** One Durable Object per invite label: quotas, "My rooms" and lazy expiry. */

@@ -1844,3 +1844,14 @@ body.dragging * {
   flex-direction: column;
   gap: 8px;
 }
+.starter-cube {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.starter-cube .small-print {
+  flex: 1;
+  min-width: 180px;
+  margin: 0;
+}
