@@ -78,8 +78,9 @@ export function Deckbuilder() {
   const [dragging, setDragging] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [zoom, setZoom] = useState<{ area: Area; key: string } | null>(null);
-  // Hover hints teach right-click/drag; once you've moved a card you know, so they stop.
-  const [learned, setLearned] = useState(false);
+  // Hover hints teach right-click/drag. Each section stops showing them once you've moved a card
+  // out of it: taking a card from the pool doesn't mean you know how to put one back.
+  const [learned, setLearned] = useState<Record<Area, boolean>>({ main: false, side: false });
 
   const server = view.deck!;
   // Optimistic local copy until the server echoes it back (or 3s pass, e.g. after a rejected change).
@@ -112,7 +113,7 @@ export function Deckbuilder() {
     const main = deck.main.filter((x) => x !== iid);
     const side = deck.side.filter((x) => x !== iid);
     (to === "main" ? main : side).push(iid);
-    setLearned(true);
+    setLearned((l) => ({ ...l, [to === "main" ? "side" : "main"]: true }));
     commit({ ...deck, main, side });
   };
 
@@ -269,7 +270,7 @@ export function Deckbuilder() {
             dragging={dragging}
             setDragging={setDragging}
             locked={deck.ready}
-            hints={!learned}
+            hints={!learned.main}
           />
           <CardArea
             title={`Pool / sideboard · ${deck.side.length}`}
@@ -286,7 +287,7 @@ export function Deckbuilder() {
             setDragging={setDragging}
             filter={colorFilter}
             locked={deck.ready}
-            hints={!learned}
+            hints={!learned.side}
           />
         </div>
         <aside className="db-side panel scroll">
