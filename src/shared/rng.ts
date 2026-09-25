@@ -22,10 +22,11 @@ export function shuffle<T>(items: T[], rng: Rng): T[] {
   return out;
 }
 
+/** No 0/O/1/I/L to keep share codes easy to read aloud. */
+export const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
 export function randomCode(rng: Rng, length = 6): string {
-  // No 0/O/1/I/L to keep share codes easy to read aloud.
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   let out = "";
-  for (let i = 0; i < length; i++) out += alphabet[Math.floor(rng() * alphabet.length)];
+  for (let i = 0; i < length; i++) out += CODE_ALPHABET[Math.floor(rng() * CODE_ALPHABET.length)];
   return out;
 }

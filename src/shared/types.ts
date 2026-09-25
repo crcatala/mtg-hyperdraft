@@ -193,6 +193,8 @@ export interface DraftState {
   burned: string[];
   log: PickRecord[];
   done: boolean;
+  /** Set while the pick clock is paused (no humans connected). Deadlines are shifted on resume. */
+  pausedAt?: number;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -283,6 +285,8 @@ export interface TableState {
 export interface RoomState {
   code: string;
   createdAt: number;
+  /** Label of the invite that created this room (online rooms only). Never sent to clients. */
+  inviteId?: string;
   phase: Phase;
   players: Player[];
   /** Reconnect secrets per player id. Never sent to clients. */

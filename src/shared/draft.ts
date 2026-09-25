@@ -181,8 +181,9 @@ export function autoPick(draft: DraftState, seat: number, env: DraftEnv): void {
 export function advance(draft: DraftState, isBot: (seat: number) => boolean, env: DraftEnv): boolean {
   let changed = false;
   for (let guard = 0; guard < 10_000 && !draft.done; guard++) {
+    const clockRunning = draft.pausedAt === undefined;
     const seat = draft.queues.findIndex(
-      (q, s) => q.length > 0 && (isBot(s) || (q[0].deadline !== undefined && q[0].deadline <= env.now)),
+      (q, s) => q.length > 0 && (isBot(s) || (clockRunning && q[0].deadline !== undefined && q[0].deadline <= env.now)),
     );
     if (seat < 0) break;
     autoPick(draft, seat, env);
@@ -192,10 +193,27 @@ export function advance(draft: DraftState, isBot: (seat: number) => boolean, env
 }
 
 export function nextDeadline(draft: DraftState): number | null {
+  if (draft.pausedAt !== undefined) return null;
   let min: number | null = null;
   for (const q of draft.queues) {
     const d = q[0]?.deadline;
     if (d !== undefined && (min === null || d < min)) min = d;
   }
   return min;
+}
+
+/** Stops pick timers from expiring (e.g. everyone left). Returns true if the clock was running. */
+export function pauseClock(draft: DraftState, now: number): boolean {
+  if (draft.pausedAt !== undefined || draft.done) return false;
+  draft.pausedAt = now;
+  return true;
+}
+
+/** Restarts pick timers, giving back the time spent paused. Returns true if the clock was paused. */
+export function resumeClock(draft: DraftState, now: number): boolean {
+  if (draft.pausedAt === undefined) return false;
+  const pausedFor = Math.max(0, now - draft.pausedAt);
+  for (const queue of draft.queues) for (const pack of queue) if (pack.deadline !== undefined) pack.deadline += pausedFor;
+  delete draft.pausedAt;
+  return true;
 }

@@ -4,10 +4,11 @@
 import type { ClientMessage, CubeSummary, DebugCommand, DraftView, RoomView, ServerMessage } from "./protocol";
 import type { CardData, CardInstance, CardMap, DeckState, LobbyConfig, Player, RoomState, BasicLand } from "./types";
 import { DEFAULT_CONFIG, MAX_HUMANS, MAX_SEATS } from "./types";
-import { advance, autoPick, createDraft, DraftError, makePick, nextDeadline, seatOf, turnCounts, validatePool, type DraftEnv } from "./draft";
+import { advance, autoPick, createDraft, DraftError, makePick, nextDeadline, pauseClock, resumeClock, seatOf, turnCounts, validatePool, type DraftEnv } from "./draft";
 import { autoBuild, deckSize, newDeck } from "./deck";
 import { applyTableAction, createTable, TableError, tableViewFor, type TableEnv } from "./table";
 import { randomCode, type Rng } from "./rng";
+import type { RoomSummary } from "./invites";
 
 export interface RoomDeps {
   now: () => number;
@@ -35,12 +36,28 @@ export interface HandleResult {
 
 export class RoomError extends Error {}
 
+/** Joining a game in progress without a valid seat secret: the player must pick an empty seat. */
+export class SeatClaimNeeded extends RoomError {
+  constructor(public seats: { id: string; name: string }[]) {
+    super("This game has already started. Pick your seat to rejoin.");
+  }
+}
+
+export interface JoinOptions {
+  playerId?: string;
+  secret?: string;
+  name?: string;
+  /** Take over this disconnected seat (trust-based rejoin from a new device or browser). */
+  claim?: string;
+}
+
 const BOT_NAMES = ["Ava", "Blix", "Cogsworth", "Dross", "Echo", "Fizz", "Gloom", "Hex"];
 
-export function createRoomState(code: string, now: number): RoomState {
+export function createRoomState(code: string, now: number, inviteId?: string): RoomState {
   return {
     code,
     createdAt: now,
+    ...(inviteId ? { inviteId } : {}),
     phase: "lobby",
     players: [],
     secrets: {},
@@ -110,13 +127,14 @@ export class Room {
 
   // --- membership -----------------------------------------------------------------------------
 
-  join(opts: { playerId?: string; secret?: string; name?: string }): { playerId: string; secret: string } {
+  join(opts: JoinOptions): { playerId: string; secret: string } {
     const existing = opts.playerId ? this.player(opts.playerId) : undefined;
     if (existing && !existing.isBot && this.state.secrets[existing.id] === opts.secret) {
       existing.connected = true;
+      this.syncDraftClock();
       return { playerId: existing.id, secret: opts.secret! };
     }
-    if (this.state.phase !== "lobby") throw new RoomError("This game has already started.");
+    if (this.state.phase !== "lobby") return this.claimSeat(opts.claim);
     if (this.humans().length >= MAX_HUMANS) throw new RoomError(`This lobby is full (${MAX_HUMANS} players max).`);
     if (this.state.players.length >= MAX_SEATS) throw new RoomError("This lobby is full.");
 
@@ -140,6 +158,31 @@ export class Room {
     return { playerId, secret };
   }
 
+  /** Humans whose seat nobody is using right now: the seats a late (re)joiner may take over. */
+  claimableSeats(): { id: string; name: string }[] {
+    return this.humans()
+      .filter((p) => !p.connected)
+      .map((p) => ({ id: p.id, name: p.name }));
+  }
+
+  private claimSeat(claim: string | undefined): { playerId: string; secret: string } {
+    const seats = this.claimableSeats();
+    if (!claim) {
+      if (seats.length === 0) throw new RoomError("This game has already started and every seat is in use.");
+      throw new SeatClaimNeeded(seats);
+    }
+    const player = this.player(claim);
+    if (!player || player.isBot) throw new RoomError("That seat doesn't exist.");
+    if (player.connected) throw new RoomError(`Someone is already playing as ${player.name}.`);
+    // Trust-based: whoever picks a free seat gets it. A fresh secret means the old device's copy
+    // no longer works, so one seat can't be driven from two places.
+    const secret = Array.from({ length: 4 }, () => randomCode(this.deps.rng, 8)).join("");
+    this.state.secrets[player.id] = secret;
+    player.connected = true;
+    this.syncDraftClock();
+    return { playerId: player.id, secret };
+  }
+
   setConnected(playerId: string, connected: boolean): boolean {
     const p = this.player(playerId);
     if (!p || p.connected === connected) return false;
@@ -152,7 +195,26 @@ export class Room {
         next.isHost = true;
       }
     }
+    this.syncDraftClock();
     return true;
+  }
+
+  /**
+   * Marks exactly the given humans as connected (used when a room wakes up and its sockets may
+   * have been dropped without close events, e.g. after a deploy). Returns true if anything changed.
+   */
+  syncConnections(connected: Set<string>): boolean {
+    let changed = false;
+    for (const p of this.humans()) changed = this.setConnected(p.id, connected.has(p.id)) || changed;
+    return this.syncDraftClock() || changed;
+  }
+
+  /** Pick timers only run while at least one human is here, so an abandoned draft waits for you. */
+  private syncDraftClock(): boolean {
+    const draft = this.state.draft;
+    if (this.state.phase !== "drafting" || !draft) return false;
+    const anyoneHere = this.humans().some((p) => p.connected);
+    return anyoneHere ? resumeClock(draft, this.deps.now()) : pauseClock(draft, this.deps.now());
   }
 
   // --- messages -------------------------------------------------------------------------------
@@ -304,6 +366,7 @@ export class Room {
   }
 
   applyImport(res: ImportResult): void {
+    for (const id of Object.keys(this.cards)) delete this.cards[id];
     for (const card of res.cards) this.cards[card.id] = card;
     this.state.cube = {
       name: res.name,
@@ -434,6 +497,17 @@ export class Room {
   }
 
   // --- views ----------------------------------------------------------------------------------
+
+  /** What the "My rooms" list shows for this room. */
+  summary(): RoomSummary {
+    return {
+      phase: this.state.phase,
+      players: this.humans().map((p) => p.name),
+      bots: this.state.players.length - this.humans().length,
+      cubeName: this.state.cube?.name ?? null,
+      cardCount: this.state.cube?.pool.length ?? 0,
+    };
+  }
 
   cubeSummary(): CubeSummary | null {
     const cube = this.state.cube;
