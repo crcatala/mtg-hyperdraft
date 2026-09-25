@@ -6,6 +6,7 @@ import { saveName } from "../identity";
 export function TopBar({ title, children }: { title?: ReactNode; children?: ReactNode }) {
   const code = useStore((s) => s.view?.code);
   const status = useStore((s) => s.status);
+  const mode = useStore((s) => s.mode);
   const toast = useStore((s) => s.toast);
 
   const copyInvite = async () => {
@@ -27,12 +28,20 @@ export function TopBar({ title, children }: { title?: ReactNode; children?: Reac
       {title && <span className="topbar-title">{title}</span>}
       <div className="spacer" />
       {children}
-      {code && (
-        <span className="code-chip" onClick={copyInvite} title="Click to copy invite link">
-          {code}
+      {mode === "solo" ? (
+        <span className="conn open" title="Running in your browser — nothing is saved">
+          Solo · offline
         </span>
+      ) : (
+        <>
+          {code && (
+            <span className="code-chip" onClick={copyInvite} title="Click to copy invite link">
+              {code}
+            </span>
+          )}
+          <span className={`conn ${status}`}>{status === "open" ? "Live" : status}</span>
+        </>
       )}
-      <span className={`conn ${status}`}>{status === "open" ? "Live" : status}</span>
     </header>
   );
 }

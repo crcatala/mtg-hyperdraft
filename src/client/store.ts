@@ -4,7 +4,10 @@ import { create } from "zustand";
 import type { ClientMessage, RoomView } from "../shared/protocol";
 import type { CardMap } from "../shared/types";
 
-export type ConnStatus = "idle" | "connecting" | "open" | "reconnecting" | "failed";
+export type ConnStatus = "idle" | "connecting" | "open" | "reconnecting" | "failed" | "claim";
+
+/** "online": a room Durable Object over a websocket. "solo": the room engine running in this tab. */
+export type SessionMode = "online" | "solo";
 
 export interface Toast {
   id: number;
@@ -50,8 +53,11 @@ interface DebugState {
 }
 
 interface Store {
+  mode: SessionMode;
   status: ConnStatus;
   fatal: string | null;
+  /** Free seats offered when rejoining a started game without a valid seat secret. */
+  claimSeats: { id: string; name: string }[];
   view: RoomView | null;
   cards: CardMap;
   clockOffset: number;
@@ -74,8 +80,10 @@ interface Store {
 let toastId = 1;
 
 export const useStore = create<Store>((set, get) => ({
+  mode: "online",
   status: "idle",
   fatal: null,
+  claimSeats: [],
   view: null,
   cards: {},
   clockOffset: 0,

@@ -208,6 +208,7 @@
   gap: 18px;
   padding: 18px;
   align-items: start;
+  align-content: start;
 }
 @media (max-width: 1200px) {
   .lobby-grid {
@@ -1731,4 +1732,115 @@ body.dragging * {
 .db-card.is-selected,
 .db-card.is-selected * {
   cursor: zoom-in;
+}
+
+/* ---------- home: solo, invites, my rooms ---------- */
+
+.home .center-stage {
+  display: flex;
+  overflow-y: auto;
+}
+.home .home-hero {
+  margin: auto;
+}
+.home-note {
+  margin: -4px 0 0;
+}
+.home-invite-link {
+  align-self: center;
+}
+.home-blocker {
+  border-radius: 10px;
+  white-space: normal;
+  line-height: 1.4;
+}
+.link-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--violet-2);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.my-rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.my-rooms ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.my-room {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px 4px 4px 0;
+}
+.my-room:hover {
+  border-color: var(--line-2);
+}
+.my-room-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.my-room-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.my-room-code {
+  font-family: ui-monospace, Menlo, monospace;
+  letter-spacing: 0.12em;
+}
+.my-room-detail {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- solo + seat picker ---------- */
+
+.lobby-grid > .solo-banner {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  border-color: var(--violet);
+}
+.solo-banner h2 {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+.solo-banner p {
+  margin: 0;
+}
+.seat-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }

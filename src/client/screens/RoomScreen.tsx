@@ -15,6 +15,7 @@ export function RoomScreen({ code }: { code: string }) {
   const status = useStore((s) => s.status);
   const fatal = useStore((s) => s.fatal);
   const phase = useStore((s) => s.view?.phase);
+  const claimSeats = useStore((s) => s.claimSeats);
 
   useEffect(() => {
     if (!named) return;
@@ -23,6 +24,8 @@ export function RoomScreen({ code }: { code: string }) {
   }, [code, named]);
 
   if (!named) return <NamePrompt code={code} onDone={() => setNamed(true)} />;
+
+  if (status === "claim") return <SeatPicker code={code} seats={claimSeats} />;
 
   if (status === "failed") {
     return (
@@ -53,12 +56,46 @@ export function RoomScreen({ code }: { code: string }) {
 
   return (
     <>
+      <PhaseScreen />
+      {status !== "open" && <div className="reconnect-banner">Connection lost — reconnecting…</div>}
+    </>
+  );
+}
+
+/** The screen for the room's current phase. Shared by online rooms and solo mode. */
+export function PhaseScreen() {
+  const phase = useStore((s) => s.view?.phase);
+  return (
+    <>
       {phase === "lobby" && <Lobby />}
       {phase === "drafting" && <Draft />}
       {phase === "deckbuilding" && <Deckbuilder />}
       {phase === "playing" && <TableScreen />}
-      {status !== "open" && <div className="reconnect-banner">Connection lost — reconnecting…</div>}
     </>
+  );
+}
+
+/** Rejoining a started game without this browser's seat secret: pick which player you are. */
+function SeatPicker({ code, seats }: { code: string; seats: { id: string; name: string }[] }) {
+  return (
+    <div className="screen">
+      <div className="center-stage">
+        <div className="panel notice">
+          <h2 className="brand">Rejoin {code}</h2>
+          <p className="muted">This game has already started. If you were playing on another device or browser, pick your seat to continue.</p>
+          <div className="seat-choices">
+            {seats.map((s) => (
+              <button key={s.id} className="btn primary" onClick={() => connect(code, s.id)}>
+                I'm {s.name}
+              </button>
+            ))}
+          </div>
+          <button className="btn ghost small" onClick={() => navigate("/")}>
+            Back home
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

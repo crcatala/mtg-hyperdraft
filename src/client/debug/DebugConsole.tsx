@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useStore } from "../store";
 import type { DebugCommand } from "../../shared/protocol";
-
-const SAMPLE = "https://cubecobra.com/cube/list/vintage";
+import { quickstart, SAMPLE_CUBE } from "../quickstart";
 
 export function DebugConsole() {
   const open = useStore((s) => s.debug.open);
@@ -12,6 +11,7 @@ export function DebugConsole() {
   const setDebug = useStore((s) => s.setDebug);
   const view = useStore((s) => s.view);
   const status = useStore((s) => s.status);
+  const mode = useStore((s) => s.mode);
   const send = useStore((s) => s.send);
   const [showState, setShowState] = useState(false);
 
@@ -27,20 +27,7 @@ export function DebugConsole() {
   const me = view?.players.find((p) => p.id === view.you);
   const isHost = !!me?.isHost;
 
-  const soloQuickstart = () => {
-    if (!view) return;
-    if (!view.cube) send({ t: "import", source: SAMPLE });
-    const bots = Math.max(0, 4 - view.players.length);
-    const waitForCube = () => {
-      const v = useStore.getState().view;
-      if (!v?.cube || v.importStatus.state === "running") return void setTimeout(waitForCube, 300);
-      for (let i = 0; i < bots; i++) send({ t: "addBot" });
-      setTimeout(() => send({ t: "setReady", ready: true }), 150);
-    };
-    waitForCube();
-  };
-
-  const seatLinks = view
+  const seatLinks = view && mode === "online"
     ? [2, 3, 4].map((n) => ({ n, href: `${location.origin}/r/${view.code}?as=${n}` }))
     : [];
 
@@ -78,10 +65,10 @@ export function DebugConsole() {
             <div className="debug-buttons">
               {view.phase === "lobby" && (
                 <>
-                  <button className="btn small primary" onClick={soloQuickstart} disabled={!isHost}>
+                  <button className="btn small primary" onClick={quickstart} disabled={!isHost}>
                     Solo quickstart (Vintage Cube + bots)
                   </button>
-                  <button className="btn small" onClick={() => send({ t: "import", source: SAMPLE })} disabled={!isHost}>
+                  <button className="btn small" onClick={() => send({ t: "import", source: SAMPLE_CUBE })} disabled={!isHost}>
                     Import sample cube
                   </button>
                   <button className="btn small" onClick={() => send({ t: "addBot" })} disabled={!isHost}>
@@ -117,16 +104,18 @@ export function DebugConsole() {
             </div>
           </section>
 
-          <section>
-            <div className="label">Play as another seat (new tab)</div>
-            <div className="debug-buttons">
-              {seatLinks.map((l) => (
-                <a key={l.n} className="btn small" href={l.href} target="_blank" rel="noreferrer">
-                  Seat {l.n}
-                </a>
-              ))}
-            </div>
-          </section>
+          {seatLinks.length > 0 && (
+            <section>
+              <div className="label">Play as another seat (new tab)</div>
+              <div className="debug-buttons">
+                {seatLinks.map((l) => (
+                  <a key={l.n} className="btn small" href={l.href} target="_blank" rel="noreferrer">
+                    Seat {l.n}
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       ) : (
         <p className="muted">Not in a room. Create or join one to use room tools.</p>
@@ -143,6 +132,8 @@ export function DebugConsole() {
       <section>
         <div className="label">Network</div>
         <div className="debug-kv">
+          <span>mode</span>
+          <b>{mode === "solo" ? "solo (in-browser engine)" : "online"}</b>
           <span>status</span>
           <b>{status}</b>
           <span>msgs in / out</span>
