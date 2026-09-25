@@ -68,7 +68,7 @@ export class RoomDurableObject extends DurableObject<Env> {
   /** Deletes the room: closes sockets and wipes storage, after which Cloudflare drops the object. */
   async destroy(): Promise<void> {
     for (const ws of this.ctx.getWebSockets()) {
-      this.sendTo(ws, { t: "error", message: "This room was deleted." });
+      this.sendTo(ws, { t: "closed", code: CLOSE.deleted, message: "This room was deleted." });
       try {
         ws.close(CLOSE.deleted, "room deleted");
       } catch {

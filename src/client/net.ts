@@ -102,6 +102,10 @@ function open() {
         // The game started without us (or we're on a new device): show the seat picker.
         stop({ status: "claim", claimSeats: msg.seats });
         break;
+      case "closed":
+        // Final: don't wait for the close event (it can trail the message by seconds).
+        stop({ status: "failed", fatal: msg.message || CLOSE_MESSAGES[msg.code] || "This room is no longer available." });
+        break;
       case "error":
         if (!welcomed) {
           // Refused join: stop here rather than waiting for (or retrying after) the close.
