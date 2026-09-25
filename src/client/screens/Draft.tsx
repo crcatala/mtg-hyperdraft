@@ -12,6 +12,7 @@ import { AnchoredPreview } from "../components/AnchoredPreview";
 import { ManaCost } from "../components/Mana";
 import type { CardData, CardInstance, CardMap, Rarity } from "../../shared/types";
 import { sfx, isMuted, setMuted } from "../sfx";
+import { hasBackFace } from "../cardStyle";
 
 const RARITY_RANK: Record<Rarity, number> = { mythic: 4, special: 3, rare: 2, uncommon: 1, common: 0 };
 const COLOR_RANK = (c: CardData) => (c.colors.length === 0 ? 6 : c.colors.length > 1 ? 5 : "WUBRG".indexOf(c.colors[0]));
@@ -441,7 +442,7 @@ function PackFan(props: PackFanProps) {
                       <CardView back width={layout.width} />
                     </div>
                     <div className="flip-face flip-front">
-                      <CardView card={card} foil={inst?.foil} width={layout.width} tilt selected={isSel} className={isBurn ? "burn" : ""} />
+                      <CardView card={card} foil={inst?.foil} width={layout.width} tilt flippable selected={isSel} className={isBurn ? "burn" : ""} />
                     </div>
                   </div>
                   {flipped && RARITY_RANK[rarity] >= 2 && stage === "dealing" && <div className={`burst r-${rarity}`} />}
@@ -597,6 +598,11 @@ function PicksList({ picks, instances, cards, onOpen }: { picks: string[]; insta
             >
               <span className="pick-no">{i + 1}</span>
               <span className="pick-name">{card.name}</span>
+              {hasBackFace(card) && (
+                <span className="dfc-mark" title="Double-faced — hover to see both faces">
+                  ⟲
+                </span>
+              )}
               <ManaCost cost={card.manaCost} />
             </li>
           );

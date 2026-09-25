@@ -35,7 +35,7 @@ const tokenDef = z.object({
 });
 
 export const tableActionSchema = z.discriminatedUnion("a", [
-  z.object({ a: z.literal("move"), ids: z.array(id).min(1).max(100), to: zone, x: coord.optional(), y: coord.optional(), bottom: z.boolean().optional(), faceDown: z.boolean().optional() }),
+  z.object({ a: z.literal("move"), ids: z.array(id).min(1).max(100), to: zone, x: coord.optional(), y: coord.optional(), bottom: z.boolean().optional(), faceDown: z.boolean().optional(), face: z.number().int().min(0).max(3).optional() }),
   z.object({ a: z.literal("setPos"), id, x: coord, y: coord }),
   z.object({ a: z.literal("tap"), ids: z.array(id).min(1).max(100), tapped: z.boolean().optional() }),
   z.object({ a: z.literal("untapAll") }),
@@ -93,6 +93,7 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("deckReady"), ready: z.boolean() }),
   z.object({ t: z.literal("table"), action: tableActionSchema }),
   z.object({ t: z.literal("drag"), id, x: coord, y: coord }),
+  z.object({ t: z.literal("point"), x: coord, y: coord }),
   z.object({ t: z.literal("debug"), cmd: z.enum(DEBUG_COMMANDS) }),
 ]);
 
@@ -164,6 +165,7 @@ export type ServerMessage =
   | { t: "state"; view: RoomView }
   | { t: "cards"; cards: CardMap }
   | { t: "drag"; by: string; id: string; x: number; y: number }
+  | { t: "point"; by: string; x: number; y: number }
   | { t: "error"; message: string }
   | { t: "pong" };
 

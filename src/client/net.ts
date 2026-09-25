@@ -3,6 +3,7 @@
 import { CLOSE, type ClientMessage, type ServerMessage } from "../shared/protocol";
 import { loadIdentity, loadName, saveIdentity } from "./identity";
 import { useStore } from "./store";
+import { showPing } from "./table/tableUi";
 
 let socket: WebSocket | null = null;
 let retry = 0;
@@ -105,6 +106,9 @@ function open() {
       case "closed":
         // Final: don't wait for the close event (it can trail the message by seconds).
         stop({ status: "failed", fatal: msg.message || CLOSE_MESSAGES[msg.code] || "This room is no longer available." });
+        break;
+      case "point":
+        showPing(msg.by, msg.x, msg.y);
         break;
       case "error":
         if (!welcomed) {

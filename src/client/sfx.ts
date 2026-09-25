@@ -117,4 +117,15 @@ export const sfx = {
     if (!a) return;
     noise(a, 0.07, 1200, 600, 0.2);
   },
+  /** Table ping: a soft two-note bell. Each seat gets its own pitch so you can tell who pinged. */
+  ping(seat = 0) {
+    const a = audio();
+    if (!a) return;
+    const root = 880 * [1, 9 / 8, 5 / 4, 3 / 2][seat % 4];
+    [root, root * 1.5].forEach((f, i) => {
+      tone(a, f, i * 0.11, 1.1, 0.09, "sine");
+      // A quiet inharmonic partial gives it a bell-like shimmer.
+      tone(a, f * 2.76, i * 0.11, 0.35, 0.018, "sine");
+    });
+  },
 };

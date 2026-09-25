@@ -1284,12 +1284,27 @@ body.dragging * {
   padding: 0 12px 10px;
 }
 .log-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   font-size: 12.5px;
   line-height: 1.45;
   padding: 2px 0;
   color: #d8d2ea;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   animation: fade-in 0.3s;
+}
+.log-text {
+  flex: 1;
+  min-width: 0;
+}
+.log-time {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  color: var(--faint);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
 }
 .hand-zone {
   position: absolute;
@@ -1314,22 +1329,43 @@ body.dragging * {
   position: relative;
   height: 100%;
 }
+/* The slot is the hit box: it stays where the card rests (later cards on top, by DOM order), so
+   sliding along the hand hovers each card in turn. Only the visual lifts, and the hovered slot
+   grows upward so you can move onto the lifted card without losing it. */
 .hand-card {
   position: absolute;
-  bottom: -70px;
-  transform: translateY(var(--arc)) rotate(var(--rot));
-  transform-origin: 50% 120%;
-  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), bottom 0.18s;
+  bottom: 0;
+  height: 100%;
   cursor: grab;
   touch-action: none;
 }
 .hand-card:hover {
+  height: calc(var(--card-h) * 1.3 + 24px);
+}
+.hand-card-visual {
+  position: absolute;
+  left: 0;
+  bottom: calc(var(--card-h) * -0.33);
+  z-index: var(--z);
+  pointer-events: none;
+  transform: translateY(var(--arc)) rotate(var(--rot));
+  transform-origin: 50% 120%;
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), bottom 0.18s;
+}
+.hand-card:hover .hand-card-visual {
   bottom: 10px;
   transform: translateY(0) rotate(0deg) scale(1.25);
-  z-index: 100 !important;
+  z-index: 100;
 }
-.hand-card.dragging {
+.hand-card.dragging .hand-card-visual {
   opacity: 0.3;
+}
+/* Only the lifted card's turn-over button is clickable (covered ones must not steal clicks). */
+.hand-card .dfc-flip {
+  pointer-events: none;
+}
+.hand-card:hover .dfc-flip {
+  pointer-events: auto;
 }
 .hand-empty {
   align-self: center;
@@ -1854,4 +1890,68 @@ body.dragging * {
   flex: 1;
   min-width: 180px;
   margin: 0;
+}
+
+/* ---------- double-faced cards ---------- */
+
+.dfc-flip {
+  position: absolute;
+  z-index: 6;
+  right: 3cqw;
+  top: 36%;
+  width: clamp(20px, 15cqw, 42px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(14, 11, 26, 0.72);
+  color: var(--gold-2);
+  font-size: clamp(12px, 9cqw, 26px);
+  line-height: 1;
+  cursor: pointer !important;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
+  opacity: 0.85;
+  backdrop-filter: blur(4px);
+  transition: transform 0.15s, background 0.15s, opacity 0.15s;
+}
+.dfc-flip:hover {
+  opacity: 1;
+  background: var(--violet);
+  color: #fff;
+  transform: rotate(-180deg) scale(1.1);
+}
+.face-pair {
+  display: flex;
+  align-items: flex-start;
+}
+.face-pair.other-left {
+  flex-direction: row-reverse;
+}
+.face-pair-other {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.face-pair-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold-2);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(10, 8, 18, 0.85);
+  border: 1px solid rgba(244, 197, 91, 0.35);
+}
+.dfc-mark {
+  color: var(--gold);
+  font-size: 12px;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+.carousel-title .pill {
+  font-size: 11px;
 }

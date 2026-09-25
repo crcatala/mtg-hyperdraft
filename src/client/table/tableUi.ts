@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { TableAction } from "../../shared/table";
 import type { TableCard, TableState, ZoneName } from "../../shared/types";
 import { useStore, type MenuItem } from "../store";
-import { hasBackFace } from "../cardStyle";
+import { hasBackFace, nextFace } from "../cardStyle";
 import { sfx } from "../sfx";
 
 export interface LocalDrag {
@@ -19,6 +19,19 @@ export interface LocalDrag {
   offsets: Record<string, { dx: number; dy: number }>;
   overHand: boolean;
 }
+
+/** A temporary "look here!" marker on the table (Tabletop Simulator style). */
+export interface Ping {
+  id: number;
+  by: string;
+  x: number;
+  y: number;
+  /** performance.now() when it appeared. */
+  at: number;
+}
+
+/** How long a ping stays on the table. */
+export const PING_MS = 5000;
 
 export interface AskState {
   question: string;
@@ -42,6 +55,13 @@ interface TableUi {
   overview: boolean;
   logOpen: boolean;
   ask: AskState | null;
+  /** Hand card under the pointer (keyboard shortcuts act on it). */
+  handHover: string | null;
+  /** Face each double-faced hand card is turned to; it enters the battlefield that way. */
+  handFaces: Record<string, number>;
+  /** Where dropped battlefield cards are headed until the server confirms, so they don't snap back. */
+  settling: Record<string, { x: number; y: number }>;
+  pings: Ping[];
   setSelected: (ids: string[]) => void;
   setHovered: (id: string | null) => void;
   setDrag: (d: LocalDrag | null) => void;
@@ -59,6 +79,10 @@ export const useTableUi = create<TableUi>((set) => ({
   overview: false,
   logOpen: true,
   ask: null,
+  handHover: null,
+  handFaces: {},
+  settling: {},
+  pings: [],
   setSelected: (selected) => set({ selected }),
   setHovered: (hovered) => set({ hovered }),
   setDrag: (drag) => set({ drag }),
@@ -99,6 +123,66 @@ export function cardLabel(card: TableCard): string {
 export function moveTo(ids: string[], to: ZoneName, extra: Partial<Extract<TableAction, { a: "move" }>> = {}) {
   if (ids.length === 0) return;
   act({ a: "move", ids, to, ...extra });
+}
+
+/** Plays a card from hand, on whichever face its owner turned it to. */
+export function playFromHand(id: string, extra: Partial<Extract<TableAction, { a: "move" }>> = {}) {
+  const ui = useTableUi.getState();
+  const face = ui.handFaces[id] ?? 0;
+  if (face !== 0) {
+    const { [id]: _, ...rest } = ui.handFaces;
+    ui.set({ handFaces: rest });
+  }
+  moveTo([id], "battlefield", { ...extra, ...(face !== 0 ? { face } : {}) });
+}
+
+/** Turns a double-faced hand card over (only in your own view until it is played). */
+export function turnHandCard(id: string) {
+  const card = table()?.cards[id];
+  const data = card?.cardId ? useStore.getState().cards[card.cardId] : undefined;
+  if (!hasBackFace(data)) return;
+  const ui = useTableUi.getState();
+  const face = nextFace(data, ui.handFaces[id] ?? 0);
+  ui.set({ handFaces: { ...ui.handFaces, [id]: face } });
+  // Keep the hover preview in sync with the face now showing.
+  if (ui.handHover === id) useStore.getState().setPreview({ cardId: data!.id, face, foil: card?.foil });
+}
+
+/** Remembers where dropped cards are going until the server's state catches up (or 1.5 s pass). */
+export function settle(positions: Record<string, { x: number; y: number }>) {
+  const ui = useTableUi.getState();
+  ui.set({ settling: { ...ui.settling, ...positions } });
+  setTimeout(() => {
+    const cur = useTableUi.getState().settling;
+    const next = { ...cur };
+    for (const id of Object.keys(positions)) if (next[id] === positions[id]) delete next[id];
+    useTableUi.getState().set({ settling: next });
+  }, 1500);
+}
+
+let pingSeq = 1;
+let lastPingSent = 0;
+
+/** Shows a ping on the table (ours or someone else's); it removes itself after PING_MS. */
+export function showPing(by: string, x: number, y: number) {
+  const ping: Ping = { id: pingSeq++, by, x, y, at: performance.now() };
+  const ui = useTableUi.getState();
+  // Several pings may overlap, but keep the scene bounded.
+  ui.set({ pings: [...ui.pings.slice(-11), ping] });
+  const seat = table()?.seats.indexOf(by) ?? 0;
+  sfx.ping(Math.max(0, seat));
+  setTimeout(() => useTableUi.getState().set({ pings: useTableUi.getState().pings.filter((p) => p.id !== ping.id) }), PING_MS);
+}
+
+/** Pings a table spot for everyone. Returns false when throttled. */
+export function pingAt(x: number, y: number): boolean {
+  const now = performance.now();
+  if (now - lastPingSent < 300) return false;
+  lastPingSent = now;
+  const clamp = (v: number) => Math.max(-200, Math.min(200, v));
+  showPing(me(), clamp(x), clamp(y));
+  useStore.getState().send({ t: "point", x: clamp(x), y: clamp(y) });
+  return true;
 }
 
 export function toggleTap(ids: string[]) {
@@ -144,18 +228,23 @@ export function battlefieldMenu(card: TableCard, x: number, y: number) {
     { label: "Bottom of library", onSelect: () => moveTo(ids, "library", { bottom: true }) },
     { separator: true, label: "" },
     ...(!many ? [{ label: "Create token copy", onSelect: () => act({ a: "clone", id: card.id }) }] : []),
+    { label: "Ping this card", hint: "Tab", onSelect: () => pingAt(card.x, card.y) },
   ];
   useStore.getState().openMenu({ x, y, title: many ? `${ids.length} cards` : cardLabel(card), items });
 }
 
 export function handMenu(card: TableCard, x: number, y: number) {
   const id = card.id;
+  const data = card.cardId ? useStore.getState().cards[card.cardId] : undefined;
+  const dfc = hasBackFace(data);
+  const back = (useTableUi.getState().handFaces[id] ?? 0) !== 0;
   useStore.getState().openMenu({
     x,
     y,
     title: cardLabel(card),
     items: [
-      { label: "Play", hint: "dbl-click / drag", onSelect: () => moveTo([id], "battlefield") },
+      { label: dfc ? `Play ${back ? "back" : "front"} face` : "Play", hint: "dbl-click / drag", onSelect: () => playFromHand(id) },
+      ...(dfc ? [{ label: `Turn over (show ${back ? "front" : "back"})`, hint: "R", onSelect: () => turnHandCard(id) }] : []),
       { label: "Play face down", onSelect: () => moveTo([id], "battlefield", { faceDown: true }) },
       { separator: true, label: "" },
       { label: "Discard", onSelect: () => moveTo([id], "graveyard") },

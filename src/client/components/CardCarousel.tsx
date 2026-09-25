@@ -1,10 +1,12 @@
 // Full-screen zoomed card viewer. Flies out of the card you opened it from, lets you browse
 // neighbours (← → buttons or keys), tilt the card by hovering or dragging, and flies back on close.
+// Double-faced cards can be turned over (button on the card, or F).
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { CardData } from "../../shared/types";
 import { CardView } from "./CardView";
+import { faceOf, hasBackFace, nextFace } from "../cardStyle";
 
 export interface CarouselItem {
   key: string;
@@ -51,6 +53,14 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onClose
   const flyRef = useRef<HTMLDivElement>(null);
   const width = useZoomWidth();
   const item = items[Math.min(index, items.length - 1)];
+  // Which face each card is showing, remembered while browsing back and forth.
+  const [faces, setFaces] = useState<Record<string, number>>({});
+  const dfc = hasBackFace(item?.card);
+  const face = item ? faces[item.key] ?? item.face ?? 0 : 0;
+  const turnOver = useCallback(() => {
+    if (!item || !hasBackFace(item.card)) return;
+    setFaces((f) => ({ ...f, [item.key]: nextFace(item.card, f[item.key] ?? item.face ?? 0) }));
+  }, [item]);
 
   // Fly in from the card that was clicked.
   useLayoutEffect(() => {
@@ -101,13 +111,14 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onClose
       if (e.key === "ArrowRight") go(1);
       else if (e.key === "ArrowLeft") go(-1);
       else if (e.key === "Escape") close();
+      else if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && dfc) turnOver();
       else return;
       e.preventDefault();
       e.stopPropagation();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [go, close]);
+  }, [go, close, dfc, turnOver]);
 
   // Items can disappear underneath us (e.g. the pack moved on); close if ours is gone.
   useEffect(() => {
@@ -126,7 +137,8 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onClose
       <div className="carousel-top">
         <div className="carousel-title">
           {title && <span className="faint">{title}</span>}
-          <b>{item.card?.name}</b>
+          <b>{item.card && dfc ? faceOf(item.card, face).name : item.card?.name}</b>
+          {dfc && <span className="pill">{face === 0 ? "Front face" : "Back face"}</span>}
           {items.length > 1 && (
             <span className="faint">
               {index + 1} / {items.length}
@@ -152,7 +164,7 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onClose
       <div className="carousel-fly" ref={flyRef} style={{ width }}>
         {badge && <div className="carousel-badge">{badge(item.key)}</div>}
         <TiltDrag key={item.key} className={`carousel-enter-${dir}`}>
-          <CardView card={item.card} foil={item.foil} face={item.face} width={width} imageSize="large" tilt />
+          <CardView card={item.card} foil={item.foil} face={face} width={width} imageSize="large" tilt flippable onFlip={turnOver} />
         </TiltDrag>
       </div>
 
@@ -160,6 +172,11 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onClose
         {items.length > 1 && (
           <>
             <kbd>←</kbd> <kbd>→</kbd> browse ·{" "}
+          </>
+        )}
+        {dfc && (
+          <>
+            <kbd>F</kbd> turn over ·{" "}
           </>
         )}
         drag to tilt · <kbd>Esc</kbd> close

@@ -1,8 +1,9 @@
 // Large hover preview of a card, docked to the right edge (or left when the pointer is on the right).
+// Double-faced cards also show their other face, on the side facing the middle of the screen.
 
 import { useEffect, useState } from "react";
 import { useStore } from "../store";
-import { CardView } from "./CardView";
+import { FacePair } from "./FacePair";
 
 export function PreviewPane({ width = 320, side = "auto" as "auto" | "left" | "right", top = 80 }) {
   const preview = useStore((s) => s.preview);
@@ -20,7 +21,7 @@ export function PreviewPane({ width = 320, side = "auto" as "auto" | "left" | "r
   const onLeft = side === "left" || (side === "auto" && pointerRight);
   return (
     <div className="preview-pane" style={{ top, [onLeft ? "left" : "right"]: 16 }} key={`${preview.cardId}:${preview.face}`}>
-      <CardView card={card} face={preview.face} foil={preview.foil} width={width} imageSize="large" />
+      <FacePair card={card} face={preview.face} foil={preview.foil} width={width} imageSize="large" otherSide={onLeft ? "right" : "left"} />
     </div>
   );
 }

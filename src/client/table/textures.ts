@@ -422,7 +422,15 @@ const labelCache = new Map<string, { texture: THREE.Texture; aspect: number }>()
 
 /** A pill-shaped text label as a texture; `aspect` is width / height. */
 export function labelTexture(text: string, variant: LabelVariant = "count"): { texture: THREE.Texture; aspect: number } {
-  const key = `${variant}:${text}`;
+  return pillTexture(`${variant}:${text}`, text, LABEL_STYLES[variant]);
+}
+
+/** Name tag floating over a ping, in the pinging player's colour. */
+export function pingTagTexture(name: string, hue: number): { texture: THREE.Texture; aspect: number } {
+  return pillTexture(`ping:${hue}:${name}`, name, { bg: `hsla(${hue}, 45%, 14%, 0.94)`, border: `hsl(${hue}, 85%, 66%)`, fg: `hsl(${hue}, 90%, 88%)` });
+}
+
+function pillTexture(key: string, text: string, st: { bg: string; border: string; fg: string }): { texture: THREE.Texture; aspect: number } {
   const hit = labelCache.get(key);
   if (hit) return hit;
   const h = 64;
@@ -431,7 +439,6 @@ export function labelTexture(text: string, variant: LabelVariant = "count"): { t
   pctx.font = "800 38px Inter, sans-serif";
   const w = Math.max(h, Math.ceil(pctx.measureText(text).width) + 40);
   const [c, ctx] = canvas(w, h);
-  const st = LABEL_STYLES[variant];
   roundRect(ctx, 3, 3, w - 6, h - 6, (h - 6) / 2);
   ctx.fillStyle = st.bg;
   ctx.fill();
@@ -446,4 +453,61 @@ export function labelTexture(text: string, variant: LabelVariant = "count"): { t
   const entry = { texture: finish(new THREE.CanvasTexture(c)), aspect: w / h };
   labelCache.set(key, entry);
   return entry;
+}
+
+// --- drag shadows -----------------------------------------------------------------------------
+
+/** Extra world units around the card covered by a soft shadow plane (the blur needs room). */
+export const SHADOW_PAD = 1.6;
+const shadowCache: Partial<Record<"soft" | "landing", THREE.Texture>> = {};
+
+/**
+ * A blurred card-shaped shadow for a plane of (CARD_W + SHADOW_PAD) × (CARD_H + SHADOW_PAD).
+ * The "landing" variant adds a faint card outline marking exactly where a dragged card will land.
+ */
+export function shadowTexture(kind: "soft" | "landing"): THREE.Texture {
+  const hit = shadowCache[kind];
+  if (hit) return hit;
+  const px = 64;
+  const W = Math.round((CARD_W + SHADOW_PAD) * px);
+  const H = Math.round((CARD_H + SHADOW_PAD) * px);
+  const [c, ctx] = canvas(W, H);
+  const pad = (SHADOW_PAD / 2) * px;
+  const r = 0.14 * px;
+  // Draw the card far off-canvas and keep only its blurred shadow (works in every browser,
+  // unlike ctx.filter).
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.85)";
+  ctx.shadowBlur = 0.34 * px;
+  ctx.shadowOffsetX = 10_000;
+  roundRect(ctx, pad - 10_000, pad, W - pad * 2, H - pad * 2, r);
+  ctx.fillStyle = "#000";
+  ctx.fill();
+  ctx.restore();
+  if (kind === "landing") {
+    roundRect(ctx, pad, pad, W - pad * 2, H - pad * 2, r);
+    ctx.lineWidth = 3;
+    ctx.setLineDash([14, 10]);
+    ctx.strokeStyle = "rgba(255,255,255,0.4)";
+    ctx.stroke();
+  }
+  const tex = finish(new THREE.CanvasTexture(c));
+  shadowCache[kind] = tex;
+  return tex;
+}
+
+let glow: THREE.Texture | null = null;
+
+/** Soft white radial glow (tinted by the material colour) for ping spots. */
+export function glowTexture(): THREE.Texture {
+  if (glow) return glow;
+  const [c, ctx] = canvas(128, 128);
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.35, "rgba(255,255,255,0.45)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  glow = finish(new THREE.CanvasTexture(c));
+  return glow;
 }

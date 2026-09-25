@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRoomState, Room, SeatClaimNeeded, type ImportResult } from "../src/shared/room";
+import { createRoomState, PING_COOLDOWN_MS, Room, SeatClaimNeeded, type ImportResult } from "../src/shared/room";
 import { basicIds, makeCube, testDeps } from "./fixtures";
 import type { ClientMessage } from "../src/shared/protocol";
 
@@ -145,6 +145,26 @@ describe("room flow", () => {
     room.applyImport(importResult(300));
     room.applyImport({ ...importResult(50), name: "Small" });
     expect(Object.keys(room.cards)).toHaveLength(50 + 6);
+  });
+  it("relays table pings to the other players, throttled per player", () => {
+    const { room, deps } = newRoom();
+    const a = room.join({ name: "Alice" });
+    const b = room.join({ name: "Bob" });
+    // Pings only mean something on the table.
+    expect(send(room, a.playerId, { t: "point", x: 1, y: 2 }).outbound).toEqual([]);
+
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "debug", cmd: "startGame" });
+    expect(room.state.phase).toBe("playing");
+
+    const res = send(room, a.playerId, { t: "point", x: 1, y: 2 });
+    expect(res.changed).toBe(false);
+    expect(res.outbound).toEqual([{ to: "others", msg: { t: "point", by: a.playerId, x: 1, y: 2 } }]);
+    // Spam inside the cooldown is dropped; another player has their own cooldown.
+    expect(send(room, a.playerId, { t: "point", x: 3, y: 4 }).outbound).toEqual([]);
+    expect(send(room, b.playerId, { t: "point", x: 3, y: 4 }).outbound).toHaveLength(1);
+    deps.advance(PING_COOLDOWN_MS);
+    expect(send(room, a.playerId, { t: "point", x: 5, y: 6 }).outbound).toHaveLength(1);
   });
 });
 

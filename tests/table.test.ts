@@ -102,4 +102,35 @@ describe("tabletop", () => {
     applyTableAction(table, "b", { a: "nextTurn" }, env);
     expect(table.turn).toEqual({ playerId: "a", number: 2 });
   });
+
+  it("double-faced cards can enter the battlefield on either face", () => {
+    const { table, env } = setup();
+    applyTableAction(table, "a", { a: "draw", n: 20 }, env);
+    const hand = table.players.a.zones.hand;
+    const cardOf = (id: string) => table.cards[id].cardId;
+    const front = hand[0];
+    const back = hand.find((id) => cardOf(id) !== cardOf(front))!;
+    const plain = hand.find((id) => cardOf(id) !== cardOf(front) && cardOf(id) !== cardOf(back))!;
+    for (const id of [front, back]) {
+      const data = env.cards[table.cards[id].cardId!];
+      env.cards[data.id] = {
+        ...data,
+        faces: [
+          { name: "Day Side", manaCost: "{1}{G}", typeLine: "Creature", oracleText: "", colors: ["G"], images: { normal: "day.jpg" } },
+          { name: "Night Side", manaCost: "", typeLine: "Creature", oracleText: "", colors: ["G"], images: { normal: "night.jpg" } },
+        ],
+      };
+    }
+    applyTableAction(table, "a", { a: "move", ids: [back], to: "battlefield", face: 1 }, env);
+    expect(table.cards[back].face).toBe(1);
+    expect(table.log.at(-1)?.text).toMatch(/Night Side/);
+    applyTableAction(table, "a", { a: "move", ids: [front], to: "battlefield" }, env);
+    expect(table.cards[front].face).toBe(0);
+    // Out-of-range faces (and single-faced cards) are ignored rather than trusted.
+    applyTableAction(table, "a", { a: "move", ids: [plain], to: "battlefield", face: 1 }, env);
+    expect(table.cards[plain].face).toBe(0);
+    // Leaving the battlefield turns it back to the front.
+    applyTableAction(table, "a", { a: "move", ids: [back], to: "hand" }, env);
+    expect(table.cards[back].face).toBe(0);
+  });
 });

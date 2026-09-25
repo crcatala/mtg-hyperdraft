@@ -59,3 +59,13 @@ export function imageUrl(card: CardData | undefined, face = 0, size: ImageSize =
 export function hasBackFace(card: CardData | undefined): boolean {
   return !!card?.faces && card.faces.length > 1 && !!card.faces[1].images;
 }
+
+/** Faces a card can be turned to: 2+ for transform / modal double-faced cards, otherwise 1. */
+export function faceCount(card: CardData | undefined): number {
+  return hasBackFace(card) ? card!.faces!.length : 1;
+}
+
+/** The face after `face` (wrapping), for turning a double-faced card over. */
+export function nextFace(card: CardData | undefined, face = 0): number {
+  return (face + 1) % faceCount(card);
+}
