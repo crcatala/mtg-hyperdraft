@@ -1,18 +1,21 @@
-// The 3D tabletop: felt table, one mat per seat, piles, battlefield cards and other players' hands.
+// The 3D tabletop: felt table, one mat per seat, piles, battlefield cards and other players' hands,
+// plus drag feedback (shadows, drop targets) and pings.
 
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store";
 import type { TableCard, TableState } from "../../shared/types";
-import { CARD_H, CARD_W, MAT_D, MAT_W, localToTable, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
-import { backTexture, feltTexture, labelTexture, matTexture, roundedRectGeometry, useCardTexture, type LabelVariant } from "./textures";
-import { battlefieldMenu, pileMenu, toggleTap, useTableUi, act } from "./tableUi";
+import { CARD_H, CARD_W, MAT_D, MAT_W, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
+import { backTexture, feltTexture, glowTexture, labelTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, type LabelVariant } from "./textures";
+import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
 const OUTLINE_GEO = roundedRectGeometry(CARD_W + 0.22, CARD_H + 0.22, 0.24);
 const SHADOW_GEO = roundedRectGeometry(CARD_W + 0.3, CARD_H + 0.3, 0.3);
+const SOFT_SHADOW_GEO = new THREE.PlaneGeometry(CARD_W + SHADOW_PAD, CARD_H + SHADOW_PAD);
+const PILE_TARGET_GEO = roundedRectGeometry(CARD_W + 0.7, CARD_H + 0.7, 0.3);
 const FLAT = -Math.PI / 2;
 
 export function seatHue(seat: number) {
@@ -44,6 +47,8 @@ function Scene() {
     list.sort((a, b) => a.z - b.z);
     return list;
   }, [table.cards]);
+  // Drag shadows lie just above the highest resting card, so stacks never hide the landing spot.
+  const shadowY = 0.03 + battlefield.length * 0.004 + 0.012;
 
   return (
     <>
@@ -59,8 +64,10 @@ function Scene() {
         <SeatArea key={pid} table={table} playerId={pid} seat={seat} seatCount={n} isMe={pid === me} viewerAngle={seatAngle(mySeat, n)} />
       ))}
       {battlefield.map((card, i) => (
-        <BattlefieldCard key={card.id} card={card} elevation={0.03 + i * 0.004} table={table} me={me} />
+        <BattlefieldCard key={card.id} card={card} elevation={0.03 + i * 0.004} shadowY={shadowY} table={table} me={me} />
       ))}
+      <DropTarget mySeat={mySeat} seatCount={n} shadowY={shadowY} />
+      <Pings table={table} />
     </>
   );
 }
@@ -217,8 +224,18 @@ function TableSurface({ seatCount }: { seatCount: number }) {
         position-y={-0.02}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
-          if (!e.shiftKey) useTableUi.getState().setSelected([]);
+          if (!e.shiftKey) useTableUi.getState().set({ selected: [], handSelected: null });
           panApi.start(e.nativeEvent);
+        }}
+        onContextMenu={(e) => {
+          e.nativeEvent.preventDefault();
+          const { x, z } = e.point;
+          useStore.getState().openMenu({
+            x: e.nativeEvent.clientX,
+            y: e.nativeEvent.clientY,
+            title: "Table",
+            items: [{ label: "📍 Ping here", hint: "Tab", onSelect: () => pingAt(x, z) }],
+          });
         }}
       >
         <circleGeometry args={[radius, 96]} />
@@ -337,16 +354,21 @@ function OpponentHand({ count, seat, seatCount, viewerAngle }: { count: number; 
 
 // --- battlefield cards ----------------------------------------------------------------------
 
-function BattlefieldCard({ card, elevation, table, me }: { card: TableCard; elevation: number; table: TableState; me: string }) {
+function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableCard; elevation: number; shadowY: number; table: TableState; me: string }) {
   const data = useStore((s) => (card.cardId ? s.cards[card.cardId] : undefined));
   const remote = useStore((s) => s.drags[card.id]);
   const drag = useTableUi((s) => (s.drag?.ids.includes(card.id) ? s.drag : null));
+  const settling = useTableUi((s) => s.settling[card.id]);
   const selected = useTableUi((s) => s.selected.includes(card.id));
   const hovered = useTableUi((s) => s.hovered === card.id);
   const setPreview = useStore((s) => s.setPreview);
   const showBack = card.hidden || card.faceDown;
   const tex = useCardTexture(showBack ? undefined : data, card.face, showBack ? undefined : card.token);
   const group = useRef<THREE.Group>(null);
+  const restShadow = useRef<THREE.MeshBasicMaterial>(null);
+  const liftShadow = useRef<THREE.Group>(null);
+  const liftShadowMat = useRef<THREE.MeshBasicMaterial>(null);
+  const shadows = useMemo(() => ({ soft: shadowTexture("soft"), landing: shadowTexture("landing") }), []);
   const controllerSeat = table.players[card.controller]?.seat ?? 0;
   const baseAngle = -seatAngle(controllerSeat, table.seats.length);
 
@@ -359,13 +381,25 @@ function BattlefieldCard({ card, elevation, table, me }: { card: TableCard; elev
     const o = drag.offsets[card.id] ?? { dx: 0, dy: 0 };
     tx = drag.x + o.dx;
     tz = drag.y + o.dy;
-    ty = 1.6;
+    ty = DRAG_LIFT;
   } else if (remote && performance.now() - remote.at < 600) {
     tx = remote.x;
     tz = remote.y;
     ty = 1.0;
+  } else if (settling) {
+    // Just dropped: head for the drop spot while the server confirms, instead of snapping back.
+    tx = settling.x;
+    tz = settling.y;
   }
   target.current = { x: tx, y: ty, z: tz, rot: baseAngle - (card.tapped ? Math.PI / 2 : 0) };
+
+  // The server's position arrived (or someone else moved it): stop overriding it.
+  useEffect(() => {
+    const ui = useTableUi.getState();
+    if (!ui.settling[card.id]) return;
+    const { [card.id]: _, ...rest } = ui.settling;
+    ui.set({ settling: rest });
+  }, [card.id, card.x, card.y]);
 
   useFrame((_, dt) => {
     const g = group.current;
@@ -375,64 +409,237 @@ function BattlefieldCard({ card, elevation, table, me }: { card: TableCard; elev
     g.position.y += (target.current.y - g.position.y) * a;
     g.position.z += (target.current.z - g.position.z) * a;
     g.rotation.y += (target.current.rot - g.rotation.y) * a;
+
+    // Lifted (dragged here or by someone else): the contact shadow gives way to a soft shadow on the
+    // table that spreads and fades with height. For our own drag it sits exactly where the card
+    // will land (under the pointer), with a faint outline.
+    const lift = Math.max(0, g.position.y - elevation);
+    const k = Math.min(1, lift / 0.4);
+    if (restShadow.current) restShadow.current.opacity = 0.35 * (1 - k);
+    const ls = liftShadow.current;
+    if (!ls || !liftShadowMat.current) return;
+    ls.visible = k > 0.02;
+    if (!ls.visible) return;
+    const at = drag ? target.current : g.position;
+    ls.position.set(at.x, shadowY, at.z);
+    ls.rotation.y = drag ? target.current.rot : g.rotation.y;
+    const spread = 1 + lift * 0.09;
+    ls.scale.set(spread, 1, spread);
+    liftShadowMat.current.opacity = k * Math.max(0.3, 0.82 - lift * 0.16);
   });
 
   const counters = Object.entries(card.counters);
   const peekable = card.faceDown && !card.hidden && (card.owner === me || card.controller === me);
 
   return (
-    <group ref={group} position={[card.x, elevation, card.y]} rotation-y={baseAngle}>
-      <mesh rotation-x={FLAT} position-y={-0.01 - (drag ? 1.2 : 0)} geometry={SHADOW_GEO}>
-        <meshBasicMaterial color="#000" transparent opacity={drag ? 0.25 : 0.35} depthWrite={false} />
-      </mesh>
-      {(selected || hovered) && (
-        <mesh rotation-x={FLAT} position-y={-0.004} geometry={OUTLINE_GEO}>
-          <meshBasicMaterial color={selected ? "#45e0ff" : "#f4c55b"} transparent opacity={selected ? 0.95 : 0.7} />
+    <>
+      <group ref={liftShadow} visible={false}>
+        <mesh rotation-x={FLAT} geometry={SOFT_SHADOW_GEO} renderOrder={2}>
+          <meshBasicMaterial ref={liftShadowMat} map={drag ? shadows.landing : shadows.soft} transparent opacity={0} depthWrite={false} />
+        </mesh>
+      </group>
+      <group ref={group} position={[card.x, elevation, card.y]} rotation-y={baseAngle}>
+        <mesh rotation-x={FLAT} position-y={-0.01} geometry={SHADOW_GEO}>
+          <meshBasicMaterial ref={restShadow} color="#000" transparent opacity={0.35} depthWrite={false} />
+        </mesh>
+        {(selected || hovered) && (
+          <mesh rotation-x={FLAT} position-y={-0.004} geometry={OUTLINE_GEO}>
+            <meshBasicMaterial color={selected ? "#45e0ff" : "#f4c55b"} transparent opacity={selected ? 0.95 : 0.7} />
+          </mesh>
+        )}
+        <mesh
+          rotation-x={FLAT}
+          geometry={CARD_GEO}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            useTableUi.getState().setHovered(card.id);
+            if (!card.hidden && (data || card.token)) setPreview(data ? { cardId: data.id, face: card.face, foil: card.foil } : {});
+          }}
+          onPointerOut={() => {
+            if (useTableUi.getState().hovered === card.id) useTableUi.getState().setHovered(null);
+            setPreview({});
+          }}
+          onPointerDown={(e) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            const ui = useTableUi.getState();
+            const ids = ui.selected.includes(card.id) ? ui.selected : [card.id];
+            const shift = e.shiftKey;
+            beginDrag(e.nativeEvent, "battlefield", ids, () => {
+              const cur = useTableUi.getState().selected;
+              if (shift) ui.setSelected(cur.includes(card.id) ? cur.filter((x) => x !== card.id) : [...cur, card.id]);
+              else ui.set({ selected: [card.id], handSelected: null });
+            });
+          }}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            toggleTap([card.id]);
+          }}
+          onContextMenu={(e) => {
+            e.stopPropagation();
+            e.nativeEvent.preventDefault();
+            battlefieldMenu(card, e.nativeEvent.clientX, e.nativeEvent.clientY);
+          }}
+        >
+          <meshStandardMaterial map={tex} roughness={card.foil ? 0.25 : 0.5} metalness={card.foil ? 0.35 : 0} />
+        </mesh>
+        {[
+          ...(peekable ? [{ text: "face down", variant: "muted" as const }] : []),
+          ...(card.token && !showBack ? [{ text: "token", variant: "token" as const }] : []),
+          ...counters.map(([k, v]) => ({ text: `${k} ×${v}`, variant: "counter" as const })),
+        ].map((b, i) => (
+          <Label key={b.text} text={b.text} variant={b.variant} position={[0, 0.02, CARD_H / 2 - 0.35 - i * 0.55]} height={0.48} />
+        ))}
+      </group>
+    </>
+  );
+}
+
+// --- drag feedback --------------------------------------------------------------------------
+
+/** Height of a card being dragged over the table (battlefield cards and cards from hand alike). */
+const DRAG_LIFT = 1.6;
+
+/** Drop feedback: a glowing slot when over a pile, and a 3D body for cards dragged out of the hand. */
+function DropTarget({ mySeat, seatCount, shadowY }: { mySeat: number; seatCount: number; shadowY: number }) {
+  const drag = useTableUi((s) => s.drag);
+  const glow = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(({ clock }) => {
+    if (glow.current) glow.current.opacity = 0.45 + Math.sin(clock.elapsedTime * 7) * 0.2;
+  });
+  if (!drag || drag.overHand) return null;
+  const pile = pileAt({ x: drag.x, y: drag.y }, seatCount);
+  const pos = pile ? pilePosition(pile.zone, pile.seat, seatCount) : null;
+  return (
+    <>
+      {pile && pos && (
+        <mesh position={[pos.x, 0.012, pos.y]} rotation={[FLAT, 0, -seatAngle(pile.seat, seatCount)]} geometry={PILE_TARGET_GEO} renderOrder={2}>
+          <meshBasicMaterial ref={glow} color="#f4c55b" transparent opacity={0.5} depthWrite={false} />
         </mesh>
       )}
-      <mesh
-        rotation-x={FLAT}
-        geometry={CARD_GEO}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          useTableUi.getState().setHovered(card.id);
-          if (!card.hidden && (data || card.token)) setPreview(data ? { cardId: data.id, face: card.face, foil: card.foil } : {});
-        }}
-        onPointerOut={() => {
-          if (useTableUi.getState().hovered === card.id) useTableUi.getState().setHovered(null);
-          setPreview({});
-        }}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return;
-          e.stopPropagation();
-          const ui = useTableUi.getState();
-          const ids = ui.selected.includes(card.id) ? ui.selected : [card.id];
-          const shift = e.shiftKey;
-          beginDrag(e.nativeEvent, "battlefield", ids, () => {
-            const cur = useTableUi.getState().selected;
-            if (shift) ui.setSelected(cur.includes(card.id) ? cur.filter((x) => x !== card.id) : [...cur, card.id]);
-            else ui.setSelected([card.id]);
-          });
-        }}
-        onDoubleClick={(e) => {
-          e.stopPropagation();
-          toggleTap([card.id]);
-        }}
-        onContextMenu={(e) => {
-          e.stopPropagation();
-          e.nativeEvent.preventDefault();
-          battlefieldMenu(card, e.nativeEvent.clientX, e.nativeEvent.clientY);
-        }}
-      >
-        <meshStandardMaterial map={tex} roughness={card.foil ? 0.25 : 0.5} metalness={card.foil ? 0.35 : 0} />
-      </mesh>
-      {[
-        ...(peekable ? [{ text: "face down", variant: "muted" as const }] : []),
-        ...(card.token && !showBack ? [{ text: "token", variant: "token" as const }] : []),
-        ...counters.map(([k, v]) => ({ text: `${k} ×${v}`, variant: "counter" as const })),
-      ].map((b, i) => (
-        <Label key={b.text} text={b.text} variant={b.variant} position={[0, 0.02, CARD_H / 2 - 0.35 - i * 0.55]} height={0.48} />
+      {drag.source === "hand" && <HandDragCard id={drag.ids[0]} x={drag.x} y={drag.y} angle={-seatAngle(mySeat, seatCount)} shadowY={shadowY} onPile={!!pile} />}
+    </>
+  );
+}
+
+/**
+ * A card pulled out of the hand, floating over the table where it will land (it replaces the flat
+ * DOM ghost once the pointer leaves the hand), with its landing shadow underneath.
+ */
+function HandDragCard({ id, x, y, angle, shadowY, onPile }: { id: string; x: number; y: number; angle: number; shadowY: number; onPile: boolean }) {
+  const card = useStore((s) => s.view?.table?.cards[id]);
+  const data = useStore((s) => (card?.cardId ? s.cards[card.cardId] : undefined));
+  const face = useTableUi((s) => s.handFaces[id] ?? 0);
+  const tex = useCardTexture(data, face);
+  const landing = useMemo(() => shadowTexture("landing"), []);
+  const body = useRef<THREE.Group>(null);
+  const target = useRef({ x, y });
+  target.current = { x, y };
+  useFrame((_, dt) => {
+    const g = body.current;
+    if (!g) return;
+    const a = 1 - Math.exp(-dt * 30);
+    g.position.x += (target.current.x - g.position.x) * a;
+    g.position.z += (target.current.y - g.position.z) * a;
+  });
+  return (
+    <>
+      {!onPile && (
+        <mesh position={[x, shadowY, y]} rotation={[FLAT, 0, angle]} geometry={SOFT_SHADOW_GEO} renderOrder={2}>
+          <meshBasicMaterial map={landing} transparent opacity={0.56} depthWrite={false} />
+        </mesh>
+      )}
+      <group ref={body} position={[x, DRAG_LIFT, y]} rotation-y={angle}>
+        <mesh rotation-x={FLAT} geometry={CARD_GEO}>
+          <meshStandardMaterial map={tex} roughness={card?.foil ? 0.25 : 0.5} metalness={card?.foil ? 0.35 : 0} />
+        </mesh>
+      </group>
+    </>
+  );
+}
+
+// --- pings ----------------------------------------------------------------------------------
+
+function Pings({ table }: { table: TableState }) {
+  const pings = useTableUi((s) => s.pings);
+  const players = useStore((s) => s.view?.players);
+  return (
+    <>
+      {pings.map((p) => (
+        <PingMarker key={p.id} ping={p} hue={seatHue(Math.max(0, table.seats.indexOf(p.by)))} name={players?.find((x) => x.id === p.by)?.name ?? "Someone"} />
       ))}
+    </>
+  );
+}
+
+const RING_GEO = new THREE.RingGeometry(0.82, 1, 64);
+const PING_ARROW_SCALE = 1.35;
+const easeOutBack = (t: number) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2;
+
+/**
+ * A spinning, bobbing arrow in the player's colour with ripples spreading over the table and a
+ * name tag, like Tabletop Simulator's pointer. Drawn over everything so cards never hide it.
+ */
+function PingMarker({ ping, hue, name }: { ping: Ping; hue: number; name: string }) {
+  const color = useMemo(() => new THREE.Color().setHSL(hue / 360, 0.85, 0.62), [hue]);
+  const tag = pingTagTexture(name, hue);
+  const glow = useMemo(() => glowTexture(), []);
+  const arrow = useRef<THREE.Group>(null);
+  const label = useRef<THREE.Sprite>(null);
+  const spot = useRef<THREE.MeshBasicMaterial>(null);
+  const rings = useRef<(THREE.Mesh | null)[]>([]);
+  const fading = useRef<(THREE.Material | null)[]>([]);
+
+  useFrame(() => {
+    const t = (performance.now() - ping.at) / 1000;
+    const inT = Math.min(1, t / 0.35);
+    const fade = THREE.MathUtils.clamp((PING_MS / 1000 - t) / 0.7, 0, 1);
+    const a = arrow.current;
+    if (a) {
+      // Drops in from above, then spins and bobs with its tip just over the table.
+      a.position.y = 0.45 + (Math.sin(t * 4.2) + 1) * 0.22 + (1 - inT) ** 2 * 4;
+      a.rotation.y = t * 2.8;
+      a.scale.setScalar(Math.max(0.001, easeOutBack(inT) * PING_ARROW_SCALE));
+    }
+    if (label.current) label.current.position.y = (a?.position.y ?? 0) + 2.3 * PING_ARROW_SCALE + 0.9;
+    for (const m of fading.current) if (m) m.opacity = fade;
+    if (spot.current) spot.current.opacity = (0.5 + Math.sin(t * 6) * 0.12) * fade * inT;
+    rings.current.forEach((ring, k) => {
+      if (!ring) return;
+      const p = t * 0.85 - k / 3;
+      ring.visible = p >= 0;
+      const q = p - Math.floor(p);
+      ring.scale.setScalar(0.35 + q * 2.8);
+      (ring.material as THREE.MeshBasicMaterial).opacity = (1 - q) ** 1.5 * 0.9 * fade;
+    });
+  });
+
+  const overlay = { transparent: true, depthTest: false, depthWrite: false } as const;
+  return (
+    <group position={[ping.x, 0, ping.y]}>
+      <mesh rotation-x={FLAT} position-y={0.05} renderOrder={20}>
+        <planeGeometry args={[3.2, 3.2]} />
+        <meshBasicMaterial ref={spot} map={glow} color={color} {...overlay} opacity={0} blending={THREE.AdditiveBlending} />
+      </mesh>
+      {[0, 1, 2].map((k) => (
+        <mesh key={k} ref={(m) => void (rings.current[k] = m)} rotation-x={FLAT} position-y={0.06} geometry={RING_GEO} renderOrder={21} visible={false}>
+          <meshBasicMaterial color={color} {...overlay} opacity={0} />
+        </mesh>
+      ))}
+      <group ref={arrow}>
+        {/* Four-sided head pointing down (tip at the group origin) and a square shaft above it. */}
+        <mesh position-y={0.6} rotation-x={Math.PI} renderOrder={22}>
+          <coneGeometry args={[0.62, 1.2, 4]} />
+          <meshStandardMaterial ref={(m) => void (fading.current[0] = m)} color={color} emissive={color} emissiveIntensity={0.45} roughness={0.35} {...overlay} />
+        </mesh>
+        <mesh position-y={1.75} renderOrder={22}>
+          <boxGeometry args={[0.34, 1.1, 0.34]} />
+          <meshStandardMaterial ref={(m) => void (fading.current[1] = m)} color={color} emissive={color} emissiveIntensity={0.45} roughness={0.35} {...overlay} />
+        </mesh>
+      </group>
+      <sprite ref={label} scale={[0.95 * tag.aspect, 0.95, 1]} renderOrder={23}>
+        <spriteMaterial ref={(m) => void (fading.current[2] = m)} map={tag.texture} {...overlay} />
+      </sprite>
     </group>
   );
 }

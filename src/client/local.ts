@@ -7,6 +7,7 @@ import type { ClientMessage, ServerMessage } from "../shared/protocol";
 import { importCube } from "../shared/importCube";
 import { loadName } from "./identity";
 import { useStore } from "./store";
+import { forgetOpenedPacks } from "./openedPacks";
 
 const SOLO_BOTS = 3;
 
@@ -21,6 +22,8 @@ let session: LocalSession | null = null;
 export function startLocal() {
   stopLocal();
   const room = new Room(createRoomState("SOLO", Date.now()), {}, { now: () => Date.now(), rng: Math.random });
+  // Every solo game reuses the code "SOLO" and the same pack ids: let its packs be opened afresh.
+  forgetOpenedPacks("SOLO");
   const { playerId } = room.join({ name: loadName() || "You" });
   for (let i = 0; i < SOLO_BOTS; i++) room.handle(playerId, { t: "addBot" });
   session = { room, playerId };
@@ -31,7 +34,7 @@ export function startLocal() {
     claimSeats: [],
     cards: {},
     clockOffset: 0,
-    view: room.viewFor(playerId),
+    view: viewOf(room, playerId),
     sendImpl: (msg) => queueMicrotask(() => deliver(msg)),
   });
 }
@@ -40,6 +43,16 @@ export function stopLocal() {
   if (session) clearTimeout(session.timer);
   session = null;
   useStore.setState({ status: "idle", view: null, cards: {}, mode: "online", sendImpl: () => {} });
+}
+
+/**
+ * A snapshot of the room as the player sees it. `viewFor` shares arrays and objects with the live
+ * room state (e.g. the game log is pushed to in place), so without a copy React selectors would
+ * see "no change" and screens would miss updates. Online, every view is freshly parsed JSON;
+ * cloning gives solo mode the same guarantee.
+ */
+function viewOf(room: Room, playerId: string) {
+  return structuredClone(room.viewFor(playerId));
 }
 
 function deliver(msg: ClientMessage) {
@@ -58,7 +71,7 @@ function receive(msg: ServerMessage) {
 function publish() {
   const s = session;
   if (!s) return;
-  useStore.setState({ view: s.room.viewFor(s.playerId) });
+  useStore.setState({ view: viewOf(s.room, s.playerId) });
   schedule(s);
 }
 

@@ -51,6 +51,9 @@ export interface JoinOptions {
   claim?: string;
 }
 
+/** Minimum gap between two table pings ("point" messages) from the same player. */
+export const PING_COOLDOWN_MS = 300;
+
 const BOT_NAMES = ["Ava", "Blix", "Cogsworth", "Dross", "Echo", "Fizz", "Gloom", "Hex"];
 
 export function createRoomState(code: string, now: number, inviteId?: string): RoomState {
@@ -73,6 +76,9 @@ export function createRoomState(code: string, now: number, inviteId?: string): R
 }
 
 export class Room {
+  /** Last ping per player (not persisted — it only throttles spam). */
+  private lastPing = new Map<string, number>();
+
   constructor(
     public state: RoomState,
     public cards: CardMap,
@@ -350,6 +356,15 @@ export class Room {
       case "drag": {
         if (this.state.phase !== "playing") return;
         result.outbound.push({ to: "others", msg: { t: "drag", by: playerId, id: msg.id, x: msg.x, y: msg.y } });
+        return;
+      }
+
+      case "point": {
+        if (this.state.phase !== "playing") return;
+        const now = this.deps.now();
+        if (now - (this.lastPing.get(playerId) ?? -Infinity) < PING_COOLDOWN_MS) return;
+        this.lastPing.set(playerId, now);
+        result.outbound.push({ to: "others", msg: { t: "point", by: playerId, x: msg.x, y: msg.y } });
         return;
       }
 

@@ -442,7 +442,7 @@ function CardArea({ title, area, ids, instances, cards, onMove, onClickCard, onM
                         onMoveOther(iid);
                       }}
                     >
-                      <CardView card={cards[inst.cardId]} foil={inst.foil} width={cardWidth} glow={false} selected={isSel} />
+                      <CardView card={cards[inst.cardId]} foil={inst.foil} width={cardWidth} glow={false} selected={isSel} flippable />
                     </div>
                   </Tooltip>
                 );

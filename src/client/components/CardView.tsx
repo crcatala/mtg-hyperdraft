@@ -1,9 +1,9 @@
 // A card in the DOM: text-rendered frame first, real Scryfall image fades in when it loads.
 // Rarity adds a glow ring; mythics and foils get a holographic layer that follows the mouse tilt.
 
-import { memo, useRef, useState, type HTMLAttributes, type PointerEvent } from "react";
+import { memo, useLayoutEffect, useRef, useState, type HTMLAttributes, type PointerEvent } from "react";
 import type { CardData, TokenDef } from "../../shared/types";
-import { faceOf, frameColors, imageUrl, type ImageSize } from "../cardStyle";
+import { faceOf, frameColors, hasBackFace, imageUrl, nextFace, type ImageSize } from "../cardStyle";
 import { useStore } from "../store";
 import { ManaCost, RulesText } from "./Mana";
 import { imageStatus, useImage } from "../imageCache";
@@ -21,6 +21,12 @@ export interface CardViewProps extends Omit<HTMLAttributes<HTMLDivElement>, "chi
   selected?: boolean;
   dim?: boolean;
   glow?: boolean;
+  /**
+   * Double-faced cards get a "turn over" button. Without `onFlip` the card flips itself (local view
+   * state); with `onFlip` the parent owns the face and passes it back in via `face`.
+   */
+  flippable?: boolean;
+  onFlip?: () => void;
 }
 
 export const CardView = memo(function CardView({
@@ -35,11 +41,17 @@ export const CardView = memo(function CardView({
   selected,
   dim,
   glow = true,
+  flippable,
+  onFlip,
   className = "",
   style,
   ...rest
 }: CardViewProps) {
   const forceText = useStore((s) => s.debug.forceText);
+  const [turned, setTurned] = useState(false);
+  const dfc = !back && hasBackFace(card);
+  const canFlip = !!flippable && dfc;
+  if (canFlip && !onFlip && turned) face = nextFace(card, face);
   // One size ("normal", 488px) for everything except big zoomed views, so each card downloads once.
   const size: ImageSize = imageSize ?? (width > 420 ? "large" : "normal");
   const url = back || forceText ? undefined : imageUrl(card, face, size);
@@ -47,6 +59,16 @@ export const CardView = memo(function CardView({
   // Only fade in images that arrive after mount; cached ones appear instantly.
   const [fadeIn] = useState(() => imageStatus(url) !== "loaded");
   const ref = useRef<HTMLDivElement>(null);
+
+  // Turning over: swing the new face in edge-on (skipped on mount and for reduced motion).
+  const lastFace = useRef(face);
+  useLayoutEffect(() => {
+    if (lastFace.current === face) return;
+    lastFace.current = face;
+    const inner = ref.current?.querySelector<HTMLElement>(".card-inner");
+    if (!inner || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    inner.animate([{ transform: "rotateY(90deg) scale(0.97)" }, { transform: "rotateY(0deg)" }], { duration: 300, easing: "cubic-bezier(0.2, 0.9, 0.3, 1.15)" });
+  }, [face]);
 
   const rarity = card?.rarity ?? "common";
   const shiny = !back && (foil || rarity === "mythic");
@@ -78,6 +100,7 @@ export const CardView = memo(function CardView({
     tilt ? "tilt" : "",
     selected ? "selected" : "",
     dim ? "dim" : "",
+    dfc ? "dfc" : "",
     className,
   ].join(" ");
 
@@ -106,6 +129,23 @@ export const CardView = memo(function CardView({
         {shiny && <div className="holo" />}
         {tilt && !back && <div className="glare" />}
       </div>
+      {canFlip && (
+        <button
+          type="button"
+          className="dfc-flip"
+          title={`Turn over — show ${face === 0 ? "the back" : "the front"} face`}
+          aria-label="Turn card over"
+          onPointerDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onFlip) onFlip();
+            else setTurned((t) => !t);
+          }}
+        >
+          ⟲
+        </button>
+      )}
     </div>
   );
 });

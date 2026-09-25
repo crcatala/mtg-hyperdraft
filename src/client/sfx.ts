@@ -80,10 +80,12 @@ export const sfx = {
     if (!a) return;
     noise(a, 0.06, 3000, 1500, 0.18);
   },
-  flip() {
+  /** A card turning face up; `step` nudges the pitch up so a wave of flips rises. */
+  flip(step = 0) {
     const a = audio();
     if (!a) return;
-    noise(a, 0.08, 1800, 4200, 0.16);
+    const lift = Math.min(step, 14) * 110;
+    noise(a, 0.07, 1800 + lift, 4200 + lift, 0.14);
   },
   rare() {
     const a = audio();
@@ -116,5 +118,16 @@ export const sfx = {
     const a = audio();
     if (!a) return;
     noise(a, 0.07, 1200, 600, 0.2);
+  },
+  /** Table ping: a soft two-note bell. Each seat gets its own pitch so you can tell who pinged. */
+  ping(seat = 0) {
+    const a = audio();
+    if (!a) return;
+    const root = 880 * [1, 9 / 8, 5 / 4, 3 / 2][seat % 4];
+    [root, root * 1.5].forEach((f, i) => {
+      tone(a, f, i * 0.11, 1.1, 0.09, "sine");
+      // A quiet inharmonic partial gives it a bell-like shimmer.
+      tone(a, f * 2.76, i * 0.11, 0.35, 0.018, "sine");
+    });
   },
 };

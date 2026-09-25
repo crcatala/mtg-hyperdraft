@@ -12,28 +12,11 @@ import { AnchoredPreview } from "../components/AnchoredPreview";
 import { ManaCost } from "../components/Mana";
 import type { CardData, CardInstance, CardMap, Rarity } from "../../shared/types";
 import { sfx, isMuted, setMuted } from "../sfx";
+import { hasBackFace } from "../cardStyle";
+import { RARITY_RANK, REVEAL_FX_MS, revealSchedule, TEAR_MS } from "../revealSchedule";
+import { hasOpened, markOpened } from "../openedPacks";
 
-const RARITY_RANK: Record<Rarity, number> = { mythic: 4, special: 3, rare: 2, uncommon: 1, common: 0 };
 const COLOR_RANK = (c: CardData) => (c.colors.length === 0 ? 6 : c.colors.length > 1 ? 5 : "WUBRG".indexOf(c.colors[0]));
-
-// Packs this browser tab has already watched being opened (so reconnects don't replay the reveal).
-const opened = new Set<string>(
-  (() => {
-    try {
-      return JSON.parse(sessionStorage.getItem("hyperdraft:opened") ?? "[]") as string[];
-    } catch {
-      return [];
-    }
-  })(),
-);
-function markOpened(id: string) {
-  opened.add(id);
-  try {
-    sessionStorage.setItem("hyperdraft:opened", JSON.stringify([...opened].slice(-50)));
-  } catch {
-    /* ignore */
-  }
-}
 
 type Stage = "sealed" | "tearing" | "dealing" | "revealed";
 
@@ -52,16 +35,30 @@ export function Draft() {
   const [zoom, setZoom] = useState<{ source: "pack" | "picks"; key: string } | null>(null);
   const [stage, setStage] = useState<Stage>("revealed");
   const [revealCount, setRevealCount] = useState(99);
+  // Screen flash for a rare / mythic landing (keyed so each one replays the animation).
+  const [flash, setFlash] = useState<{ key: number; rarity: Rarity } | null>(null);
+  // Cards whose reveal effects are still playing (value: is it one of the pack's highlights).
+  // Tracked per card, not by stage, so the pack can become clickable while the last sparks fly.
+  const [fx, setFx] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const fxTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearFx = useCallback(() => {
+    fxTimers.current.forEach(clearTimeout);
+    fxTimers.current = [];
+    setFx(new Map());
+  }, []);
+  useEffect(() => () => fxTimers.current.forEach(clearTimeout), []);
   const [muted, setMutedState] = useState(isMuted());
 
   const sorted = useMemo(() => (pack ? sortPack(pack.cards, view.instances, cards) : []), [pack, view.instances, cards]);
-  const fresh = !!pack && pack.picksTaken === 0 && !opened.has(pack.id);
+  const fresh = !!pack && pack.picksTaken === 0 && !hasOpened(view.code, pack.id);
 
   // New pack arrived: reset selection and decide how it enters.
   useLayoutEffect(() => {
     setSelected([]);
     setBurning([]);
     setLeaving(false);
+    setFlash(null);
+    clearFx();
     setZoom((z) => (z?.source === "pack" ? null : z));
     if (!pack) return;
     if (fresh) {
@@ -75,46 +72,63 @@ export function Draft() {
   }, [pack?.id]);
 
   const skip = useCallback(() => {
-    if (pack) markOpened(pack.id);
+    if (pack) markOpened(view.code, pack.id);
     setStage("revealed");
     setRevealCount(99);
-  }, [pack]);
+    setFlash(null);
+    clearFx();
+  }, [pack, view.code, clearFx]);
 
   const rip = useCallback(() => {
     if (stage !== "sealed" || !pack) return;
-    markOpened(pack.id);
+    markOpened(view.code, pack.id);
     sfx.rip();
+    // Reduced motion: no tearing, dealing or flipping — just show the pack.
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return skip();
     setStage("tearing");
-  }, [stage, pack]);
+  }, [stage, pack, view.code, skip]);
 
-  // tearing → dealing → staged flips (commons first; a beat of suspense before rares).
+  // tearing → dealing → a wave of flips (commons first; a short beat of suspense before rares).
   useEffect(() => {
     if (stage === "tearing") {
-      const t = setTimeout(() => setStage("dealing"), 520);
+      const t = setTimeout(() => setStage("dealing"), TEAR_MS);
       return () => clearTimeout(t);
     }
     if (stage !== "dealing") return;
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const n = sorted.length;
-    for (let i = 0; i < n; i++) timers.push(setTimeout(() => sfx.deal(), i * 45));
-    let t = n * 45 + 380;
     const revealOrder = sorted.slice().reverse();
-    revealOrder.forEach((iid, k) => {
-      const card = cards[view.instances[iid]?.cardId];
-      const rank = card ? RARITY_RANK[card.rarity] : 0;
-      if (rank >= 2) t += 420;
-      const at = t;
+    const rarities = revealOrder.map((iid) => cards[view.instances[iid]?.cardId]?.rarity ?? "common");
+    const plan = revealSchedule(rarities.map((r) => RARITY_RANK[r]));
+    for (const at of plan.deals) timers.push(setTimeout(() => sfx.deal(), at));
+    let flashes = 0;
+    for (const step of plan.reveals) {
       timers.push(
         setTimeout(() => {
-          setRevealCount(k + 1);
-          if (rank >= 3) sfx.mythic();
-          else if (rank === 2) sfx.rare();
-          else sfx.flip();
-        }, at),
+          setRevealCount(step.k + 1);
+          const iid = revealOrder[step.k];
+          setFx((cur) => new Map(cur).set(iid, step.highlight));
+          fxTimers.current.push(
+            setTimeout(() => {
+              setFx((cur) => {
+                const next = new Map(cur);
+                next.delete(iid);
+                return next;
+              });
+            }, REVEAL_FX_MS),
+          );
+          if (!step.highlight) return sfx.flip(step.k);
+          setFlash({ key: ++flashes, rarity: rarities[step.k] });
+          if (step.rank >= 3) {
+            sfx.mythic();
+            document.querySelector(".pack-fan")?.animate(
+              [{ transform: "none" }, { transform: "translate(-4px, 2px)" }, { transform: "translate(4px, -2px)" }, { transform: "translate(-2px, 1px)" }, { transform: "none" }],
+              { duration: 280, easing: "ease-out" },
+            );
+          } else sfx.rare();
+        }, step.at),
       );
-      t += rank >= 2 ? 300 : 95;
-    });
-    timers.push(setTimeout(() => setStage("revealed"), t + 200));
+    }
+    timers.push(setTimeout(() => setStage("revealed"), plan.done));
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
@@ -297,6 +311,8 @@ export function Draft() {
                 onClickCard={clickCard}
                 onDeselect={deselect}
                 cubeName={view.cube?.name ?? "Cube"}
+                flash={flash}
+                fx={fx}
                 round={d.round}
               />
             </>
@@ -365,6 +381,8 @@ interface PackFanProps {
   onDeselect: (iid: string) => void;
   cubeName: string;
   round: number;
+  flash: { key: number; rarity: Rarity } | null;
+  fx: ReadonlyMap<string, boolean>;
 }
 
 function useFanLayout(ref: React.RefObject<HTMLDivElement | null>, count: number) {
@@ -398,6 +416,7 @@ function PackFan(props: PackFanProps) {
   const showCards = stage === "dealing" || stage === "revealed";
   return (
     <div ref={ref} className={`pack-fan stage-${stage}`} onClick={stage === "dealing" ? props.onSkip : undefined}>
+      {props.flash && <div key={props.flash.key} className={`fan-flash r-${props.flash.rarity}`} />}
       {(stage === "sealed" || stage === "tearing") && (
         <SealedPack name={props.cubeName} round={props.round} tearing={stage === "tearing"} onClick={props.onRip} count={ids.length} />
       )}
@@ -410,6 +429,9 @@ function PackFan(props: PackFanProps) {
               const card = inst ? cards[inst.cardId] : undefined;
               const revealRank = ids.length - 1 - index;
               const flipped = stage === "revealed" || revealRank < revealCount;
+              // Just flipped during the opening: extra polish (flip arc, glint, rarity ring, sparks).
+              const revealing = flipped && props.fx.has(iid);
+              const highlight = revealing && props.fx.get(iid) === true;
               const mid = (row.length - 1) / 2;
               const off = i - mid;
               const isSel = selected.includes(iid);
@@ -419,7 +441,7 @@ function PackFan(props: PackFanProps) {
               const style = {
                 "--rot": `${off * 1.6}deg`,
                 "--arc": `${Math.abs(off) ** 1.6 * 1.6}px`,
-                "--delay": `${index * 45}ms`,
+                "--delay": `${index * 18}ms`,
                 "--slide-delay": `${index * 28}ms`,
                 "--from-x": `${-(i - mid) * (layout.width + 14)}px`,
                 "--from-y": `${-(r - (rows.length - 1) / 2) * layout.width * 1.4}px`,
@@ -429,7 +451,7 @@ function PackFan(props: PackFanProps) {
                 <div
                   key={iid}
                   data-iid={iid}
-                  className={`fan-slot arrive-${stage === "dealing" ? "deal" : arrival === "fresh" ? "none" : arrival} ${leaveClass} ${flipped ? "is-flipped" : ""} ${isSel ? "is-selected" : ""} ${isBurn ? "is-burn" : ""} ${isSel || isBurn ? "zoomable" : ""} r-${rarity}`}
+                  className={`fan-slot arrive-${stage === "dealing" ? "deal" : arrival === "fresh" ? "none" : arrival} ${leaveClass} ${flipped ? "is-flipped" : ""} ${revealing ? "revealing" : ""} ${highlight ? "highlight" : ""} ${isSel ? "is-selected" : ""} ${isBurn ? "is-burn" : ""} ${isSel || isBurn ? "zoomable" : ""} r-${rarity}`}
                   style={style}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -441,10 +463,21 @@ function PackFan(props: PackFanProps) {
                       <CardView back width={layout.width} />
                     </div>
                     <div className="flip-face flip-front">
-                      <CardView card={card} foil={inst?.foil} width={layout.width} tilt selected={isSel} className={isBurn ? "burn" : ""} />
+                      <CardView card={card} foil={inst?.foil} width={layout.width} tilt flippable selected={isSel} className={isBurn ? "burn" : ""} />
+                      {revealing && <div className="reveal-glint" />}
                     </div>
                   </div>
-                  {flipped && RARITY_RANK[rarity] >= 2 && stage === "dealing" && <div className={`burst r-${rarity}`} />}
+                  {revealing && RARITY_RANK[rarity] >= 1 && <div className={`reveal-ring r-${rarity}`} />}
+                  {highlight && (
+                    <>
+                      <div className={`burst r-${rarity}`} />
+                      <div className={`reveal-sparks r-${rarity}`}>
+                        {Array.from({ length: 12 }, (_, k) => (
+                          <span key={k} style={{ "--a": `${k * 30 + (k % 2) * 12}deg`, "--d": `${0.55 + (k % 3) * 0.18}` } as React.CSSProperties} />
+                        ))}
+                      </div>
+                    </>
+                  )}
                   {isBurn && <div className="burn-tag">BURN</div>}
                   {(isSel || isBurn) && !leaving && (
                     <button
@@ -597,6 +630,11 @@ function PicksList({ picks, instances, cards, onOpen }: { picks: string[]; insta
             >
               <span className="pick-no">{i + 1}</span>
               <span className="pick-name">{card.name}</span>
+              {hasBackFace(card) && (
+                <span className="dfc-mark" title="Double-faced — hover to see both faces">
+                  ⟲
+                </span>
+              )}
               <ManaCost cost={card.manaCost} />
             </li>
           );

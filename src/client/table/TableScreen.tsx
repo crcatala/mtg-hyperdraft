@@ -1,14 +1,18 @@
 // Tabletop screen: 3D canvas underneath, DOM HUD on top (players, hand, actions, log, dialogs).
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useStore } from "../store";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { serverNow, useStore } from "../store";
 import { CardView } from "../components/CardView";
 import { PreviewPane } from "../components/Preview";
 import { NameEditor } from "../components/TopBar";
 import { TableCanvas, seatHue } from "./TableScene";
-import { act, askNumber, cardLabel, handMenu, moveTo, pileMenu, targetIds, toggleTap, useTableUi } from "./tableUi";
-import { beginDrag } from "./drag";
-import type { Color, TableCard, TokenDef, ZoneName } from "../../shared/types";
+import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, targetIds, toggleTap, turnHandCard, useTableUi } from "./tableUi";
+import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
+import { beginDrag, tableApi } from "./drag";
+import { handLayout } from "./handLayout";
+import { relativeTime, RELATIVE_TIME_REFRESH_MS } from "../relativeTime";
+import { countNewEntries, logKeys } from "./logFeed";
+import type { Color, LogEntry, TableCard, TokenDef, ZoneName } from "../../shared/types";
 import { COLORS, ZONE_LABELS } from "../../shared/types";
 
 export function TableScreen() {
@@ -22,6 +26,7 @@ export function TableScreen() {
       <LogPanel />
       <Hand />
       <HandDragGhost />
+      <HandZoom />
       <PreviewPane width={300} top={130} />
       <ZoneViewer />
       <TokenDialog />
@@ -33,17 +38,37 @@ export function TableScreen() {
 
 // --- keyboard -------------------------------------------------------------------------------
 
+/** Whether the pointer is over the 3D table itself (not the HUD, hand or a dialog). */
+function overTable(clientX: number, clientY: number): boolean {
+  return !!document.elementFromPoint(clientX, clientY)?.closest(".table-canvas");
+}
+
 function useTableShortcuts() {
   useEffect(() => {
+    const pointer = { x: -1, y: -1 };
+    const onPointer = (e: PointerEvent) => {
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+    };
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el.closest("input, textarea, select")) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const ui = useTableUi.getState();
-      if (ui.ask) return;
+      // Dialogs and the zoom carousel own the keyboard while open.
+      if (ui.ask || ui.handZoom) return;
       const k = e.key.toLowerCase();
       const ids = targetIds();
       switch (k) {
+        case "tab": {
+          // Ping under the pointer, like Tabletop Simulator. Elsewhere (HUD, dialogs) Tab keeps
+          // moving keyboard focus as usual.
+          if (!overTable(pointer.x, pointer.y)) return;
+          e.preventDefault();
+          const pt = tableApi.screenToTable(pointer.x, pointer.y);
+          if (pt && !e.repeat) pingAt(pt.x, pt.y);
+          break;
+        }
         case " ":
         case "t":
           e.preventDefault();
@@ -53,7 +78,9 @@ function useTableShortcuts() {
           if (ids.length) act({ a: "flip", ids });
           break;
         case "r":
-          if (ids.length === 1) act({ a: "turnFace", id: ids[0] });
+          if (ui.handHover && !ui.hovered) turnHandCard(ui.handHover);
+          else if (ui.handSelected && !ui.hovered && ids.length === 0) turnHandCard(ui.handSelected);
+          else if (ids.length === 1) act({ a: "turnFace", id: ids[0] });
           break;
         case "g":
           moveTo(ids, "graveyard");
@@ -84,14 +111,18 @@ function useTableShortcuts() {
           ui.set({ help: !ui.help });
           break;
         case "escape":
-          ui.set({ selected: [], viewer: null, tokenDialog: false, help: false });
+          ui.set({ selected: [], handSelected: null, viewer: null, tokenDialog: false, help: false });
           break;
         default:
           return;
       }
     };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("pointermove", onPointer);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointermove", onPointer);
+    };
   }, []);
 }
 
@@ -248,27 +279,129 @@ function ActionBar() {
   );
 }
 
+/** Server-clock "now", refreshed every `ms` while `active` (drives relative timestamps). */
+function useServerNow(ms: number, active: boolean) {
+  const [now, setNow] = useState(serverNow);
+  useEffect(() => {
+    if (!active) return;
+    setNow(serverNow());
+    const iv = setInterval(() => setNow(serverNow()), ms);
+    return () => clearInterval(iv);
+  }, [ms, active]);
+  return now;
+}
+
+/**
+ * The log follows new entries while you're at the bottom. Scrolled up (reading history), it holds
+ * still — through new entries, trimmed old ones and relative-time refreshes alike — and offers an
+ * "N new events" button that glides back down.
+ */
 function LogPanel() {
   const log = useStore((s) => s.view!.table!.log);
   const open = useTableUi((s) => s.logOpen);
   const set = useTableUi((s) => s.set);
   const ref = useRef<HTMLDivElement>(null);
+  const tick = useServerNow(RELATIVE_TIME_REFRESH_MS, open);
+  // A new entry is always "Just now", even between ticks.
+  const now = Math.max(tick, log.at(-1)?.at ?? 0);
+  // Solo mode mutates the log array in place, so change is detected by content, not identity.
+  const keys = logKeys(log);
+  const newestKey = keys.at(-1) ?? "";
+
+  /** Following the newest entry (scrolled to the bottom). */
+  const stick = useRef(true);
+  /** Gliding back down after "N new events" was clicked. */
+  const gliding = useRef(false);
+  /** While scrolled up: the first visible line and how far it sits below the top edge. */
+  const anchor = useRef<{ key: string; offset: number } | null>(null);
+  const newest = useRef<LogEntry | null>(null);
+  const [unseen, setUnseen] = useState(0);
+
+  // Reopening the panel starts at the latest entry.
   useEffect(() => {
-    ref.current?.scrollTo({ top: ref.current.scrollHeight });
-  }, [log.length, open]);
+    stick.current = true;
+    gliding.current = false;
+    setUnseen(0);
+  }, [open]);
+
+  // Count entries that arrive while the reader is scrolled up.
+  useLayoutEffect(() => {
+    const added = countNewEntries(newest.current, log);
+    newest.current = log.at(-1) ?? null;
+    if (added > 0 && open && !stick.current && !gliding.current) setUnseen((n) => n + added);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newestKey, log.length, open]);
+
+  // After every render: stay pinned to the bottom, or keep the anchored line exactly where it was.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || gliding.current) return;
+    if (stick.current) {
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
+    const a = anchor.current;
+    const line = a && el.querySelector<HTMLElement>(`[data-key="${CSS.escape(a.key)}"]`);
+    if (a && line) el.scrollTop = line.offsetTop - a.offset;
+  });
+
+  const onScroll = () => {
+    const el = ref.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 6;
+    if (atBottom) {
+      stick.current = true;
+      gliding.current = false;
+      anchor.current = null;
+      setUnseen(0);
+      return;
+    }
+    if (gliding.current) return;
+    stick.current = false;
+    for (const line of el.querySelectorAll<HTMLElement>(".log-line")) {
+      if (line.offsetTop + line.offsetHeight > el.scrollTop) {
+        anchor.current = { key: line.dataset.key!, offset: line.offsetTop - el.scrollTop };
+        break;
+      }
+    }
+  };
+
+  const toLatest = () => {
+    const el = ref.current;
+    if (!el) return;
+    gliding.current = true;
+    setUnseen(0);
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  };
+
   return (
     <div className={`log-panel panel${open ? "" : " closed"}`}>
       <button className="log-head" onClick={() => set({ logOpen: !open })}>
         Game log {open ? "▾" : "▸"}
       </button>
       {open && (
-        <div className="log-body scroll" ref={ref}>
-          {log.slice(-80).map((l, i) => (
-            <div key={i} className="log-line">
-              {l.text}
+        <div
+          className="log-body scroll"
+          ref={ref}
+          onScroll={onScroll}
+          // Taking the wheel back during the glide down stops it where the reader is.
+          onWheel={() => (gliding.current = false)}
+          onPointerDown={() => (gliding.current = false)}
+        >
+          {log.map((l, i) => (
+            <div key={keys[i]} data-key={keys[i]} className="log-line">
+              <span className="log-text">{l.text}</span>
+              <time className="log-time" dateTime={new Date(l.at).toISOString()} title={new Date(l.at).toLocaleString()}>
+                {relativeTime(now - l.at)}
+              </time>
             </div>
           ))}
         </div>
+      )}
+      {open && unseen > 0 && (
+        <button className="log-new" onClick={toLatest}>
+          <span aria-hidden>↓</span> {unseen} new event{unseen === 1 ? "" : "s"}
+        </button>
       )}
     </div>
   );
@@ -276,43 +409,74 @@ function LogPanel() {
 
 // --- hand -----------------------------------------------------------------------------------
 
+/** Width of an element, tracked with a ResizeObserver. */
+function useWidth(ref: React.RefObject<HTMLElement | null>, fallback: number) {
+  const [width, setWidth] = useState(fallback);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(el.clientWidth);
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return width;
+}
+
 function Hand() {
   const view = useStore((s) => s.view!);
   const cards = useStore((s) => s.cards);
   const setPreview = useStore((s) => s.setPreview);
   const drag = useTableUi((s) => s.drag);
+  const handFaces = useTableUi((s) => s.handFaces);
+  const handSelected = useTableUi((s) => s.handSelected);
   const table = view.table!;
   const hand = table.players[view.you]?.zones.hand ?? [];
   const n = hand.length;
-  const width = n > 9 ? Math.max(92, 150 - (n - 9) * 6) : 150;
-  const spread = Math.min(width * 0.72, 900 / Math.max(1, n));
+  const zone = useRef<HTMLDivElement>(null);
+  // Leave a little room for the card lifted on hover (it scales up past its neighbours).
+  const layout = handLayout(n, useWidth(zone, 900) - 40);
+  const cardH = Math.round((layout.width * 88) / 63);
+  // Each card's hit box stays where the card rests; only its visual lifts on hover. So sliding along
+  // the hand hovers one card after another instead of getting stuck on the lifted one.
   return (
-    <div className={`hand-zone${drag?.source === "battlefield" && drag.overHand ? " drop" : ""}`}>
-      <div className="hand-fan" style={{ width: spread * Math.max(0, n - 1) + width }}>
+    <div ref={zone} className={`hand-zone${drag?.source === "battlefield" && drag.overHand ? " drop" : ""}`}>
+      <div className="hand-fan" style={{ width: layout.fanWidth, "--card-h": `${cardH}px` } as React.CSSProperties}>
         {hand.map((id, i) => {
           const card = table.cards[id];
           const data = card?.cardId ? cards[card.cardId] : undefined;
-          const off = i - (n - 1) / 2;
+          const face = handFaces[id] ?? 0;
           const dragging = drag?.source === "hand" && drag.ids.includes(id);
+          const selected = handSelected === id;
           return (
             <div
               key={id}
-              className={`hand-card${dragging ? " dragging" : ""}`}
-              style={{ left: i * spread, "--rot": `${off * 2.2}deg`, "--arc": `${Math.abs(off) ** 1.7 * 1.8}px`, zIndex: i } as React.CSSProperties}
-              onPointerEnter={() => data && setPreview({ cardId: data.id, foil: card.foil })}
-              onPointerLeave={() => setPreview({})}
+              data-hid={id}
+              className={`hand-card${dragging ? " dragging" : ""}${selected ? " is-selected" : ""}`}
+              style={{ left: i * layout.spread, width: layout.width, "--rot": `${layout.rot(i)}deg`, "--arc": `${layout.arc(i)}px`, "--z": i + 1 } as React.CSSProperties}
+              onPointerEnter={() => {
+                useTableUi.getState().set({ handHover: id });
+                if (data) setPreview({ cardId: data.id, face, foil: card.foil });
+              }}
+              onPointerLeave={() => {
+                if (useTableUi.getState().handHover === id) useTableUi.getState().set({ handHover: null });
+                setPreview({});
+              }}
               onPointerDown={(e) => {
                 if (e.button !== 0) return;
                 e.preventDefault();
-                beginDrag(e.nativeEvent, "hand", [id], () => {});
+                // A click selects (then zooms); playing a card is always an explicit drag or menu pick,
+                // so an over-eager double-click can't put a card onto the battlefield.
+                beginDrag(e.nativeEvent, "hand", [id], () => clickHandCard(id));
               }}
-              onDoubleClick={() => moveTo([id], "battlefield")}
               onContextMenu={(e) => {
                 e.preventDefault();
                 if (card) handMenu(card, e.clientX, e.clientY);
               }}
             >
-              <CardView card={data} foil={card?.foil} width={width} />
+              <div className="hand-card-visual">
+                <CardView card={data} foil={card?.foil} face={face} width={layout.width} selected={selected} flippable onFlip={() => turnHandCard(id)} />
+              </div>
             </div>
           );
         })}
@@ -322,16 +486,46 @@ function Hand() {
   );
 }
 
+/** Zoom carousel over your hand, opened by clicking a selected hand card (same as the draft). */
+function HandZoom() {
+  const zoom = useTableUi((s) => s.handZoom);
+  const handFaces = useTableUi((s) => s.handFaces);
+  const view = useStore((s) => s.view);
+  const cards = useStore((s) => s.cards);
+  const hand = (view?.table && view.table.players[view.you]?.zones.hand) || [];
+  const items = useMemo<CarouselItem[]>(
+    () =>
+      hand.map((id) => {
+        const card = view?.table?.cards[id];
+        return { key: id, card: card?.cardId ? cards[card.cardId] : undefined, foil: card?.foil, face: handFaces[id] ?? 0 };
+      }),
+    // Faces are read when the carousel opens; it tracks turning over itself afterwards. The hand
+    // is compared by content: solo mode updates the same array in place.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hand.join(), view?.table?.cards, cards, zoom],
+  );
+  const originFor = useCallback((key: string) => document.querySelector(`.hand-card[data-hid="${key}"] .card`)?.getBoundingClientRect() ?? null, []);
+  const close = useCallback(() => useTableUi.getState().set({ handZoom: null }), []);
+  const onFaceChange = useCallback((key: string, face: number) => {
+    const ui = useTableUi.getState();
+    ui.set({ handFaces: { ...ui.handFaces, [key]: face } });
+  }, []);
+  if (!zoom || !hand.includes(zoom)) return null;
+  return <CardCarousel key={zoom} items={items} startKey={zoom} title="Your hand" originFor={originFor} onFaceChange={onFaceChange} onClose={close} />;
+}
+
 function HandDragGhost() {
   const drag = useTableUi((s) => s.drag);
   const cards = useStore((s) => s.cards);
   const table = useStore((s) => s.view?.table);
-  if (!drag || drag.source !== "hand" || !table) return null;
+  const handFaces = useTableUi((s) => s.handFaces);
+  // Over the table the card is drawn in 3D where it will land (see HandDragCard in TableScene).
+  if (!drag || drag.source !== "hand" || !drag.overHand || !table) return null;
   const card = table.cards[drag.ids[0]];
   const data = card?.cardId ? cards[card.cardId] : undefined;
   return (
     <div className="drag-ghost" style={{ left: drag.clientX, top: drag.clientY }}>
-      <CardView card={data} width={120} />
+      <CardView card={data} face={handFaces[drag.ids[0]] ?? 0} width={120} />
     </div>
   );
 }
@@ -422,7 +616,7 @@ function ZoneViewer() {
                 onPointerEnter={() => data && setPreview({ cardId: data.id })}
                 onPointerLeave={() => setPreview({})}
               >
-                <CardView card={data} token={card.token} back={card.hidden} width={140} />
+                <CardView card={data} token={card.token} back={card.hidden} width={140} flippable />
               </div>
             );
           })}
@@ -588,12 +782,14 @@ function AskDialog() {
 
 const SHORTCUTS: [string, string][] = [
   ["Drag", "Move cards — onto piles, back to your hand, or anywhere on the table"],
-  ["Double-click", "Tap / untap a permanent · play a card from hand · draw from your library"],
+  ["Click hand card", "Select it · click again to zoom in (← → browse your hand) · drag it to play"],
+  ["Double-click", "Tap / untap a permanent · draw from your library"],
   ["Right-click", "Card, pile and library menus (counters, face down, scry, search, mill…)"],
   ["Shift-click", "Select several cards (then drag or use keys on all of them)"],
   ["Space / T", "Tap or untap the hovered / selected cards"],
   ["F", "Turn face down / face up"],
-  ["R", "Transform a double-faced card"],
+  ["R", "Transform a double-faced card (on the table, or turn it over in your hand)"],
+  ["Tab", "Ping the spot under the pointer — everyone sees and hears it"],
   ["G / X / H", "Send to graveyard / exile / hand"],
   ["C / Shift+C", "Add / remove a +1/+1 counter"],
   ["D / Shift+D", "Draw a card / draw X"],

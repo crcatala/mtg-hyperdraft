@@ -90,10 +90,16 @@ src/
 ## Controls (tabletop)
 
 Press <kbd>?</kbd> on the table for the full list. Highlights: drag cards anywhere (onto piles, back to
-hand), double-click to tap / play / draw, right-click for menus (counters, face down, scry, search, mill,
+hand), click a hand card to select it and again to zoom in (← → browses your hand; playing is always a
+drag or a menu pick), double-click to tap / draw, right-click for menus (counters, face down, scry, search, mill,
 mulligan…), <kbd>T</kbd>/<kbd>Space</kbd> tap, <kbd>F</kbd> face down, <kbd>G</kbd>/<kbd>X</kbd>/<kbd>H</kbd>
 graveyard/exile/hand, <kbd>D</kbd> draw, <kbd>U</kbd> untap all, <kbd>N</kbd> end turn, arrows/<kbd>Q</kbd>
-<kbd>E</kbd>/wheel for the camera, <kbd>V</kbd> overhead view.
+<kbd>E</kbd>/wheel for the camera, <kbd>V</kbd> overhead view, <kbd>Tab</kbd> ping the spot under the pointer
+(everyone sees and hears it, like Tabletop Simulator).
+
+**Double-faced cards** show both faces in hover previews and have a ⟲ button to turn them over everywhere
+(draft, picks, deckbuilder, zoom view — <kbd>F</kbd> there — and your hand, where <kbd>R</kbd> works too). A card
+turned over in your hand enters the battlefield on that face.
 
 ## Deploying to Cloudflare (Workers + Durable Objects)
 

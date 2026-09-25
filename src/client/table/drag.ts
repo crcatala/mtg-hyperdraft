@@ -3,7 +3,7 @@
 
 import { pileAt, type Vec2 } from "../../shared/tableLayout";
 import { useStore } from "../store";
-import { act, moveTo, table, useTableUi, type LocalDrag } from "./tableUi";
+import { act, moveTo, playFromHand, settle, table, useTableUi, type LocalDrag } from "./tableUi";
 
 /** Set by the canvas: converts a screen point to table coordinates (ray vs. table plane). */
 export const tableApi: { screenToTable: (clientX: number, clientY: number) => Vec2 | null } = {
@@ -80,11 +80,14 @@ function drop(source: LocalDrag["source"], ids: string[], offsets: LocalDrag["of
     return;
   }
   if (source === "hand") {
-    moveTo(ids, "battlefield", { x: pt.x, y: pt.y });
+    for (const id of ids) playFromHand(id, { x: pt.x, y: pt.y });
     return;
   }
+  const targets: Record<string, Vec2> = {};
   for (const id of ids) {
     const o = offsets[id];
-    act({ a: "setPos", id, x: pt.x + o.dx, y: pt.y + o.dy });
+    targets[id] = { x: pt.x + o.dx, y: pt.y + o.dy };
+    act({ a: "setPos", id, ...targets[id] });
   }
+  settle(targets);
 }

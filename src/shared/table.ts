@@ -2,6 +2,7 @@
 // No rules enforcement — just MTG conventions (zones, tapping, face-down, counters, life).
 
 import type {
+  CardData,
   CardMap,
   DeckState,
   CardInstance,
@@ -19,7 +20,7 @@ import { defaultBattlefieldSpot } from "./tableLayout";
 import { isLand } from "./autopick";
 
 export type TableAction =
-  | { a: "move"; ids: string[]; to: ZoneName; x?: number; y?: number; bottom?: boolean; faceDown?: boolean }
+  | { a: "move"; ids: string[]; to: ZoneName; x?: number; y?: number; bottom?: boolean; faceDown?: boolean; face?: number }
   | { a: "setPos"; id: string; x: number; y: number }
   | { a: "tap"; ids: string[]; tapped?: boolean }
   | { a: "untapAll" }
@@ -133,6 +134,11 @@ export function cardName(table: TableState, id: string, env: TableEnv, forPublic
   return data.faces && card.face > 0 ? data.faces[card.face].name : data.name;
 }
 
+/** How many faces a card can be turned to (only double-faced cards with a printed image per face). */
+export function faceCount(data: CardData | undefined): number {
+  return data?.faces?.[1]?.images ? data.faces.length : 1;
+}
+
 function removeFromZone(table: TableState, card: TableCard) {
   if (card.zone === "battlefield") return;
   const zone = table.players[card.owner].zones[card.zone];
@@ -217,6 +223,11 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
       const names: string[] = [];
       for (const [i, card] of cards.entries()) {
         const from = card.zone;
+        // A double-faced card can enter the battlefield on the face its owner was looking at.
+        if (action.to === "battlefield" && from !== "battlefield" && action.face !== undefined) {
+          const data = card.cardId ? env.cards[card.cardId] : undefined;
+          if (action.face < faceCount(data)) card.face = action.face;
+        }
         const visible = isPublicZone(from) || isPublicZone(action.to);
         names.push(visible && !(action.faceDown && action.to === "battlefield") ? cardName(table, card.id, env) : "a card");
         // Spread multiple dropped cards a little so they don't stack perfectly.
@@ -264,8 +275,7 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
     }
     case "turnFace": {
       const card = getCard(action.id);
-      const data = card.cardId ? env.cards[card.cardId] : undefined;
-      const faces = data?.faces?.[1]?.images ? data.faces.length : 0;
+      const faces = faceCount(card.cardId ? env.cards[card.cardId] : undefined);
       if (faces < 2) throw new TableError("That card has only one face.");
       card.face = (card.face + 1) % faces;
       log(table, playerId, `${who} transformed it into ${cardName(table, card.id, env)}.`, env);
