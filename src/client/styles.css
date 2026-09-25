@@ -862,3 +862,10 @@ kbd {
     transform: var(--tip-from, none);
   }
 }
+.tip-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  align-items: baseline;
+  white-space: nowrap;
+}
