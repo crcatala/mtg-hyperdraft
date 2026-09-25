@@ -23,6 +23,8 @@ interface Props {
   originFor: (key: string) => DOMRect | null;
   /** Extra label shown above the card (e.g. "Selected"). */
   badge?: (key: string) => ReactNode;
+  /** Called when a double-faced card is turned over (e.g. so a hand card keeps that face). */
+  onFaceChange?: (key: string, face: number) => void;
   onClose: () => void;
 }
 
@@ -46,7 +48,7 @@ function useZoomWidth() {
   return Math.max(220, w);
 }
 
-export function CardCarousel({ items, startKey, title, originFor, badge, onClose }: Props) {
+export function CardCarousel({ items, startKey, title, originFor, badge, onFaceChange, onClose }: Props) {
   const [index, setIndex] = useState(() => Math.max(0, items.findIndex((i) => i.key === startKey)));
   const [dir, setDir] = useState<"next" | "prev" | "open">("open");
   const [closing, setClosing] = useState(false);
@@ -59,8 +61,10 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onClose
   const face = item ? faces[item.key] ?? item.face ?? 0 : 0;
   const turnOver = useCallback(() => {
     if (!item || !hasBackFace(item.card)) return;
-    setFaces((f) => ({ ...f, [item.key]: nextFace(item.card, f[item.key] ?? item.face ?? 0) }));
-  }, [item]);
+    const next = nextFace(item.card, face);
+    setFaces((f) => ({ ...f, [item.key]: next }));
+    onFaceChange?.(item.key, next);
+  }, [item, face, onFaceChange]);
 
   // Fly in from the card that was clicked.
   useLayoutEffect(() => {

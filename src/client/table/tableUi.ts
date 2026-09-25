@@ -57,6 +57,10 @@ interface TableUi {
   ask: AskState | null;
   /** Hand card under the pointer (keyboard shortcuts act on it). */
   handHover: string | null;
+  /** Hand card picked with a click; clicking it again opens the zoom carousel (like the draft). */
+  handSelected: string | null;
+  /** Hand card the zoom carousel was opened on. */
+  handZoom: string | null;
   /** Face each double-faced hand card is turned to; it enters the battlefield that way. */
   handFaces: Record<string, number>;
   /** Where dropped battlefield cards are headed until the server confirms, so they don't snap back. */
@@ -80,6 +84,8 @@ export const useTableUi = create<TableUi>((set) => ({
   logOpen: true,
   ask: null,
   handHover: null,
+  handSelected: null,
+  handZoom: null,
   handFaces: {},
   settling: {},
   pings: [],
@@ -129,6 +135,7 @@ export function moveTo(ids: string[], to: ZoneName, extra: Partial<Extract<Table
 export function playFromHand(id: string, extra: Partial<Extract<TableAction, { a: "move" }>> = {}) {
   const ui = useTableUi.getState();
   const face = ui.handFaces[id] ?? 0;
+  if (ui.handSelected === id) ui.set({ handSelected: null });
   if (face !== 0) {
     const { [id]: _, ...rest } = ui.handFaces;
     ui.set({ handFaces: rest });
@@ -136,11 +143,18 @@ export function playFromHand(id: string, extra: Partial<Extract<TableAction, { a
   moveTo([id], "battlefield", { ...extra, ...(face !== 0 ? { face } : {}) });
 }
 
+/** Click on a hand card: the first selects it, a second click on the selected card zooms in. */
+export function clickHandCard(id: string) {
+  const ui = useTableUi.getState();
+  if (ui.handSelected === id) ui.set({ handZoom: id });
+  else ui.set({ handSelected: id });
+}
+
 /** Turns a double-faced hand card over (only in your own view until it is played). */
 export function turnHandCard(id: string) {
   const card = table()?.cards[id];
   const data = card?.cardId ? useStore.getState().cards[card.cardId] : undefined;
-  if (!hasBackFace(data)) return;
+  if (card?.zone !== "hand" || !hasBackFace(data)) return;
   const ui = useTableUi.getState();
   const face = nextFace(data, ui.handFaces[id] ?? 0);
   ui.set({ handFaces: { ...ui.handFaces, [id]: face } });
@@ -243,7 +257,7 @@ export function handMenu(card: TableCard, x: number, y: number) {
     y,
     title: cardLabel(card),
     items: [
-      { label: dfc ? `Play ${back ? "back" : "front"} face` : "Play", hint: "dbl-click / drag", onSelect: () => playFromHand(id) },
+      { label: dfc ? `Play ${back ? "back" : "front"} face` : "Play", hint: "drag", onSelect: () => playFromHand(id) },
       ...(dfc ? [{ label: `Turn over (show ${back ? "front" : "back"})`, hint: "R", onSelect: () => turnHandCard(id) }] : []),
       { label: "Play face down", onSelect: () => moveTo([id], "battlefield", { faceDown: true }) },
       { separator: true, label: "" },

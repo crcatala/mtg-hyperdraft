@@ -80,10 +80,12 @@ export const sfx = {
     if (!a) return;
     noise(a, 0.06, 3000, 1500, 0.18);
   },
-  flip() {
+  /** A card turning face up; `step` nudges the pitch up so a wave of flips rises. */
+  flip(step = 0) {
     const a = audio();
     if (!a) return;
-    noise(a, 0.08, 1800, 4200, 0.16);
+    const lift = Math.min(step, 14) * 110;
+    noise(a, 0.07, 1800 + lift, 4200 + lift, 0.14);
   },
   rare() {
     const a = audio();

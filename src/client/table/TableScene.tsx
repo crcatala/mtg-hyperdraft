@@ -224,7 +224,7 @@ function TableSurface({ seatCount }: { seatCount: number }) {
         position-y={-0.02}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
-          if (!e.shiftKey) useTableUi.getState().setSelected([]);
+          if (!e.shiftKey) useTableUi.getState().set({ selected: [], handSelected: null });
           panApi.start(e.nativeEvent);
         }}
         onContextMenu={(e) => {
@@ -468,7 +468,7 @@ function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableC
             beginDrag(e.nativeEvent, "battlefield", ids, () => {
               const cur = useTableUi.getState().selected;
               if (shift) ui.setSelected(cur.includes(card.id) ? cur.filter((x) => x !== card.id) : [...cur, card.id]);
-              else ui.setSelected([card.id]);
+              else ui.set({ selected: [card.id], handSelected: null });
             });
           }}
           onDoubleClick={(e) => {
