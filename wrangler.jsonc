@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "hyperdraft",
+  "main": "./src/worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    // Built client (Vite output) is served as static assets; unknown paths fall back to index.html.
+    "not_found_handling": "single-page-application",
+    // API + websocket routes hit the Worker before static assets.
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "RoomDurableObject" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomDurableObject"] }],
+  "observability": { "enabled": true }
+}

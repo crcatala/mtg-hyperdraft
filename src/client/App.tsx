@@ -1,0 +1,34 @@
+import { useEffect } from "react";
+import { roomCodeFromPath, usePath } from "./router";
+import { Home } from "./screens/Home";
+import { RoomScreen } from "./screens/RoomScreen";
+import { Toasts } from "./components/Toasts";
+import { ContextMenu } from "./components/ContextMenu";
+import { DebugConsole } from "./debug/DebugConsole";
+import { useStore } from "./store";
+
+export function App() {
+  const path = usePath();
+  const code = roomCodeFromPath(path);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "`" || e.key === "~") {
+        e.preventDefault();
+        const s = useStore.getState();
+        s.setDebug({ open: !s.debug.open });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <>
+      {code ? <RoomScreen code={code} /> : <Home />}
+      <Toasts />
+      <ContextMenu />
+      <DebugConsole />
+    </>
+  );
+}
