@@ -1398,38 +1398,206 @@ body.dragging * {
   padding: 8px 10px 8px 16px;
   border-radius: 14px;
 }
-.action-bar {
+/* Top-right dock: the action toolbar, and under it the camera switcher. */
+.table-dock {
   position: absolute;
   right: 12px;
   top: 12px;
   z-index: 10;
   display: flex;
-  gap: 6px;
-  padding: 8px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.dock-actions {
+  /* Above the camera switcher, so the dice menu opens over it. */
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 5px;
   border-radius: 14px;
-  flex-wrap: wrap;
-  max-width: 440px;
-  justify-content: flex-end;
+}
+.dock-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 54px;
+  padding: 7px 6px 5px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #d9d3ec;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.08s;
+}
+.dock-btn .icon {
+  font-size: 19px;
+  transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+.dock-label {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  transition: color 0.15s;
+}
+.dock-btn:hover,
+.dock-btn.on {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--line);
+  color: var(--gold-2);
+}
+.dock-btn:hover .icon {
+  transform: translateY(-1px) scale(1.08);
+}
+.dock-btn:hover .dock-label,
+.dock-btn.on .dock-label {
+  color: var(--text);
+}
+.dock-btn:active {
+  transform: translateY(1px);
+}
+.dock-btn:focus-visible,
+.camera-opt:focus-visible,
+.log-card:focus-visible {
+  outline: 2px solid var(--violet-2);
+  outline-offset: 1px;
+}
+.dock-sep {
+  width: 1px;
+  margin: 8px 3px;
+  background: var(--line-2);
+}
+.dock-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 .dice-wrap {
   position: relative;
+  display: flex;
 }
 .dice-menu {
   position: absolute;
-  top: 110%;
-  right: 0;
+  top: calc(100% + 8px);
+  right: -40px;
   display: flex;
-  gap: 6px;
-  padding: 8px;
+  gap: 4px;
+  padding: 5px;
   border-radius: 12px;
   z-index: 20;
+  background: var(--panel-solid);
+  animation: tooltip-in 0.14s ease-out;
+  --tip-from: translateY(-4px);
+}
+.dice-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 70px;
+  padding: 7px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dice-opt b {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--gold-2);
+}
+.dice-opt .faint {
+  font-size: 10.5px;
+}
+.dice-opt:hover {
+  background: rgba(244, 197, 91, 0.12);
+  border-color: rgba(244, 197, 91, 0.45);
+}
+/* Camera switcher: one segment per seat (in its seat colour) plus the overhead view. */
+.camera-switch {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 12px;
+  max-width: calc(100vw - 300px);
+}
+.camera-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px 0 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.camera-label .icon {
+  font-size: 14px;
+}
+.camera-opt {
+  --hue: 260;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.camera-opt:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+.camera-opt.active {
+  background: hsla(var(--hue), 70%, 60%, 0.18);
+  border-color: hsla(var(--hue), 80%, 70%, 0.55);
+  color: hsl(var(--hue), 90%, 88%);
+  box-shadow: 0 0 14px hsla(var(--hue), 80%, 60%, 0.22);
+}
+.camera-opt.overview {
+  --hue: 42;
+}
+.camera-opt .icon {
+  font-size: 15px;
+}
+.camera-name {
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seat-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(var(--hue), 75%, 65%);
+  box-shadow: 0 0 0 2px hsla(var(--hue), 75%, 65%, 0.25);
+}
+.camera-opt.active .seat-dot {
+  box-shadow: 0 0 0 2px hsla(var(--hue), 75%, 65%, 0.35), 0 0 8px hsl(var(--hue), 80%, 65%);
 }
 .log-panel {
   position: absolute;
   left: 12px;
   bottom: 12px;
   z-index: 10;
-  width: 320px;
+  width: 340px;
   border-radius: 14px;
   overflow: hidden;
 }
@@ -1448,8 +1616,8 @@ body.dragging * {
 }
 .log-body {
   position: relative; /* line offsetTops are measured against the body (scroll anchoring) */
-  max-height: 180px;
-  padding: 0 12px 10px;
+  max-height: 200px;
+  padding: 0 10px 10px;
   overflow-anchor: none; /* the panel anchors itself; the browser's anchoring would double up */
 }
 .log-new {
@@ -1491,13 +1659,14 @@ body.dragging * {
   }
 }
 .log-line {
+  --accent: var(--muted);
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 7px;
   font-size: 12.5px;
   line-height: 1.45;
-  padding: 2px 0;
-  color: #d8d2ea;
+  padding: 3px 0;
+  color: #b9b2d0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   animation: fade-in 0.3s;
 }
@@ -1508,10 +1677,150 @@ body.dragging * {
 .log-time {
   flex-shrink: 0;
   font-size: 10.5px;
+  line-height: 18px;
   color: var(--faint);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   cursor: default;
+}
+/* What happened, at a glance: a small tinted badge per kind of action. */
+.log-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.log-icon .icon {
+  font-size: 12px;
+  --icon-stroke: 2.3;
+}
+.log-line.kind-battlefield { --accent: var(--gold); }
+.log-line.kind-hand,
+.log-line.kind-mulligan { --accent: var(--violet-2); }
+.log-line.kind-graveyard,
+.log-line.kind-mill { --accent: #a49cc0; }
+.log-line.kind-exile,
+.log-line.kind-reveal { --accent: var(--cyan); }
+.log-line.kind-library,
+.log-line.kind-sideboard,
+.log-line.kind-draw,
+.log-line.kind-shuffle,
+.log-line.kind-peek { --accent: #7fb0ff; }
+.log-line.kind-tap,
+.log-line.kind-untap,
+.log-line.kind-flip,
+.log-line.kind-transform { --accent: #c6bfe0; }
+.log-line.kind-life { --accent: #ff7d8b; }
+.log-line.kind-poison { --accent: #8be06a; }
+.log-line.kind-counter,
+.log-line.kind-roll,
+.log-line.kind-start { --accent: var(--gold); }
+.log-line.kind-token { --accent: #d7a6ff; }
+.log-line.kind-turn { --accent: hsl(var(--hue, 260), 80%, 75%); }
+
+.log-player {
+  font-weight: 700;
+  color: hsl(var(--hue), 80%, 80%);
+}
+.log-player.gone {
+  color: var(--text);
+}
+.log-verb {
+  font-weight: 650;
+  color: var(--text);
+}
+/* Card names read as links: hover for a preview, click to zoom in. */
+.log-card {
+  display: inline;
+  padding: 0 1px;
+  margin: 0 -1px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--gold-2);
+  text-decoration: underline dotted rgba(255, 223, 142, 0.55);
+  text-underline-offset: 3px;
+  cursor: zoom-in;
+  transition: background 0.12s, color 0.12s;
+}
+.log-card:hover {
+  color: #fff3cf;
+  background: rgba(244, 197, 91, 0.16);
+  text-decoration: underline solid var(--gold-2);
+}
+.log-card.plain {
+  cursor: default;
+  text-decoration: none;
+  background: none;
+  color: #efe2bd;
+}
+.log-zone {
+  color: #d5cfe8;
+}
+.log-zone.z-battlefield { color: #f6d98f; }
+.log-zone.z-graveyard { color: #c3bbdb; }
+.log-zone.z-exile { color: #9deeff; }
+.log-zone.z-hand { color: var(--violet-2); }
+.log-zone.z-library,
+.log-zone.z-sideboard { color: #a9c8ff; }
+.log-num {
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.log-num.good { color: var(--green); }
+.log-num.bad { color: var(--red); }
+/* Dice and coin results stand out as a little chip. */
+.kind-roll .log-num {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  text-align: center;
+  color: #2a1a02;
+  background: linear-gradient(180deg, #ffd978, #e9a93a);
+}
+/* Turn changes: a divider across the log, in the new player's colour. */
+.log-line.divider {
+  align-items: center;
+  padding: 7px 0 5px;
+  border-bottom: 0;
+}
+.log-line.divider .log-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  text-align: center;
+}
+.log-line.divider .log-text::before,
+.log-line.divider .log-text::after {
+  content: "";
+  flex: 1;
+  min-width: 12px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent));
+}
+.log-line.divider .log-text::after {
+  background: linear-gradient(270deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent));
+}
+.log-divider-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 12px;
+}
+.log-line.divider .log-num {
+  color: inherit;
 }
 .hand-zone {
   position: absolute;

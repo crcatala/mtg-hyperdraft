@@ -261,10 +261,50 @@ export interface TablePlayer {
   zones: Record<Exclude<ZoneName, "battlefield">, string[]>;
 }
 
+/** What a log line is about; the client picks its icon and accent from it. Moves use the destination zone. */
+export type LogKind =
+  | ZoneName
+  | "start"
+  | "tap"
+  | "untap"
+  | "flip"
+  | "transform"
+  | "draw"
+  | "shuffle"
+  | "mill"
+  | "peek"
+  | "life"
+  | "poison"
+  | "counter"
+  | "token"
+  | "mulligan"
+  | "turn"
+  | "roll"
+  | "reveal";
+
+/**
+ * A styled span of a log line's text, `[start, end, kind, …]` (a compact tuple: the whole log goes
+ * out with every table update):
+ * - `p` a player, with their id
+ * - `c` a card name, with its card id when it has one (tokens made up on the spot don't) and the
+ *   face it showed, when not the front
+ * - `v` the action itself ("tapped", "drew")
+ * - `z` a zone ("graveyard", "the battlefield")
+ * - `n` a number or result, optionally "good" / "bad" news (life gained / lost)
+ */
+export type LogMark =
+  | [start: number, end: number, kind: "p", playerId: string]
+  | [start: number, end: number, kind: "c", cardId?: string, face?: number]
+  | [start: number, end: number, kind: "v" | "z"]
+  | [start: number, end: number, kind: "n", tone?: "good" | "bad"];
+
 export interface LogEntry {
   at: number;
   playerId: string;
+  /** The plain sentence. Always present, so entries from before marks existed still read fine. */
   text: string;
+  kind?: LogKind;
+  marks?: LogMark[];
 }
 
 export interface TableState {

@@ -46,6 +46,13 @@ export interface AskState {
   onCancel?: () => void;
 }
 
+export interface LogZoom {
+  /** Which card link it was opened from (to fly back to it). */
+  key: string;
+  cardId: string;
+  face: number;
+}
+
 export interface ZoneViewerState {
   playerId: string;
   zone: Exclude<ZoneName, "battlefield">;
@@ -58,7 +65,12 @@ interface TableUi {
   viewer: ZoneViewerState | null;
   tokenDialog: boolean;
   help: boolean;
+  /** Camera looking down on the whole table from above. */
   overview: boolean;
+  /** Whose seat the camera sits behind (null: your own). */
+  pov: string | null;
+  /** A card named in the game log, open in the zoom carousel. */
+  logZoom: LogZoom | null;
   logOpen: boolean;
   ask: AskState | null;
   /** Hand card under the pointer (keyboard shortcuts act on it). */
@@ -87,6 +99,8 @@ export const useTableUi = create<TableUi>((set) => ({
   tokenDialog: false,
   help: false,
   overview: false,
+  pov: null,
+  logZoom: null,
   logOpen: true,
   ask: null,
   handHover: null,
@@ -137,6 +151,17 @@ export function table(): TableState | null {
 
 export function me(): string {
   return useStore.getState().view?.you ?? "";
+}
+
+/** Seats in the order the camera switcher lists them: yours first, then around the table. */
+export function seatsFromMe(seats: string[], me: string): string[] {
+  const at = seats.indexOf(me);
+  return at < 0 ? seats.slice() : [...seats.slice(at), ...seats.slice(0, at)];
+}
+
+/** Moves the camera behind a player's seat (yours when null), leaving the overhead view. */
+export function viewFrom(playerId: string | null) {
+  useTableUi.getState().set({ pov: playerId === me() ? null : playerId, overview: false });
 }
 
 /** The cards a keyboard shortcut applies to: hovered card, else the selection. */
