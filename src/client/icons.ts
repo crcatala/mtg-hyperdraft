@@ -108,6 +108,8 @@ export const ICONS = {
   /** Turn a card over: counter-clockwise arrow (the old ⟲). */
   flip: [stroke("M4.5 12A7.5 7.5 0 1 0 12 4.5"), stroke("M14.8 1.7L12 4.5l2.8 2.8")],
   gear: [stroke(gear(8, 7.3, 10)), stroke(circle(12, 12, 3))],
+  /** Disconnected: signal arcs, struck through. */
+  offline: [stroke("M5 10.2a10 10 0 0 1 14 0"), stroke("M8.2 13.6a5.5 5.5 0 0 1 7.6 0"), solid(circle(12, 17.5, 1.4)), stroke("M4 4l16 16")],
   /** View all: a 2×2 grid of cards. */
   grid: [stroke(roundRect(4, 4, 7, 7, 1.5)), stroke(roundRect(13, 4, 7, 7, 1.5)), stroke(roundRect(4, 13, 7, 7, 1.5)), stroke(roundRect(13, 13, 7, 7, 1.5))],
   search: [stroke(circle(10.5, 10.5, 6.5)), stroke("M15.5 15.5L20 20")],

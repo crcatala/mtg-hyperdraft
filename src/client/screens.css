@@ -2448,3 +2448,15 @@ body.dragging * {
   font-size: 12px;
   text-align: center;
 }
+
+/* ---------- presence ---------- */
+
+/* A disconnected player's panel: dashed and dimmed (the "offline" pill stays readable). */
+.hud-player.offline {
+  border-style: dashed;
+}
+.hud-player.offline .hud-life,
+.hud-player.offline .hud-meta,
+.hud-player.offline .hud-name > span:first-child {
+  opacity: 0.45;
+}

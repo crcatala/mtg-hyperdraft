@@ -3,7 +3,7 @@
 
 import { pileAt, type Vec2 } from "../../shared/tableLayout";
 import { useStore } from "../store";
-import { act, moveTo, playFromHand, settle, table, useTableUi, type LocalDrag } from "./tableUi";
+import { actAll, moveTo, playFromHand, settle, table, unsettle, useTableUi, type LocalDrag } from "./tableUi";
 
 /** Set by the canvas: converts a screen point to table coordinates (ray vs. table plane). */
 export const tableApi: { screenToTable: (clientX: number, clientY: number) => Vec2 | null } = {
@@ -40,9 +40,12 @@ export function beginDrag(
     dragging = true;
     document.body.classList.add("dragging");
     const pt = tableApi.screenToTable(ev.clientX, ev.clientY) ?? start;
-    useTableUi.getState().setDrag({ ids, source, x: pt.x, y: pt.y, clientX: ev.clientX, clientY: ev.clientY, offsets, overHand: isOverHand(ev.clientY) });
+    const overHand = isOverHand(ev.clientY);
+    useTableUi.getState().setDrag({ ids, source, x: pt.x, y: pt.y, clientX: ev.clientX, clientY: ev.clientY, offsets, overHand });
     const now = performance.now();
-    if (source === "battlefield" && now - lastSent > 50) {
+    // Everyone sees cards move while they're dragged. A card from the hand only once it's out over
+    // the table, and others only ever see its back (the id says nothing about which card it is).
+    if ((source === "battlefield" || !overHand) && now - lastSent > 50) {
       lastSent = now;
       const o = offsets[ids[0]];
       useStore.getState().send({ t: "drag", id: ids[0], x: pt.x + o.dx, y: pt.y + o.dy });
@@ -87,7 +90,12 @@ function drop(source: LocalDrag["source"], ids: string[], offsets: LocalDrag["of
   for (const id of ids) {
     const o = offsets[id];
     targets[id] = { x: pt.x + o.dx, y: pt.y + o.dy };
-    act({ a: "setPos", id, ...targets[id] });
   }
-  settle(targets);
+  // Hold the cards where they were dropped; if moving someone else's cards needs confirming and the
+  // player cancels, they slide back.
+  settle(targets, Infinity);
+  actAll(
+    ids.map((id) => ({ a: "setPos" as const, id, ...targets[id] })),
+    { onSend: () => settle(targets), onCancel: () => unsettle(ids) },
+  );
 }

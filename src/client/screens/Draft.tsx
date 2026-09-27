@@ -551,7 +551,7 @@ function SeatRing() {
               <span className="ring-name">
                 {s.isBot && <Icon name="bot" className="ring-bot" title="Bot" />}
                 {s.name}
-                {p && !p.isBot && !p.connected ? " (away)" : ""}
+                {p && !p.isBot && !p.connected ? " (offline)" : ""}
               </span>
               <span className="ring-queue">
                 {Array.from({ length: Math.min(s.queued, 6) }, (_, k) => (

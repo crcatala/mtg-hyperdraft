@@ -6,7 +6,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import * as THREE from "three";
 import { useStore } from "../store";
 import type { TableCard, TableState } from "../../shared/types";
-import { CARD_H, CARD_W, MAT_D, MAT_W, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
+import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
 import { backTexture, feltTexture, glowTexture, labelTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, type LabelVariant } from "./textures";
 import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
@@ -68,6 +68,7 @@ function Scene() {
         <BattlefieldCard key={card.id} card={card} elevation={0.03 + i * 0.004} shadowY={shadowY} table={table} me={me} />
       ))}
       <DropTarget mySeat={mySeat} seatCount={n} shadowY={shadowY} />
+      <RemoteHandDrags table={table} shadowY={shadowY} />
       <Pings table={table} />
     </>
   );
@@ -256,8 +257,11 @@ function TableSurface({ seatCount }: { seatCount: number }) {
 
 function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { table: TableState; playerId: string; seat: number; seatCount: number; isMe: boolean; viewerAngle: number }) {
   const name = useStore((s) => s.view?.players.find((p) => p.id === playerId)?.name ?? "Player");
+  const offline = useStore((s) => s.view?.players.find((p) => p.id === playerId)?.connected === false);
   const tex = useMemo(() => matTexture(name, seatHue(seat), isMe), [name, seat, isMe]);
   const center = localToTable({ x: 0, y: 0 }, seat, seatCount);
+  // In the empty strip left of the battlefield, below the sideboard, so it never covers their cards.
+  const offlineAt = localToTable({ x: PILE_LOCAL.sideboard.x, y: -1.5 }, seat, seatCount);
   const angle = seatAngle(seat, seatCount);
   const player = table.players[playerId];
   const handCount = player?.zones.hand.length ?? 0;
@@ -266,8 +270,14 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
     <group>
       <mesh rotation={[FLAT, 0, -angle]} position={[center.x, 0, center.y]} renderOrder={1}>
         <planeGeometry args={[MAT_W, MAT_D]} />
-        <meshStandardMaterial map={tex} transparent roughness={0.9} depthWrite={false} />
+        {/* A player who dropped out: their mat dims and says so, until they're back. */}
+        <meshStandardMaterial map={tex} transparent roughness={0.9} depthWrite={false} color={offline ? "#6b6b78" : "#ffffff"} />
       </mesh>
+      {offline && (
+        <group position={[offlineAt.x, 0.05, offlineAt.y]} rotation-y={-viewerAngle}>
+          <Label text="Offline" icon="offline" variant="muted" position={[0, 0, 0]} height={0.9} />
+        </group>
+      )}
       {(["library", "graveyard", "exile", "sideboard"] as PileZone[]).map((zone) => (
         <Pile key={zone} table={table} ownerId={playerId} zone={zone} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />
       ))}
@@ -357,7 +367,6 @@ function OpponentHand({ count, seat, seatCount, viewerAngle }: { count: number; 
 
 function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableCard; elevation: number; shadowY: number; table: TableState; me: string }) {
   const data = useStore((s) => (card.cardId ? s.cards[card.cardId] : undefined));
-  const remote = useStore((s) => s.drags[card.id]);
   const drag = useTableUi((s) => (s.drag?.ids.includes(card.id) ? s.drag : null));
   const settling = useTableUi((s) => s.settling[card.id]);
   const selected = useTableUi((s) => s.selected.includes(card.id));
@@ -375,6 +384,10 @@ function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableC
 
   // Target transform; the frame loop eases toward it (smooth taps, moves and remote drags).
   const target = useRef({ x: card.x, y: elevation, z: card.y, rot: baseAngle });
+  // Someone else's drag overrides the target in the frame loop, which also notices when it goes
+  // stale: a drag they backed out of ends without any state change to re-render this card.
+  const remoteCanMove = useRef(true);
+  remoteCanMove.current = !drag;
   let tx = card.x;
   let tz = card.y;
   let ty = elevation;
@@ -383,10 +396,6 @@ function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableC
     tx = drag.x + o.dx;
     tz = drag.y + o.dy;
     ty = DRAG_LIFT;
-  } else if (remote && performance.now() - remote.at < 600) {
-    tx = remote.x;
-    tz = remote.y;
-    ty = 1.0;
   } else if (settling) {
     // Just dropped: head for the drop spot while the server confirms, instead of snapping back.
     tx = settling.x;
@@ -406,10 +415,12 @@ function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableC
     const g = group.current;
     if (!g) return;
     const a = 1 - Math.exp(-dt * (drag ? 30 : 12));
-    g.position.x += (target.current.x - g.position.x) * a;
-    g.position.y += (target.current.y - g.position.y) * a;
-    g.position.z += (target.current.z - g.position.z) * a;
-    g.rotation.y += (target.current.rot - g.rotation.y) * a;
+    const remote = useStore.getState().drags[card.id];
+    const t = remoteCanMove.current && remote && performance.now() - remote.at < REMOTE_DRAG_MS ? { ...target.current, x: remote.x, y: 1.0, z: remote.y } : target.current;
+    g.position.x += (t.x - g.position.x) * a;
+    g.position.y += (t.y - g.position.y) * a;
+    g.position.z += (t.z - g.position.z) * a;
+    g.rotation.y += (t.rot - g.rotation.y) * a;
 
     // Lifted (dragged here or by someone else): the contact shadow gives way to a soft shadow on the
     // table that spreads and fades with height. For our own drag it sits exactly where the card
@@ -556,6 +567,52 @@ function HandDragCard({ id, x, y, angle, shadowY, onPile }: { id: string; x: num
         </mesh>
       </group>
     </>
+  );
+}
+
+/** How long a remote drag position stays live without a fresh update (drags stream every ~50 ms). */
+const REMOTE_DRAG_MS = 600;
+
+/**
+ * Cards other players are pulling out of their hands, shown face down under their pointer until
+ * they're played (then the battlefield card takes over) or put back.
+ */
+function RemoteHandDrags({ table, shadowY }: { table: TableState; shadowY: number }) {
+  const drags = useStore((s) => s.drags);
+  const ids = Object.keys(drags).filter((id) => table.cards[id]?.zone === "hand");
+  return (
+    <>
+      {ids.map((id) => (
+        <RemoteHandCard key={id} id={id} angle={-seatAngle(table.players[drags[id].by]?.seat ?? 0, table.seats.length)} shadowY={shadowY} />
+      ))}
+    </>
+  );
+}
+
+function RemoteHandCard({ id, angle, shadowY }: { id: string; angle: number; shadowY: number }) {
+  const back = useMemo(() => backTexture(), []);
+  const soft = useMemo(() => shadowTexture("soft"), []);
+  const group = useRef<THREE.Group>(null);
+  const start = useStore.getState().drags[id];
+  useFrame((_, dt) => {
+    const g = group.current;
+    const d = useStore.getState().drags[id];
+    if (!g || !d) return;
+    // Stale (dropped back into the hand, or the player went quiet): hide until the next update.
+    g.visible = performance.now() - d.at < REMOTE_DRAG_MS;
+    const a = 1 - Math.exp(-dt * 20);
+    g.position.x += (d.x - g.position.x) * a;
+    g.position.z += (d.y - g.position.z) * a;
+  });
+  return (
+    <group ref={group} position={[start?.x ?? 0, DRAG_LIFT, start?.y ?? 0]} rotation-y={angle}>
+      <mesh rotation-x={FLAT} position-y={shadowY - DRAG_LIFT} geometry={SOFT_SHADOW_GEO} renderOrder={2}>
+        <meshBasicMaterial map={soft} transparent opacity={0.5} depthWrite={false} />
+      </mesh>
+      <mesh rotation-x={FLAT} geometry={CARD_GEO}>
+        <meshStandardMaterial map={back} roughness={0.55} />
+      </mesh>
+    </group>
   );
 }
 

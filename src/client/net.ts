@@ -11,6 +11,12 @@ let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let currentCode: string | null = null;
 let claim: string | null = null;
 let queue: string[] = [];
+let heartbeat: ReturnType<typeof setInterval> | undefined;
+
+/** Heartbeat period. The server answers "ping" with "pong" without waking the room. */
+const HEARTBEAT_MS = 10_000;
+/** A ping unanswered this long means the connection is dead even if no close event came. */
+const PONG_TIMEOUT_MS = 10_000;
 
 const CLOSE_MESSAGES: Record<number, string> = {
   [CLOSE.notFound]: "This room doesn't exist. Check the code?",
@@ -39,6 +45,7 @@ export function disconnect() {
   claim = null;
   queue = [];
   clearTimeout(retryTimer);
+  clearInterval(heartbeat);
   if (socket) {
     socket.onclose = null;
     socket.close();
@@ -66,21 +73,45 @@ function open() {
   useStore.setState({ status: retry === 0 ? "connecting" : "reconnecting" });
 
   const stop = (update: Partial<ReturnType<typeof useStore.getState>>) => {
+    clearInterval(heartbeat);
     ws.onclose = null;
     ws.close();
     socket = null;
     useStore.setState(update);
   };
 
+  // Reconnect as if the socket had closed (used when it has silently died).
+  const lost = () => {
+    ws.onclose = null;
+    ws.close();
+    clearInterval(heartbeat);
+    if (socket === ws) socket = null;
+    if (!currentCode) return;
+    const delay = Math.min(8000, 400 * 2 ** retry++);
+    useStore.setState({ status: "reconnecting" });
+    retryTimer = setTimeout(open, delay);
+  };
+
+  // Judged against our own last ping, not wall-clock silence: background tabs may only get to run
+  // this once a minute, and that alone mustn't look like a dead connection.
+  let pingSentAt: number | null = null;
   ws.onopen = () => {
     retry = 0;
     useStore.setState({ status: "open" });
     for (const m of queue) ws.send(m);
     queue = [];
+    clearInterval(heartbeat);
+    heartbeat = setInterval(() => {
+      if (pingSentAt !== null && performance.now() - pingSentAt > PONG_TIMEOUT_MS) return lost();
+      pingSentAt = performance.now();
+      ws.send("ping");
+    }, HEARTBEAT_MS);
   };
 
   ws.onmessage = (event) => {
+    pingSentAt = null;
     const text = String(event.data);
+    if (text === "pong") return;
     const msg = JSON.parse(text) as ServerMessage;
     const store = useStore.getState();
     store.setDebug({ msgIn: store.debug.msgIn + 1, bytesIn: store.debug.bytesIn + text.length });
@@ -126,6 +157,7 @@ function open() {
 
   ws.onclose = (event) => {
     socket = null;
+    clearInterval(heartbeat);
     // 4xxx closes are the server saying "don't come back" (refused, missing, deleted, offline).
     if (refusal || (event.code >= 4000 && event.code < 5000)) {
       useStore.setState({ status: "failed", fatal: refusal ?? CLOSE_MESSAGES[event.code] ?? "Could not join this room." });

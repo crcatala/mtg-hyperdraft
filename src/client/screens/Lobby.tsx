@@ -114,7 +114,11 @@ function SeatRow({ player, seat, isMe, canKick }: { player: Player; seat: number
         {player.isHost && <Icon name="crown" className="crown" title="Host" />}
       </span>
       <span className="spacer" />
-      {!player.isBot && !player.connected && <span className="pill bad">away</span>}
+      {!player.isBot && !player.connected && (
+        <span className="pill bad">
+          <Icon name="offline" /> offline
+        </span>
+      )}
       {player.isBot ? <span className="pill">bot</span> : player.ready ? <span className="pill ok">ready</span> : <span className="pill">not ready</span>}
       {canKick && (
         <button className="btn ghost small icon-only" title="Remove" aria-label={`Remove ${player.name}`} onClick={() => send({ t: "kick", playerId: player.id })}>

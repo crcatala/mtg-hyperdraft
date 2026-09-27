@@ -6,6 +6,8 @@ import type { TableCard, TableState, ZoneName } from "../../shared/types";
 import { useStore, type MenuItem } from "../store";
 import { hasBackFace, nextFace } from "../cardStyle";
 import { sfx } from "../sfx";
+import { pilePosition } from "../../shared/tableLayout";
+import { guardForAll, type GuardContext } from "./guards";
 
 export interface LocalDrag {
   ids: string[];
@@ -37,7 +39,11 @@ export interface AskState {
   question: string;
   kind: "number" | "text" | "confirm";
   initial?: string;
+  /** Label of the OK button (confirmations name the action: "Tap", "Draw"…). */
+  confirmLabel?: string;
   onSubmit: (value: string) => void;
+  /** Called when the dialog is dismissed without submitting. */
+  onCancel?: () => void;
 }
 
 export interface ZoneViewerState {
@@ -96,8 +102,33 @@ export const useTableUi = create<TableUi>((set) => ({
   set: (p) => set(p),
 }));
 
-export function act(action: TableAction) {
-  useStore.getState().send({ t: "table", action });
+export interface ActOptions {
+  /** The player backed out of the confirmation (e.g. put a dropped card back). */
+  onCancel?: () => void;
+  /** Runs once the action is actually sent (sounds, local state). */
+  onSend?: () => void;
+}
+
+/** Sends table actions, first asking "are you sure?" when they're easy to do by accident (see guards). */
+export function actAll(actions: TableAction[], opts: ActOptions = {}) {
+  if (actions.length === 0) return;
+  const send = () => {
+    for (const action of actions) useStore.getState().send({ t: "table", action });
+    opts.onSend?.();
+  };
+  const t = table();
+  const guard = t ? guardForAll(actions, guardContext(t)) : null;
+  if (!guard) return send();
+  useTableUi.getState().set({ ask: { question: guard.question, kind: "confirm", confirmLabel: guard.confirm, onSubmit: send, onCancel: opts.onCancel } });
+}
+
+export function act(action: TableAction, opts: ActOptions = {}) {
+  actAll([action], opts);
+}
+
+function guardContext(t: TableState): GuardContext {
+  const players = useStore.getState().view?.players ?? [];
+  return { table: t, me: me(), nameOf: (id) => players.find((p) => p.id === id)?.name ?? "another player", cardLabel };
 }
 
 export function table(): TableState | null {
@@ -162,16 +193,28 @@ export function turnHandCard(id: string) {
   if (ui.handHover === id) useStore.getState().setPreview({ cardId: data!.id, face, foil: card?.foil });
 }
 
-/** Remembers where dropped cards are going until the server's state catches up (or 1.5 s pass). */
-export function settle(positions: Record<string, { x: number; y: number }>) {
+/**
+ * Remembers where dropped cards are going until the server's state catches up (or `holdMs` pass;
+ * Infinity holds them until settled again or `unsettle`d, e.g. while a confirmation is open).
+ */
+export function settle(positions: Record<string, { x: number; y: number }>, holdMs = 1500) {
   const ui = useTableUi.getState();
   ui.set({ settling: { ...ui.settling, ...positions } });
+  if (holdMs === Infinity) return;
   setTimeout(() => {
     const cur = useTableUi.getState().settling;
     const next = { ...cur };
     for (const id of Object.keys(positions)) if (next[id] === positions[id]) delete next[id];
     useTableUi.getState().set({ settling: next });
-  }, 1500);
+  }, holdMs);
+}
+
+/** Forgets where cards were headed (a drop the player backed out of): they ease back to their spot. */
+export function unsettle(ids: string[]) {
+  const ui = useTableUi.getState();
+  const next = { ...ui.settling };
+  for (const id of ids) delete next[id];
+  ui.set({ settling: next });
 }
 
 let pingSeq = 1;
@@ -203,8 +246,7 @@ export function toggleTap(ids: string[]) {
   const t = table();
   const cards = ids.map((id) => t?.cards[id]).filter((c): c is TableCard => !!c && c.zone === "battlefield");
   if (cards.length === 0) return;
-  sfx.tap();
-  act({ a: "tap", ids: cards.map((c) => c.id), tapped: !cards[0].tapped });
+  act({ a: "tap", ids: cards.map((c) => c.id), tapped: !cards[0].tapped }, { onSend: () => sfx.tap() });
 }
 
 function counterItems(id: string): MenuItem[] {
@@ -305,10 +347,8 @@ export function pileMenu(ownerId: string, zone: Exclude<ZoneName, "battlefield" 
           { label: "Mill X…", onSelect: () => askNumber("Mill how many?", 1, (n) => act({ a: "mill", n })) },
           { label: "Reveal top card", onSelect: () => player?.zones.library[0] && act({ a: "reveal", ids: [player.zones.library[0]] }) },
           { separator: true, label: "" },
-          {
-            label: "Mulligan (shuffle hand in, redraw)",
-            onSelect: () => useTableUi.getState().set({ ask: { question: "Shuffle your hand into your library and draw a new hand?", kind: "confirm", onSubmit: () => act({ a: "mulligan" }) } }),
-          },
+          // Always confirmed (see guards).
+          { label: "Mulligan (shuffle hand in, redraw)", onSelect: () => act({ a: "mulligan" }) },
         ]
       : [{ label: `${ownerName}'s library: ${count} cards`, disabled: true }];
   } else if (zone === "sideboard" && !mine) {
@@ -317,8 +357,14 @@ export function pileMenu(ownerId: string, zone: Exclude<ZoneName, "battlefield" 
     items = [{ label: `View ${zone} (${count})`, onSelect: view, disabled: count === 0 }];
     if (mine && zone === "graveyard" && count > 0) {
       items.push({ label: "Exile entire graveyard", onSelect: () => player && moveTo(player.zones.graveyard.slice(), "exile") });
-      items.push({ label: "Shuffle graveyard into library", onSelect: () => player && (moveTo(player.zones.graveyard.slice(), "library"), setTimeout(() => act({ a: "shuffle" }), 50)) });
+      items.push({ label: "Shuffle graveyard into library", onSelect: () => player && actAll([{ a: "move", ids: player.zones.graveyard.slice(), to: "library" }, { a: "shuffle" }]) });
     }
+  }
+  // Point everyone at the pile (its spot on the owner's mat).
+  const seat = player?.seat;
+  if (t && seat !== undefined) {
+    const at = pilePosition(zone, seat, t.seats.length);
+    items.push({ separator: true, label: "" }, { label: `Ping this ${zone === "library" ? "library" : "pile"}`, icon: "pin", hint: "Tab", onSelect: () => pingAt(at.x, at.y) });
   }
   useStore.getState().openMenu({ x, y, title: `${mine ? "Your" : `${ownerName}'s`} ${zone}`, items });
 }
