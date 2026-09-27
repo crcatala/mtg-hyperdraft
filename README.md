@@ -126,7 +126,8 @@ storage are available on the free Workers plan.
    ```
    Changing `ROOM_CODE_SECRET` later makes every existing room code invalid, so set it once.
 4. **Share** the site URL with anyone (solo mode needs nothing), and a magic link
-   `https://…workers.dev/?invite=<key>` with each friend who should be able to host.
+   `<site URL>/?invite=<key>` with each friend who should be able to host. Room and invite links are
+   built from whatever host serves the app, so any hostname you attach to the Worker works too.
 
 **Managing invites:** `INVITE_CODES` is the whole admin panel. Add an entry to invite someone; remove it
 to revoke (their existing room links keep working for players); change the key but keep the label to
@@ -135,15 +136,14 @@ rotate it. The label is the invite's identity: renaming it starts a fresh, empty
 **Kill switch:** `echo false | npx wrangler secret put ONLINE_ENABLED` turns online rooms off instantly
 (solo mode keeps working); `npx wrangler secret delete ONLINE_ENABLED` turns them back on.
 
-**Recommended: a rate-limiting rule.** Cloudflare dashboard → your domain/Worker → Security → WAF →
-Rate limiting rules: e.g. requests to URI path starting with `/api/` above 60 per 10 seconds per IP →
-Block. Blocked requests never reach the Worker, so floods can't use up your daily free-plan requests.
-(Needs a custom domain on Cloudflare; `workers.dev` hosts can't have WAF rules.)
+**Optional: a rate-limiting rule.** If you serve the Worker from a zone on your Cloudflare account, add a
+WAF rate-limiting rule there, e.g. requests to URI path starting with `/api/` above 60 per 10 seconds per
+IP → Block. Blocked requests never reach the Worker, so floods can't use up your daily free-plan
+requests. (`workers.dev` hosts can't have WAF rules.)
 
 Useful afterwards:
 
 - `npx wrangler tail` — live logs from the deployed Worker (room errors, imports).
-- Custom domain: Cloudflare dashboard → Workers & Pages → hyperdraft → Settings → Domains & Routes.
 - Renaming the Worker: change `name` in `wrangler.jsonc`.
 - If you ever rename/remove the Durable Object class, add a new migration entry — don't edit `v1`.
 

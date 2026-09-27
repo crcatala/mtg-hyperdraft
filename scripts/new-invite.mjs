@@ -17,5 +17,5 @@ Invite entry:   ${label}:${key}
 1. Add it to the INVITE_CODES secret (comma-separated with your other entries):
      npx wrangler secret put INVITE_CODES
 2. Send your friend the magic link:
-     https://<your-worker>.workers.dev/?invite=${key}
+     <your site URL>/?invite=${key}      (e.g. https://hyperdraft.<your-subdomain>.workers.dev)
 `);
