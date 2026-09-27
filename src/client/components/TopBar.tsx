@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useStore } from "../store";
 import { navigate } from "../router";
 import { saveName } from "../identity";
+import { copyText } from "../clipboard";
 import { Icon } from "./Icon";
 
 export function TopBar({ title, children }: { title?: ReactNode; children?: ReactNode }) {
@@ -13,12 +14,8 @@ export function TopBar({ title, children }: { title?: ReactNode; children?: Reac
   const copyInvite = async () => {
     if (!code) return;
     const link = `${location.origin}/r/${code}`;
-    try {
-      await navigator.clipboard.writeText(link);
-      toast("Invite link copied — send it to your friends!");
-    } catch {
-      toast(`Invite link: ${link}`);
-    }
+    if (await copyText(link)) toast("Invite link copied — send it to your friends!");
+    else toast(`Copy this invite link: ${link}`);
   };
 
   return (

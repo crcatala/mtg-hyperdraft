@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { drawIcon, ICON_STROKE, ICONS, type IconName } from "../icons";
 import { navigate } from "../router";
 import { useStore } from "../store";
+import { copyText } from "../clipboard";
 
 const NAMES = Object.keys(ICONS) as IconName[];
 const SMALL_SIZES = [16, 20, 24];
@@ -36,12 +37,7 @@ export function IconGallery() {
 
   const copy = async (name: IconName) => {
     const snippet = `<Icon name="${name}" />`;
-    try {
-      await navigator.clipboard.writeText(snippet);
-      toast(`Copied ${snippet}`);
-    } catch {
-      toast(snippet);
-    }
+    toast(await copyText(snippet) ? `Copied ${snippet}` : snippet);
   };
 
   const render = (name: IconName, px: number) =>

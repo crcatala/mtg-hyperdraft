@@ -47,6 +47,8 @@ export const CardView = memo(function CardView({
   onFlip,
   className = "",
   style,
+  onPointerMove: userPointerMove,
+  onPointerLeave: userPointerLeave,
   ...rest
 }: CardViewProps) {
   const forceText = useStore((s) => s.debug.forceText);
@@ -76,6 +78,7 @@ export const CardView = memo(function CardView({
   const shiny = !back && (foil || rarity === "mythic");
 
   const onMove = (e: PointerEvent<HTMLDivElement>) => {
+    userPointerMove?.(e);
     if (!tilt || !ref.current) return;
     const r = ref.current.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width;
@@ -86,8 +89,9 @@ export const CardView = memo(function CardView({
     ref.current.style.setProperty("--ry", `${(px - 0.5) * 22}deg`);
     ref.current.style.setProperty("--hyp", `${Math.min(1, Math.hypot(px - 0.5, py - 0.5) * 2)}`);
   };
-  const onLeave = () => {
-    if (!ref.current) return;
+  const onLeave = (e: PointerEvent<HTMLDivElement>) => {
+    userPointerLeave?.(e);
+    if (!tilt || !ref.current) return;
     ref.current.style.setProperty("--rx", "0deg");
     ref.current.style.setProperty("--ry", "0deg");
     ref.current.style.setProperty("--hyp", "0");
@@ -111,8 +115,8 @@ export const CardView = memo(function CardView({
       ref={ref}
       className={classes}
       style={{ width, ...style }}
-      onPointerMove={tilt ? onMove : undefined}
-      onPointerLeave={tilt ? onLeave : undefined}
+      onPointerMove={tilt || userPointerMove ? onMove : undefined}
+      onPointerLeave={tilt || userPointerLeave ? onLeave : undefined}
       {...rest}
     >
       <div className="card-inner">

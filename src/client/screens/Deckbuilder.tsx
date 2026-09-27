@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useStore } from "../store";
 import { NameEditor, TopBar } from "../components/TopBar";
-import { Tooltip } from "../components/Tooltip";
+import { AnchoredPreview } from "../components/AnchoredPreview";
 import { CardView } from "../components/CardView";
 import { Icon } from "../components/Icon";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
@@ -13,6 +13,7 @@ import { BASIC_NAMES, COLORS } from "../../shared/types";
 import { autoBuild, basicsTotal, colorPips, deckSize, suggestBasics } from "../../shared/deck";
 import { isLand } from "../../shared/autopick";
 import { playFlip, snapshotRects } from "../flip";
+import { copyText } from "../clipboard";
 
 type Area = "main" | "side";
 const COLUMNS = ["0–1", "2", "3", "4", "5", "6+"];
@@ -82,6 +83,10 @@ export function Deckbuilder() {
   // Hover hints teach right-click/drag. Each section stops showing them once you've moved a card
   // out of it: taking a card from the pool doesn't mean you know how to put one back.
   const [learned, setLearned] = useState<Record<Area, boolean>>({ main: false, side: false });
+  // Card under the mouse: previewed right away, beside it (and with the hint, while it's needed).
+  const [hover, setHover] = useState<{ iid: string; area: Area; rect: DOMRect } | null>(null);
+  const hoverStart = useCallback((iid: string, area: Area, rect: DOMRect) => setHover({ iid, area, rect }), []);
+  const hoverEnd = useCallback((iid: string) => setHover((h) => (h?.iid === iid ? null : h)), []);
 
   const server = view.deck!;
   // Optimistic local copy until the server echoes it back (or 3s pass, e.g. after a rejected change).
@@ -137,12 +142,8 @@ export function Deckbuilder() {
     const lines = ["Deck", ...countLines(deck.main, instances, cards)];
     for (const land of Object.keys(deck.basics) as BasicLand[]) if (deck.basics[land] > 0) lines.push(`${deck.basics[land]} ${BASIC_NAMES[land]}`);
     lines.push("", "Sideboard", ...countLines(deck.side, instances, cards));
-    try {
-      await navigator.clipboard.writeText(lines.join("\n"));
-      toast("Decklist copied (Arena/MTGO format).");
-    } catch {
-      toast("Couldn't access the clipboard.", "error");
-    }
+    if (await copyText(lines.join("\n"))) toast("Decklist copied (Arena/MTGO format).");
+    else toast("Couldn't access the clipboard.", "error");
   };
 
   const others = view.players.filter((p) => !p.isBot && p.id !== view.you);
@@ -152,7 +153,12 @@ export function Deckbuilder() {
     if (selected === iid) setZoom({ area, key: iid });
     else setSelected(iid);
   };
-  const moveOther = (iid: string) => move(iid, deck.main.includes(iid) ? "side" : "main");
+  const moveOther = (iid: string) => {
+    // The card moves away from under the mouse, so drop its preview. A locked deck refuses the
+    // move, and the preview's "locked" hint is what explains why.
+    if (!deck.ready) hoverEnd(iid);
+    move(iid, deck.main.includes(iid) ? "side" : "main");
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -181,6 +187,7 @@ export function Deckbuilder() {
   const cardH = Math.round((cardW * 88) / 63);
   const sizeVars = { "--card-w": `${cardW}px`, "--card-h": `${cardH}px`, "--step": `${Math.round(cardH * STEP_RATIO)}px` } as React.CSSProperties;
   const closeZoom = useCallback(() => setZoom(null), []);
+  const hoverData = hover ? cards[instances[hover.iid]?.cardId] : undefined;
 
   return (
     <div className="screen deckbuilder">
@@ -253,7 +260,8 @@ export function Deckbuilder() {
       </div>
 
       <div className="db-body">
-        <div className="db-areas scroll" ref={areasRef} style={sizeVars}>
+        {/* The preview is fixed-position: drop it when the cards scroll out from under it. */}
+        <div className="db-areas scroll" ref={areasRef} style={sizeVars} onScroll={() => setHover(null)}>
           <CardArea
             title={`Deck · ${deck.main.length} spells/lands + ${basicsTotal(deck.basics)} basics`}
             area="main"
@@ -283,8 +291,8 @@ export function Deckbuilder() {
             cardWidth={cardW}
             dragging={dragging}
             setDragging={setDragging}
-            locked={deck.ready}
-            hints={!learned.main}
+            onHoverStart={hoverStart}
+            onHoverEnd={hoverEnd}
           />
           <CardArea
             title={`Pool / sideboard · ${deck.side.length}`}
@@ -300,8 +308,8 @@ export function Deckbuilder() {
             dragging={dragging}
             setDragging={setDragging}
             filter={colorFilter}
-            locked={deck.ready}
-            hints={!learned.side}
+            onHoverStart={hoverStart}
+            onHoverEnd={hoverEnd}
           />
         </div>
         <aside className="db-side panel scroll">
@@ -309,6 +317,16 @@ export function Deckbuilder() {
           <DeckStats main={mainCards} basics={deck.basics} />
         </aside>
       </div>
+      {hover && hoverData && !zoom && !dragging && (
+        <AnchoredPreview
+          card={hoverData}
+          foil={instances[hover.iid]?.foil}
+          anchor={hover.rect}
+          width={Math.round(Math.min(280, Math.max(220, cardW * 1.6)))}
+          prefer="right"
+          footer={deck.ready || !learned[hover.area] ? <CardHint area={hover.area} locked={deck.ready} /> : undefined}
+        />
+      )}
       {zoom && carouselItems.length > 0 && (
         <CardCarousel
           key={`${zoom.area}:${zoom.key}`}
@@ -353,13 +371,11 @@ interface CardAreaProps {
   filter?: Set<Color | "C">;
   /** Rendered at the right end of the section's title row. */
   extra?: ReactNode;
-  /** Deck is readied: moves are refused until the player unreadies. */
-  locked: boolean;
-  /** Show the right-click/drag hover hint (the "locked" hint always shows). */
-  hints: boolean;
+  onHoverStart: (iid: string, area: Area, rect: DOMRect) => void;
+  onHoverEnd: (iid: string) => void;
 }
 
-/** Hover hint on each card, so first-timers find right-click and drag. */
+/** Hint shown under the hover preview, so first-timers find right-click and drag. */
 function CardHint({ area, locked }: { area: Area; locked: boolean }) {
   if (locked) {
     return (
@@ -405,10 +421,9 @@ function layoutArea(ids: string[], instances: Record<string, CardInstance>, card
   return { cols, lands };
 }
 
-function CardArea({ title, area, ids, instances, cards, onMove, onClickCard, onMoveOther, selected, cardWidth, dragging, setDragging, filter, extra, locked, hints }: CardAreaProps) {
+function CardArea({ title, area, ids, instances, cards, onMove, onClickCard, onMoveOther, selected, cardWidth, dragging, setDragging, filter, extra, onHoverStart, onHoverEnd }: CardAreaProps) {
   const [over, setOver] = useState(false);
   const columns = useMemo(() => layoutArea(ids, instances, cards, filter), [ids, instances, cards, filter]);
-  const hint = locked || hints ? <CardHint area={area} locked={locked} /> : null;
 
   return (
     <section
@@ -439,26 +454,28 @@ function CardArea({ title, area, ids, instances, cards, onMove, onClickCard, onM
                 const inst = instances[iid];
                 const isSel = selected === iid;
                 return (
-                  <Tooltip key={iid} follow placement="right" delay={500} content={hint}>
-                    <div
-                      data-iid={iid}
-                      className={`db-card${isSel ? " is-selected" : ""}`}
-                      style={{ "--k": k } as React.CSSProperties}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("text/plain", iid);
-                        setDragging(iid);
-                      }}
-                      onDragEnd={() => setDragging(null)}
-                      onClick={() => onClickCard(iid, area)}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        onMoveOther(iid);
-                      }}
-                    >
-                      <CardView card={cards[inst.cardId]} foil={inst.foil} width={cardWidth} glow={false} selected={isSel} flippable />
-                    </div>
-                  </Tooltip>
+                  <div
+                    key={iid}
+                    data-iid={iid}
+                    className={`db-card${isSel ? " is-selected" : ""}`}
+                    style={{ "--k": k } as React.CSSProperties}
+                    draggable
+                    onPointerEnter={(e) => e.pointerType === "mouse" && onHoverStart(iid, area, e.currentTarget.getBoundingClientRect())}
+                    onPointerLeave={() => onHoverEnd(iid)}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", iid);
+                      setDragging(iid);
+                      onHoverEnd(iid);
+                    }}
+                    onDragEnd={() => setDragging(null)}
+                    onClick={() => onClickCard(iid, area)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      onMoveOther(iid);
+                    }}
+                  >
+                    <CardView card={cards[inst.cardId]} foil={inst.foil} width={cardWidth} glow={false} selected={isSel} flippable />
+                  </div>
                 );
               })}
             </div>

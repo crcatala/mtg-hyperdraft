@@ -1,9 +1,13 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStore } from "../store";
 import { NameEditor, TopBar } from "../components/TopBar";
 import { CardView } from "../components/CardView";
 import { Icon } from "../components/Icon";
-import type { DraftConfig, GameConfig, Player } from "../../shared/types";
+import { AnchoredPreview } from "../components/AnchoredPreview";
+import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
+import { CubeBrowser } from "../components/CubeBrowser";
+import { cubeCards } from "../cubeList";
+import type { CardData, DraftConfig, GameConfig, Player } from "../../shared/types";
 import { MAX_HUMANS, MAX_SEATS } from "../../shared/types";
 import { cardsNeeded } from "../../shared/draft";
 import { quickstart, STARTER_CUBE } from "../quickstart";
@@ -128,6 +132,8 @@ function CubePanel({ isHost }: { isHost: boolean }) {
   const solo = useStore((s) => s.mode === "solo");
   const [source, setSource] = useState("");
   const [showMissing, setShowMissing] = useState(false);
+  const [browsing, setBrowsing] = useState(false);
+  const closeBrowser = useCallback(() => setBrowsing(false), []);
   const running = view.importStatus.state === "running";
   const cube = view.cube;
 
@@ -144,20 +150,21 @@ function CubePanel({ isHost }: { isHost: boolean }) {
     <section className="panel lobby-cube">
       <div className="section-head">
         <h2>Cube</h2>
-        {cube && <span className="pill ok">{cube.size} cards</span>}
+        {cube && (
+          <button className="pill ok pill-btn" onClick={() => setBrowsing(true)} title="Browse every card in this cube">
+            <Icon name="grid" /> View all {cube.size} cards
+          </button>
+        )}
       </div>
 
+      {browsing && cube && <CubeBrowser onClose={closeBrowser} />}
       {cube ? (
         <div className="cube-summary">
           <div className="cube-name">{cube.name}</div>
           <div className="muted">
             {cube.uniqueCards} unique · {cube.source}
           </div>
-          <div className="showcase">
-            {showcase.map((c, i) => (
-              <CardView key={c.id} card={c} width={112} tilt style={{ "--i": i, "--n": showcase.length } as React.CSSProperties} className="showcase-card" />
-            ))}
-          </div>
+          <Showcase cards={showcase} paused={browsing} />
           {cube.notFound.length > 0 && (
             <div className="notice-box bad">
               <button className="btn ghost small" onClick={() => setShowMissing((v) => !v)}>
@@ -336,5 +343,58 @@ function NumberField({ label, value, min, max, onChange, hint }: { label: string
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * The cube's headline cards, fanned out. Hover previews a card; click selects it, and clicking the
+ * selected card opens the zoom carousel, which browses the whole cube (like picking in the draft).
+ */
+function Showcase({ cards, paused }: { cards: CardData[]; /** The cube browser is open and owns Esc. */ paused: boolean }) {
+  const all = useStore((s) => s.cards);
+  const basicIds = useStore((s) => s.view?.basicIds);
+  const cubeName = useStore((s) => s.view?.cube?.name);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<string | null>(null);
+  const [hover, setHover] = useState<{ card: CardData; rect: DOMRect } | null>(null);
+  const items = useMemo<CarouselItem[]>(() => (zoom ? cubeCards(all, basicIds).map((c) => ({ key: c.id, card: c })) : []), [zoom, all, basicIds]);
+  const originFor = useCallback((key: string) => document.querySelector(`.showcase-card[data-card="${CSS.escape(key)}"]`)?.getBoundingClientRect() ?? null, []);
+  const closeZoom = useCallback(() => setZoom(null), []);
+
+  useEffect(() => {
+    if (!selected || zoom || paused) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSelected(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected, zoom, paused]);
+
+  return (
+    <>
+      <div className="showcase">
+        {cards.map((c, i) => (
+          <CardView
+            key={c.id}
+            card={c}
+            width={112}
+            tilt
+            selected={selected === c.id}
+            data-card={c.id}
+            style={{ "--i": i, "--n": cards.length } as React.CSSProperties}
+            className={`showcase-card${selected === c.id ? " is-selected" : ""}`}
+            onPointerEnter={(e) => e.pointerType === "mouse" && setHover({ card: c, rect: e.currentTarget.getBoundingClientRect() })}
+            onPointerLeave={() => setHover((h) => (h?.card.id === c.id ? null : h))}
+            onClick={() => {
+              if (selected === c.id) {
+                setHover(null);
+                setZoom(c.id);
+              } else setSelected(c.id);
+            }}
+          />
+        ))}
+      </div>
+      <p className="faint small-print showcase-hint">{selected ? "Click the selected card again to zoom in and browse the whole cube" : "Hover a card to preview it · click to select"}</p>
+      {hover && !zoom && <AnchoredPreview card={hover.card} anchor={hover.rect} prefer="right" />}
+      {zoom && items.length > 0 && <CardCarousel key={zoom} items={items} startKey={zoom} title={cubeName ?? "Cube"} originFor={originFor} onClose={closeZoom} />}
+    </>
   );
 }
