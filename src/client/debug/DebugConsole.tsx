@@ -128,6 +128,9 @@ export function DebugConsole() {
           <input type="checkbox" checked={debug.forceText} onChange={(e) => setDebug({ forceText: e.target.checked })} />
           <span>Text-only cards (skip Scryfall images)</span>
         </label>
+        <a href="/dev/icons" target="_blank" rel="noreferrer">
+          Open icon gallery (new tab)
+        </a>
       </section>
 
       <section>

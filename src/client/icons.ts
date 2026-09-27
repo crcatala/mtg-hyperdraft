@@ -165,13 +165,13 @@ export function cardTypeIcon(typeLine: string): IconName {
 export const ICON_STROKE = 2;
 
 /** Draws an icon onto a canvas, `size` px square with its top-left corner at (x, y). */
-export function drawIcon(ctx: CanvasRenderingContext2D, name: IconName, x: number, y: number, size: number, color: string) {
+export function drawIcon(ctx: CanvasRenderingContext2D, name: IconName, x: number, y: number, size: number, color: string, strokeWidth = ICON_STROKE) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(size / 24, size / 24);
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
-  ctx.lineWidth = ICON_STROKE;
+  ctx.lineWidth = strokeWidth;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   for (const part of ICONS[name] as IconPart[]) {

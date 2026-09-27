@@ -1,4 +1,5 @@
-// Minimal path router: "/" (home) and "/r/CODE" (room). Keeps ?as= for multi-tab testing.
+// Minimal path router: "/" (home), "/solo", "/r/CODE" (room) and "/dev/icons" (icon gallery).
+// Keeps ?as= for multi-tab testing.
 
 import { useSyncExternalStore } from "react";
 import { withAlias } from "./identity";
