@@ -209,6 +209,10 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
     if (!card) throw new TableError("That card is gone.");
     return card;
   };
+  // Acting on someone else's card is allowed (no rules engine), but the log names the owner so it's
+  // never mistaken for their own move.
+  const holder = (card: TableCard) => (card.zone === "battlefield" ? card.controller : card.owner);
+  const label = (card: TableCard) => (holder(card) === playerId ? cardName(table, card.id, env) : `${env.names[holder(card)] ?? "someone"}'s ${cardName(table, card.id, env)}`);
   // Cards in hidden zones can only be touched by their owner.
   const assertCanTouch = (card: TableCard) => {
     if ((card.zone === "hand" || card.zone === "library" || card.zone === "sideboard") && card.owner !== playerId) {
@@ -229,14 +233,16 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
           if (action.face < faceCount(data)) card.face = action.face;
         }
         const visible = isPublicZone(from) || isPublicZone(action.to);
-        names.push(visible && !(action.faceDown && action.to === "battlefield") ? cardName(table, card.id, env) : "a card");
+        const shown = visible && !(action.faceDown && action.to === "battlefield");
+        names.push(card.owner === playerId ? (shown ? cardName(table, card.id, env) : "a card") : `${env.names[card.owner] ?? "someone"}'s ${shown ? cardName(table, card.id, env) : "card"}`);
+        const theirs = card.owner === playerId ? "their" : `${env.names[card.owner] ?? "someone"}'s`;
         // Spread multiple dropped cards a little so they don't stack perfectly.
         const x = action.x !== undefined ? action.x + i * 0.6 : undefined;
         const y = action.y !== undefined ? action.y + i * 0.2 : undefined;
         moveCard(table, card, action.to, env, { x, y, bottom: action.bottom, faceDown: action.faceDown });
         if (i === 0 && cards.length === 1) {
-          const place = action.to === "library" ? (action.bottom ? "the bottom of their library" : "the top of their library") : `their ${ZONE_LABELS[action.to].toLowerCase()}`;
-          const fromLabel = from === action.to ? "" : ` from ${from === "battlefield" ? "the battlefield" : `their ${ZONE_LABELS[from].toLowerCase()}`}`;
+          const place = action.to === "library" ? (action.bottom ? `the bottom of ${theirs} library` : `the top of ${theirs} library`) : `${theirs} ${ZONE_LABELS[action.to].toLowerCase()}`;
+          const fromLabel = from === action.to ? "" : ` from ${from === "battlefield" ? "the battlefield" : `${theirs} ${ZONE_LABELS[from].toLowerCase()}`}`;
           if (from !== action.to) log(table, playerId, `${who} moved ${names[0]}${fromLabel} to ${action.to === "battlefield" ? "the battlefield" : place}.`, env);
         }
       }
@@ -256,8 +262,9 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
       if (cards.length === 0) return;
       const target = action.tapped ?? !cards[0].tapped;
       for (const c of cards) c.tapped = target;
-      const label = cards.length === 1 ? cardName(table, cards[0].id, env) : `${cards.length} cards`;
-      log(table, playerId, `${who} ${target ? "tapped" : "untapped"} ${label}.`, env);
+      const foreign = cards.filter((c) => c.controller !== playerId).length;
+      const what = cards.length === 1 ? label(cards[0]) : `${cards.length} cards${foreign ? ` (${foreign} not theirs)` : ""}`;
+      log(table, playerId, `${who} ${target ? "tapped" : "untapped"} ${what}.`, env);
       return;
     }
     case "untapAll": {
@@ -269,7 +276,8 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
       for (const card of action.ids.map(getCard)) {
         if (card.zone !== "battlefield") continue;
         card.faceDown = !card.faceDown;
-        log(table, playerId, `${who} turned ${card.faceDown ? "a card face down" : `${cardName(table, card.id, env)} face up`}.`, env);
+        const whose = card.controller === playerId ? "" : `${env.names[card.controller] ?? "someone"}'s `;
+        log(table, playerId, `${who} turned ${card.faceDown ? `${whose || "a "}card face down` : `${label(card)} face up`}.`, env);
       }
       return;
     }
@@ -278,7 +286,7 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
       const faces = faceCount(card.cardId ? env.cards[card.cardId] : undefined);
       if (faces < 2) throw new TableError("That card has only one face.");
       card.face = (card.face + 1) % faces;
-      log(table, playerId, `${who} transformed it into ${cardName(table, card.id, env)}.`, env);
+      log(table, playerId, `${who} transformed ${holder(card) === playerId ? "it" : `${env.names[holder(card)] ?? "someone"}'s card`} into ${cardName(table, card.id, env)}.`, env);
       return;
     }
     case "draw": {
@@ -323,11 +331,15 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
     case "poison": {
       const target = table.players[action.playerId];
       if (!target) throw new TableError("No such player.");
+      const before = action.a === "life" ? target.life : target.poison;
       if (action.a === "life") target.life += action.delta;
       else target.poison = Math.max(0, target.poison + action.delta);
       const value = action.a === "life" ? target.life : target.poison;
+      // Nothing changed (e.g. the life field was opened and closed): no log line.
+      if (value === before) return;
       const name = env.names[action.playerId] ?? "Someone";
-      const sign = action.delta > 0 ? `+${action.delta}` : `${action.delta}`;
+      const change = value - before;
+      const sign = change > 0 ? `+${change}` : `${change}`;
       log(table, playerId, `${name}'s ${action.a === "life" ? "life" : "poison"}: ${sign} → ${value}${action.playerId !== playerId ? ` (by ${who})` : ""}.`, env);
       return;
     }
@@ -337,7 +349,7 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
       const next = (card.counters[kind] ?? 0) + action.delta;
       if (next === 0) delete card.counters[kind];
       else card.counters[kind] = next;
-      log(table, playerId, `${who} ${action.delta > 0 ? "added" : "removed"} a ${kind} counter ${action.delta > 0 ? "to" : "from"} ${cardName(table, card.id, env)} (${next}).`, env);
+      log(table, playerId, `${who} ${action.delta > 0 ? "added" : "removed"} a ${kind} counter ${action.delta > 0 ? "to" : "from"} ${label(card)} (${next}).`, env);
       return;
     }
     case "token": {

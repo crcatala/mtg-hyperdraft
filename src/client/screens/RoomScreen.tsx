@@ -1,6 +1,6 @@
 // Connects to a room and shows the screen for its current phase.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { connect, disconnect } from "../net";
 import { loadIdentity, loadName, saveName } from "../identity";
 import { navigate } from "../router";
@@ -9,6 +9,52 @@ import { Lobby } from "./Lobby";
 import { Draft } from "./Draft";
 import { Deckbuilder } from "./Deckbuilder";
 import { TableScreen } from "../table/TableScreen";
+import { presenceChanges } from "../presence";
+import type { Player } from "../../shared/types";
+
+/** How long someone can be gone before it's announced (a page reload shouldn't make a fuss). */
+const PRESENCE_GRACE_MS = 4000;
+
+/** Toasts when another player drops out, and when someone who was announced gone comes back. */
+function usePresenceToasts() {
+  const players = useStore((s) => s.view?.players);
+  const me = useStore((s) => s.view?.you);
+  const toast = useStore((s) => s.toast);
+  const prev = useRef<Player[] | null>(null);
+  const pending = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const announced = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!players || !me) return;
+    if (prev.current) {
+      const { left, back } = presenceChanges(prev.current, players, me);
+      for (const p of left) {
+        clearTimeout(pending.current.get(p.id));
+        pending.current.set(
+          p.id,
+          setTimeout(() => {
+            pending.current.delete(p.id);
+            announced.current.add(p.id);
+            toast(`${p.name} disconnected`);
+          }, PRESENCE_GRACE_MS),
+        );
+      }
+      for (const p of back) {
+        const timer = pending.current.get(p.id);
+        if (timer) {
+          clearTimeout(timer);
+          pending.current.delete(p.id);
+        } else if (announced.current.delete(p.id)) toast(`${p.name} is back`);
+      }
+    }
+    prev.current = players;
+  }, [players, me, toast]);
+
+  useEffect(() => {
+    const timers = pending.current;
+    return () => timers.forEach(clearTimeout);
+  }, []);
+}
 
 export function RoomScreen({ code }: { code: string }) {
   const [named, setNamed] = useState(() => !!loadName() || !!loadIdentity(code));
@@ -16,6 +62,7 @@ export function RoomScreen({ code }: { code: string }) {
   const fatal = useStore((s) => s.fatal);
   const phase = useStore((s) => s.view?.phase);
   const claimSeats = useStore((s) => s.claimSeats);
+  usePresenceToasts();
 
   useEffect(() => {
     if (!named) return;

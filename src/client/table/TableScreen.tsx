@@ -141,10 +141,14 @@ function PlayersHud() {
         const active = table.turn.playerId === pid;
         const bump = (delta: number) => act({ a: "life", playerId: pid, delta });
         return (
-          <div key={pid} className={`hud-player${active ? " active" : ""}${pid === me ? " me" : ""}`} style={{ "--hue": seatHue(seat) } as React.CSSProperties}>
+          <div key={pid} className={`hud-player${active ? " active" : ""}${pid === me ? " me" : ""}${p && !p.connected ? " offline" : ""}`} style={{ "--hue": seatHue(seat) } as React.CSSProperties}>
             <div className="hud-name">
               {pid === me ? <NameEditor /> : <span>{p?.name}</span>}
-              {p && !p.connected && <span className="pill bad">away</span>}
+              {p && !p.connected && (
+                <span className="pill bad" title="Disconnected: their cards stay put until they're back">
+                  <Icon name="offline" /> offline
+                </span>
+              )}
               {active && <span className="pill ok">turn</span>}
             </div>
             <div className="hud-life">
@@ -196,10 +200,25 @@ function LifeTotal({ value, onSet }: { value: number; onSet: (v: number) => void
   if (editing) {
     const commit = () => {
       const n = parseInt(text, 10);
-      if (Number.isFinite(n)) onSet(n);
+      // Opening the field and leaving it unchanged (or blank) is not a life change.
+      if (Number.isFinite(n) && n !== value) onSet(n);
       setEditing(false);
     };
-    return <input className="life-input" autoFocus value={text} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />;
+    return (
+      <input
+        className="life-input"
+        autoFocus
+        inputMode="numeric"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") setEditing(false);
+        }}
+      />
+    );
   }
   return (
     <span
@@ -747,14 +766,30 @@ function AskDialog() {
   const set = useTableUi((s) => s.set);
   const [value, setValue] = useState("");
   useEffect(() => setValue(ask?.initial ?? ""), [ask]);
+  // Confirmations have no input to catch Esc, so listen on the window.
+  useEffect(() => {
+    if (ask?.kind !== "confirm") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      set({ ask: null });
+      ask.onCancel?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [ask, set]);
   if (!ask) return null;
   const submit = () => {
     set({ ask: null });
     ask.onSubmit(value);
   };
+  const cancel = () => {
+    set({ ask: null });
+    ask.onCancel?.();
+  };
   return (
-    <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && set({ ask: null })}>
-      <div className="modal panel ask-dialog">
+    <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && cancel()}>
+      <div className="modal panel ask-dialog" role={ask.kind === "confirm" ? "alertdialog" : "dialog"} aria-modal="true" aria-label={ask.question}>
         <p className="ask-q">{ask.question}</p>
         {ask.kind !== "confirm" && (
           <input
@@ -765,17 +800,17 @@ function AskDialog() {
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") submit();
-              if (e.key === "Escape") set({ ask: null });
+              if (e.key === "Escape") cancel();
             }}
           />
         )}
         <div className="row">
           <div className="spacer" />
-          <button className="btn" onClick={() => set({ ask: null })}>
+          <button className="btn" onClick={cancel}>
             Cancel
           </button>
           <button className="btn primary" autoFocus={ask.kind === "confirm"} onClick={submit}>
-            OK
+            {ask.confirmLabel ?? "OK"}
           </button>
         </div>
       </div>

@@ -103,6 +103,41 @@ describe("tabletop", () => {
     expect(table.turn).toEqual({ playerId: "a", number: 2 });
   });
 
+  it("life and poison changes that change nothing are not logged", () => {
+    const { table, env } = setup();
+    const before = table.log.length;
+    applyTableAction(table, "a", { a: "life", playerId: "a", delta: 0 }, env);
+    // Poison can't go below zero, so removing one from none is also a no-op.
+    applyTableAction(table, "a", { a: "poison", playerId: "a", delta: -1 }, env);
+    expect(table.players.a).toMatchObject({ life: 20, poison: 0 });
+    expect(table.log).toHaveLength(before);
+    applyTableAction(table, "a", { a: "poison", playerId: "b", delta: 2 }, env);
+    applyTableAction(table, "a", { a: "poison", playerId: "b", delta: -5 }, env);
+    // The log shows the change that actually happened.
+    expect(table.log.at(-1)?.text).toBe("Bob's poison: -2 → 0 (by Alice).");
+  });
+
+  it("names the owner when someone acts on another player's card", () => {
+    const { table, env } = setup();
+    const id = table.players.b.zones.hand[0];
+    applyTableAction(table, "b", { a: "move", ids: [id], to: "battlefield", x: 0, y: 0 }, env);
+    const name = env.cards[table.cards[id].cardId!].name;
+    applyTableAction(table, "a", { a: "tap", ids: [id] }, env);
+    expect(table.log.at(-1)?.text).toBe(`Alice tapped Bob's ${name}.`);
+    applyTableAction(table, "a", { a: "counter", id, kind: "+1/+1", delta: 1 }, env);
+    expect(table.log.at(-1)?.text).toBe(`Alice added a +1/+1 counter to Bob's ${name} (1).`);
+    applyTableAction(table, "a", { a: "flip", ids: [id] }, env);
+    expect(table.log.at(-1)?.text).toBe("Alice turned Bob's card face down.");
+    applyTableAction(table, "a", { a: "flip", ids: [id] }, env);
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "graveyard" }, env);
+    expect(table.log.at(-1)?.text).toBe(`Alice moved Bob's ${name} from the battlefield to Bob's graveyard.`);
+    // Their own cards read as before.
+    const mine = table.players.a.zones.hand[0];
+    applyTableAction(table, "a", { a: "move", ids: [mine], to: "battlefield", x: 0, y: 0 }, env);
+    applyTableAction(table, "a", { a: "tap", ids: [mine] }, env);
+    expect(table.log.at(-1)?.text).toBe(`Alice tapped ${env.cards[table.cards[mine].cardId!].name}.`);
+  });
+
   it("double-faced cards can enter the battlefield on either face", () => {
     const { table, env } = setup();
     applyTableAction(table, "a", { a: "draw", n: 20 }, env);

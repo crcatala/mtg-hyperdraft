@@ -11,6 +11,15 @@ import { importCube } from "../shared/importCube";
 
 interface Attachment {
   playerId: string;
+  /**
+   * This socket's own id. The socket handed to webSocketClose is a different object from the one
+   * getWebSockets() returns (and still reads as OPEN there), so sockets are told apart by this.
+   */
+  sid?: string;
+  /** When the socket joined (counts as its first sign of life, before any heartbeat). */
+  since?: number;
+  /** Closed by the heartbeat sweep; its close event may never arrive, so ignore it from now on. */
+  stale?: boolean;
 }
 
 /** The last summary sent to the invite ledger, so unchanged summaries aren't re-sent. */
@@ -24,6 +33,14 @@ const CARD_CHUNK = 150; // Cards per storage key (values must stay well under 2 
 const ACTIVITY_PUSH_MS = 30 * 60 * 1000;
 /** If a pick deadline has passed but a tick couldn't advance the draft, retry this much later. */
 const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
+/**
+ * Clients send a raw "ping" every 10 s, answered by the runtime without waking this object. A socket
+ * with no ping for this long is treated as gone (sleeping laptop, dropped Wi-Fi: no close event
+ * ever arrives). Generous because browsers throttle timers in background tabs to once a minute.
+ */
+const HEARTBEAT_STALE_MS = 90 * 1000;
+/** How often to look for stale sockets while anyone is connected. */
+const PRESENCE_SWEEP_MS = 30 * 1000;
 
 export class RoomDurableObject extends DurableObject<Env> {
   private room: Room | null = null;
@@ -31,6 +48,8 @@ export class RoomDurableObject extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
+    // Heartbeats are answered by the runtime itself, so they don't wake a hibernating room.
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     // With hibernation the constructor runs on every wake-up, so keep this to a couple of reads.
     ctx.blockConcurrencyWhile(async () => {
       const head = await ctx.storage.get<unknown>(["state", "cardChunks", "pushed"]);
@@ -46,7 +65,7 @@ export class RoomDurableObject extends DurableObject<Env> {
       this.room = new Room(state, cards, { now: () => Date.now(), rng: Math.random });
 
       // Sockets can drop without close events (deploys, restarts). Trust the sockets we still hold.
-      const here = new Set(ctx.getWebSockets().map((ws) => (ws.deserializeAttachment() as Attachment | null)?.playerId ?? ""));
+      const here = new Set(this.liveSockets().map((ws) => (ws.deserializeAttachment() as Attachment).playerId));
       if (this.room.syncConnections(here)) {
         await this.saveState();
         await this.scheduleAlarm();
@@ -112,7 +131,7 @@ export class RoomDurableObject extends DurableObject<Env> {
           name: url.searchParams.get("name") ?? undefined,
           claim: url.searchParams.get("claim") ?? undefined,
         });
-        server.serializeAttachment({ playerId: joined.playerId } satisfies Attachment);
+        server.serializeAttachment({ playerId: joined.playerId, sid: crypto.randomUUID(), since: Date.now() } satisfies Attachment);
         this.sendTo(server, { t: "welcome", you: joined.playerId, secret: joined.secret, code: this.room.state.code });
         this.sendTo(server, { t: "cards", cards: this.room.cards });
         await this.saveState();
@@ -173,7 +192,17 @@ export class RoomDurableObject extends DurableObject<Env> {
   private async handleDisconnect(ws: WebSocket) {
     const att = ws.deserializeAttachment() as Attachment | null;
     if (!this.room || !att) return;
-    const stillConnected = this.ctx.getWebSockets().some((s) => s !== ws && (s.deserializeAttachment() as Attachment | null)?.playerId === att.playerId);
+    // It can linger in getWebSockets() for a while: stop counting it as live.
+    try {
+      ws.serializeAttachment({ ...att, stale: true } satisfies Attachment);
+    } catch {
+      /* already gone */
+    }
+    // Another open socket for the same player (a second tab) keeps them connected.
+    const stillConnected = this.liveSockets().some((s) => {
+      const other = s.deserializeAttachment() as Attachment;
+      return other.playerId === att.playerId && other.sid !== att.sid;
+    });
     if (!stillConnected && this.room.setConnected(att.playerId, false)) {
       await this.saveState();
       this.broadcastState();
@@ -183,8 +212,35 @@ export class RoomDurableObject extends DurableObject<Env> {
     }
   }
 
+  /** Sockets that are still in play: attached to a player and not given up on by the sweep. */
+  private liveSockets(): WebSocket[] {
+    return this.ctx.getWebSockets().filter((ws) => {
+      const att = ws.deserializeAttachment() as Attachment | null;
+      return !!att?.playerId && !att.stale;
+    });
+  }
+
+  /** Closes sockets that stopped sending heartbeats and marks their players as disconnected. */
+  private async sweepStaleSockets() {
+    const now = Date.now();
+    for (const ws of this.liveSockets()) {
+      const att = ws.deserializeAttachment() as Attachment;
+      const heard = Math.max(this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0, att.since ?? 0);
+      if (now - heard < HEARTBEAT_STALE_MS) continue;
+      ws.serializeAttachment({ ...att, stale: true } satisfies Attachment);
+      try {
+        // Not a 4xxx code: if the client is somehow still there, it should reconnect.
+        ws.close(1001, "heartbeat timeout");
+      } catch {
+        /* already closing */
+      }
+      await this.handleDisconnect(ws);
+    }
+  }
+
   async alarm(): Promise<void> {
     if (!this.room) return;
+    await this.sweepStaleSockets();
     const progressed = this.room.tick();
     if (progressed) {
       await this.saveState();
@@ -243,14 +299,20 @@ export class RoomDurableObject extends DurableObject<Env> {
   private async scheduleAlarm(progressed = true) {
     const current = await this.ctx.storage.getAlarm();
     let next = this.room?.nextAlarm() ?? null;
+    const now = Date.now();
     if (next !== null) {
-      const now = Date.now();
       if (!progressed && next <= now) {
         console.warn(`Room ${this.room?.state.code}: pick deadline overdue but nothing advanced; backing off.`);
         next = now + STUCK_ALARM_BACKOFF_MS;
       } else {
         next = Math.max(next, now + 50);
       }
+    }
+    // While anyone is connected, wake up now and then to catch silently dropped sockets. An alarm
+    // already due soon enough is kept, so frequent reschedules don't keep pushing the sweep back.
+    if (this.liveSockets().length > 0) {
+      const sweep = current !== null && current > now && current <= now + PRESENCE_SWEEP_MS ? current : now + PRESENCE_SWEEP_MS;
+      next = next === null ? sweep : Math.min(next, sweep);
     }
     if (next === current) return;
     if (next === null) await this.ctx.storage.deleteAlarm();
