@@ -153,7 +153,12 @@ export function Deckbuilder() {
     if (selected === iid) setZoom({ area, key: iid });
     else setSelected(iid);
   };
-  const moveOther = (iid: string) => move(iid, deck.main.includes(iid) ? "side" : "main");
+  const moveOther = (iid: string) => {
+    // The card moves away from under the mouse, so drop its preview. A locked deck refuses the
+    // move, and the preview's "locked" hint is what explains why.
+    if (!deck.ready) hoverEnd(iid);
+    move(iid, deck.main.includes(iid) ? "side" : "main");
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -466,7 +471,6 @@ function CardArea({ title, area, ids, instances, cards, onMove, onClickCard, onM
                     onClick={() => onClickCard(iid, area)}
                     onContextMenu={(e) => {
                       e.preventDefault();
-                      onHoverEnd(iid);
                       onMoveOther(iid);
                     }}
                   >

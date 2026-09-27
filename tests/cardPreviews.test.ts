@@ -51,6 +51,14 @@ describe("cubeCards", () => {
     expect(ids).toEqual(["w1", "card-0", "card-5", "card-1", "card-2", "card-3", "card-4", "gold", "art", "land"]);
   });
 
+  it("sorts a spell with a land back face as a spell", () => {
+    const cards = {
+      mdfc: makeCard(1, { id: "mdfc", name: "Aaa Call", typeLine: "Sorcery // Land", colors: ["W"], cmc: 7 }),
+      land: makeCard(2, { id: "land", name: "Aaa Plains", typeLine: "Land", colors: ["W"], cmc: 0 }),
+    };
+    expect(cubeCards(cards).map((c) => c.id)).toEqual(["mdfc", "land"]);
+  });
+
   it("drops synthetic basics even without their ids", () => {
     const cards = { a: makeCard(1, { id: "a" }), b: makeCard(2, { id: "b", basic: "W" }) };
     expect(cubeCards(cards).map((c) => c.id)).toEqual(["a"]);

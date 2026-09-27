@@ -10,11 +10,6 @@ import { Icon } from "./Icon";
 export const OTHER_FACE_SCALE = 0.72;
 const GAP = 10;
 
-/** Total on-screen width of a FacePair for `card` at `width`. */
-export function facePairWidth(card: CardData | undefined, width: number): number {
-  return hasBackFace(card) ? width + GAP + Math.round(width * OTHER_FACE_SCALE) : width;
-}
-
 export function FacePair({
   card,
   face = 0,

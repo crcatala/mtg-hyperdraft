@@ -20,7 +20,8 @@ function legacyCopy(text: string): boolean {
   ta.value = text;
   ta.setAttribute("readonly", "");
   // Keep it out of sight and out of the layout, without display:none (which can't be selected).
-  ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none";
+  // 16px: iOS zooms the page in when it focuses a smaller input.
+  ta.style.cssText = "position:fixed;top:0;left:0;width:1px;height:1px;font-size:16px;opacity:0;pointer-events:none";
   document.body.appendChild(ta);
   ta.select();
   ta.setSelectionRange(0, text.length);

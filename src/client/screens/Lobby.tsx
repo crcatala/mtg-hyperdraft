@@ -164,7 +164,7 @@ function CubePanel({ isHost }: { isHost: boolean }) {
           <div className="muted">
             {cube.uniqueCards} unique · {cube.source}
           </div>
-          <Showcase cards={showcase} />
+          <Showcase cards={showcase} paused={browsing} />
           {cube.notFound.length > 0 && (
             <div className="notice-box bad">
               <button className="btn ghost small" onClick={() => setShowMissing((v) => !v)}>
@@ -350,9 +350,10 @@ function NumberField({ label, value, min, max, onChange, hint }: { label: string
  * The cube's headline cards, fanned out. Hover previews a card; click selects it, and clicking the
  * selected card opens the zoom carousel, which browses the whole cube (like picking in the draft).
  */
-function Showcase({ cards }: { cards: CardData[] }) {
+function Showcase({ cards, paused }: { cards: CardData[]; /** The cube browser is open and owns Esc. */ paused: boolean }) {
   const all = useStore((s) => s.cards);
   const basicIds = useStore((s) => s.view?.basicIds);
+  const cubeName = useStore((s) => s.view?.cube?.name);
   const [selected, setSelected] = useState<string | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
   const [hover, setHover] = useState<{ card: CardData; rect: DOMRect } | null>(null);
@@ -361,11 +362,11 @@ function Showcase({ cards }: { cards: CardData[] }) {
   const closeZoom = useCallback(() => setZoom(null), []);
 
   useEffect(() => {
-    if (!selected || zoom) return;
+    if (!selected || zoom || paused) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSelected(null);
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selected, zoom]);
+  }, [selected, zoom, paused]);
 
   return (
     <>
@@ -393,7 +394,7 @@ function Showcase({ cards }: { cards: CardData[] }) {
       </div>
       <p className="faint small-print showcase-hint">{selected ? "Click the selected card again to zoom in and browse the whole cube" : "Hover a card to preview it · click to select"}</p>
       {hover && !zoom && <AnchoredPreview card={hover.card} anchor={hover.rect} prefer="right" />}
-      {zoom && items.length > 0 && <CardCarousel key={zoom} items={items} startKey={zoom} title="Cube" originFor={originFor} onClose={closeZoom} />}
+      {zoom && items.length > 0 && <CardCarousel key={zoom} items={items} startKey={zoom} title={cubeName ?? "Cube"} originFor={originFor} onClose={closeZoom} />}
     </>
   );
 }

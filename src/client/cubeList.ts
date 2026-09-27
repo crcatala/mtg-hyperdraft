@@ -1,6 +1,7 @@
 // The cube's own cards, in browsing order (lobby carousel, cube browser).
 
 import type { CardData, CardMap } from "../shared/types";
+import { isLand } from "../shared/autopick";
 
 /** White, blue, black, red, green, then multicolour, then colourless (artifacts, lands). */
 function colorRank(c: CardData): number {
@@ -8,8 +9,6 @@ function colorRank(c: CardData): number {
   if (c.colors.length > 1) return 6;
   return "WUBRG".indexOf(c.colors[0]);
 }
-
-const isLand = (c: CardData) => /\bLand\b/.test(c.typeLine);
 
 /**
  * Every card in the cube, without the basic lands the import adds for deckbuilding (`basicIds`),
@@ -29,5 +28,5 @@ export function matchesName(card: CardData, query: string): boolean {
 }
 
 function fold(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
