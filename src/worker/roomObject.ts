@@ -39,8 +39,11 @@ const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
  * ever arrives). Generous because browsers throttle timers in background tabs to once a minute.
  */
 const HEARTBEAT_STALE_MS = 90 * 1000;
-/** How often to look for stale sockets while anyone is connected. */
-const PRESENCE_SWEEP_MS = 30 * 1000;
+/**
+ * How often to look for stale sockets while anyone is connected. Each sweep is an alarm that wakes
+ * the room (pings alone don't), so keep it infrequent: a dead socket is noticed within 90-150 s.
+ */
+const PRESENCE_SWEEP_MS = 60 * 1000;
 
 export class RoomDurableObject extends DurableObject<Env> {
   private room: Room | null = null;
@@ -227,8 +230,8 @@ export class RoomDurableObject extends DurableObject<Env> {
       const att = ws.deserializeAttachment() as Attachment;
       const heard = Math.max(this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0, att.since ?? 0);
       if (now - heard < HEARTBEAT_STALE_MS) continue;
-      ws.serializeAttachment({ ...att, stale: true } satisfies Attachment);
       try {
+        ws.serializeAttachment({ ...att, stale: true } satisfies Attachment);
         // Not a 4xxx code: if the client is somehow still there, it should reconnect.
         ws.close(1001, "heartbeat timeout");
       } catch {

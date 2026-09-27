@@ -6,7 +6,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import * as THREE from "three";
 import { useStore } from "../store";
 import type { TableCard, TableState } from "../../shared/types";
-import { CARD_H, CARD_W, MAT_D, MAT_W, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
+import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
 import { backTexture, feltTexture, glowTexture, labelTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, type LabelVariant } from "./textures";
 import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
@@ -260,6 +260,8 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
   const offline = useStore((s) => s.view?.players.find((p) => p.id === playerId)?.connected === false);
   const tex = useMemo(() => matTexture(name, seatHue(seat), isMe), [name, seat, isMe]);
   const center = localToTable({ x: 0, y: 0 }, seat, seatCount);
+  // In the empty strip left of the battlefield, below the sideboard, so it never covers their cards.
+  const offlineAt = localToTable({ x: PILE_LOCAL.sideboard.x, y: -1.5 }, seat, seatCount);
   const angle = seatAngle(seat, seatCount);
   const player = table.players[playerId];
   const handCount = player?.zones.hand.length ?? 0;
@@ -272,8 +274,8 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
         <meshStandardMaterial map={tex} transparent roughness={0.9} depthWrite={false} color={offline ? "#6b6b78" : "#ffffff"} />
       </mesh>
       {offline && (
-        <group position={[center.x, 0.05, center.y]} rotation-y={-viewerAngle}>
-          <Label text="Offline" icon="offline" variant="muted" position={[0, 0, 0]} height={1.1} />
+        <group position={[offlineAt.x, 0.05, offlineAt.y]} rotation-y={-viewerAngle}>
+          <Label text="Offline" icon="offline" variant="muted" position={[0, 0, 0]} height={0.9} />
         </group>
       )}
       {(["library", "graveyard", "exile", "sideboard"] as PileZone[]).map((zone) => (
