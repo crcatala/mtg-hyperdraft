@@ -113,7 +113,7 @@ function SeatRow({ player, seat, isMe, canKick }: { player: Player; seat: number
       {!player.isBot && !player.connected && <span className="pill bad">away</span>}
       {player.isBot ? <span className="pill">bot</span> : player.ready ? <span className="pill ok">ready</span> : <span className="pill">not ready</span>}
       {canKick && (
-        <button className="btn ghost small icon-only" title="Remove" onClick={() => send({ t: "kick", playerId: player.id })}>
+        <button className="btn ghost small icon-only" title="Remove" aria-label={`Remove ${player.name}`} onClick={() => send({ t: "kick", playerId: player.id })}>
           <Icon name="x" />
         </button>
       )}
@@ -292,7 +292,7 @@ function SettingsPanel({ isHost }: { isHost: boolean }) {
         {view.cube && (
           <>
             {" "}
-            · cube has <b>{view.cube.size}</b> <Icon name={view.cube.size >= needed || d.allowDuplicates ? "check" : "x"} />
+            · cube has <b>{view.cube.size}</b> {view.cube.size >= needed || d.allowDuplicates ? <Icon name="check" title="Enough cards" /> : <Icon name="x" title="Not enough cards" />}
           </>
         )}
       </p>

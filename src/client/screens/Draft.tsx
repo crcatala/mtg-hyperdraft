@@ -247,7 +247,9 @@ export function Draft() {
       >
         <button
           className="btn ghost small icon-only"
-          title="Sound"
+          title={muted ? "Sound off" : "Sound on"}
+          aria-label="Mute sound"
+          aria-pressed={muted}
           onClick={() => {
             setMuted(!muted);
             setMutedState(!muted);
@@ -547,7 +549,7 @@ function SeatRing() {
             {i > 0 && <span className="ring-arrow">{arrow}</span>}
             <div className={`ring-seat${i === d.seat ? " me" : ""}${s.queued === 0 ? " idle" : ""}`} title={`${s.name}: ${s.queued} pack(s) waiting, ${s.picks} picks`}>
               <span className="ring-name">
-                {s.isBot && <Icon name="bot" className="ring-bot" />}
+                {s.isBot && <Icon name="bot" className="ring-bot" title="Bot" />}
                 {s.name}
                 {p && !p.isBot && !p.connected ? " (away)" : ""}
               </span>

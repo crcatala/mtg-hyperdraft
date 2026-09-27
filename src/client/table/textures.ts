@@ -93,7 +93,7 @@ interface FaceLike {
   colors: CardData["colors"];
 }
 
-function drawTextFace(f: FaceLike, footer: string): HTMLCanvasElement {
+function drawTextFace(f: FaceLike, footer: string, art: IconName = cardTypeIcon(f.typeLine)): HTMLCanvasElement {
   const [c, ctx] = canvas();
   const col = frameColors({ colors: f.colors, typeLine: f.typeLine });
   // frame
@@ -137,7 +137,16 @@ function drawTextFace(f: FaceLike, footer: string): HTMLCanvasElement {
   ctx.strokeStyle = "rgba(0,0,0,0.6)";
   ctx.lineWidth = 4;
   ctx.strokeRect(34, artY, TW - 68, artH);
-  drawIcon(ctx, f.typeLine === "Token" ? "sparkle" : cardTypeIcon(f.typeLine), TW / 2 - 60, artY + artH / 2 - 60, 120, "rgba(255,255,255,0.35)");
+  // Draw the art opaque offscreen, then fade it as one layer: stroking translucent parts directly
+  // would double the alpha wherever they overlap (crossed blades, a fill's own outline).
+  const ART = 120;
+  const PAD = 12;
+  const [artC, artCtx] = canvas(ART + PAD * 2, ART + PAD * 2);
+  drawIcon(artCtx, art, PAD, PAD, ART, "#fff");
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.drawImage(artC, TW / 2 - ART / 2 - PAD, artY + artH / 2 - ART / 2 - PAD);
+  ctx.restore();
   // type bar
   bar(artY + artH + 8, 44);
   ctx.fillStyle = col.text;
@@ -216,6 +225,7 @@ export function tokenTextureEntry(token: TokenDef): Entry {
     drawTextFace(
       { name: token.name, manaCost: "", typeLine: "Token", oracleText: token.text ?? "", power: token.power, toughness: token.toughness, colors: token.colors },
       "TOKEN",
+      "sparkle",
     ),
   );
 }
