@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "../store";
+import { Icon } from "./Icon";
 
 export function ContextMenu() {
   const menu = useStore((s) => s.menu);
@@ -33,6 +34,8 @@ export function ContextMenu() {
   }, [menu, close]);
 
   if (!menu) return null;
+  // If any item has an icon, every item gets an icon-width slot so the labels line up.
+  const iconColumn = menu.items.some((item) => item.icon);
   return (
     <div ref={ref} className="ctx-menu" style={{ left: pos.x, top: pos.y }} onContextMenu={(e) => e.preventDefault()}>
       {menu.title && <div className="ctx-title">{menu.title}</div>}
@@ -49,6 +52,7 @@ export function ContextMenu() {
               item.onSelect?.();
             }}
           >
+            {iconColumn && <span className="ctx-icon">{item.icon && <Icon name={item.icon} />}</span>}
             {item.label}
             {item.hint && <span className="hint">{item.hint}</span>}
           </button>

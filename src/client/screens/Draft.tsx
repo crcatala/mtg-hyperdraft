@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { serverNow, useStore } from "../store";
 import { TopBar } from "../components/TopBar";
+import { Icon } from "../components/Icon";
 import { SplitButton, type SplitItem } from "../components/SplitButton";
 import { CardView } from "../components/CardView";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
@@ -162,7 +163,7 @@ export function Draft() {
     if (selected.length < need.picks) setSelected([...selected, iid]);
     else if (burning.length < need.burns) setBurning([...burning, iid]);
     else if (need.picks === 1 && need.burns === 0) setSelected([iid]);
-    else toast("Deselect a card first (✕ on its corner), or confirm your choice.");
+    else toast("Deselect a card first (the X on its corner), or confirm your choice.");
   };
 
   const deselect = (iid: string) => {
@@ -245,14 +246,16 @@ export function Draft() {
         }
       >
         <button
-          className="btn ghost small"
-          title="Sound"
+          className="btn ghost small icon-only"
+          title={muted ? "Sound off" : "Sound on"}
+          aria-label="Mute sound"
+          aria-pressed={muted}
           onClick={() => {
             setMuted(!muted);
             setMutedState(!muted);
           }}
         >
-          {muted ? "🔇" : "🔊"}
+          <Icon name={muted ? "volume-off" : "volume"} />
         </button>
       </TopBar>
       <SeatRing />
@@ -290,7 +293,7 @@ export function Draft() {
                     menuDisabled={leaving}
                     items={autoPickItems}
                   >
-                    {need.burns > 0 ? "Confirm" : selectedName ? `Pick ${selectedName}` : "Pick"} ✦
+                    {need.burns > 0 ? "Confirm" : selectedName ? `Pick ${selectedName}` : "Pick"} <Icon name="sparkle" />
                   </SplitButton>
                 )}
               </div>
@@ -343,7 +346,7 @@ export function Draft() {
           originFor={originFor}
           badge={
             zoom.source === "pack"
-              ? (k) => (selected.includes(k) ? <span className="pill ok">✓ Selected</span> : burning.includes(k) ? <span className="pill bad">Burning</span> : null)
+              ? (k) => (selected.includes(k) ? <span className="pill ok"><Icon name="check" /> Selected</span> : burning.includes(k) ? <span className="pill bad">Burning</span> : null)
               : undefined
           }
           onClose={closeZoom}
@@ -489,7 +492,7 @@ function PackFan(props: PackFanProps) {
                         props.onDeselect(iid);
                       }}
                     >
-                      ✕
+                      <Icon name="x" />
                     </button>
                   )}
                 </div>
@@ -507,7 +510,9 @@ function SealedPack({ name, round, tearing, onClick, count }: { name: string; ro
       <div className="sp-strip" />
       <div className="sp-body">
         <div className="sp-shine" />
-        <div className="sp-sigil">✦</div>
+        <div className="sp-sigil">
+          <Icon name="sparkle" />
+        </div>
         <div className="sp-brand">HyperDraft</div>
         <div className="sp-name">{name}</div>
         <div className="sp-meta">
@@ -531,7 +536,7 @@ function SealedPack({ name, round, tearing, onClick, count }: { name: string; ro
 function SeatRing() {
   const d = useStore((s) => s.view?.draft)!;
   const players = useStore((s) => s.view?.players ?? []);
-  const arrow = d.passDirection === "left" ? "→" : "←";
+  const arrow = <Icon name={d.passDirection === "left" ? "arrow-right" : "arrow-left"} />;
   return (
     <div className="seat-ring">
       <span className="pass-dir" title="Packs pass this way">
@@ -544,7 +549,7 @@ function SeatRing() {
             {i > 0 && <span className="ring-arrow">{arrow}</span>}
             <div className={`ring-seat${i === d.seat ? " me" : ""}${s.queued === 0 ? " idle" : ""}`} title={`${s.name}: ${s.queued} pack(s) waiting, ${s.picks} picks`}>
               <span className="ring-name">
-                {s.isBot ? "🤖 " : ""}
+                {s.isBot && <Icon name="bot" className="ring-bot" title="Bot" />}
                 {s.name}
                 {p && !p.isBot && !p.connected ? " (away)" : ""}
               </span>
@@ -578,7 +583,7 @@ function PickTimer({ deadline }: { deadline: number }) {
   }, [left]);
   return (
     <span className={`pick-timer${left <= 10 ? " urgent" : ""}`} title="Time left — a card is auto-picked when it runs out">
-      ⏱ {left}s
+      <Icon name="timer" /> {left}s
     </span>
   );
 }
@@ -632,7 +637,7 @@ function PicksList({ picks, instances, cards, onOpen }: { picks: string[]; insta
               <span className="pick-name">{card.name}</span>
               {hasBackFace(card) && (
                 <span className="dfc-mark" title="Double-faced — hover to see both faces">
-                  ⟲
+                  <Icon name="flip" />
                 </span>
               )}
               <ManaCost cost={card.manaCost} />

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useStore } from "../store";
 import { NameEditor, TopBar } from "../components/TopBar";
 import { CardView } from "../components/CardView";
+import { Icon } from "../components/Icon";
 import type { DraftConfig, GameConfig, Player } from "../../shared/types";
 import { MAX_HUMANS, MAX_SEATS } from "../../shared/types";
 import { cardsNeeded } from "../../shared/draft";
@@ -39,7 +40,11 @@ export function Lobby() {
               </p>
             </div>
             <button className="btn primary big" disabled={importing || !!me?.ready} onClick={quickstart}>
-              {importing ? "Importing…" : `⚡ Quick start: ${STARTER_CUBE.name}`}
+              {importing ? "Importing…" : (
+                <>
+                  <Icon name="bolt" /> Quick start: {STARTER_CUBE.name}
+                </>
+              )}
             </button>
           </section>
         )}
@@ -57,7 +62,7 @@ export function Lobby() {
           </ul>
           {isHost && (
             <button className="btn small" onClick={() => send({ t: "addBot" })} disabled={view.players.length >= MAX_SEATS}>
-              + Add bot drafter
+              <Icon name="plus" /> Add bot drafter
             </button>
           )}
           <p className="faint small-print">Bots draft alongside you (great for small groups or solo testing) but don't play on the table.</p>
@@ -73,7 +78,13 @@ export function Lobby() {
               <p className="muted">Everyone's ready!</p>
             )}
             <button className={`btn big ${me?.ready ? "on" : "primary"}`} onClick={() => send({ t: "setReady", ready: !me?.ready })}>
-              {me?.ready ? "✓ Ready — click to unready" : "I'm ready to draft"}
+              {me?.ready ? (
+                <>
+                  <Icon name="check" /> Ready — click to unready
+                </>
+              ) : (
+                "I'm ready to draft"
+              )}
             </button>
           </div>
         </section>
@@ -91,19 +102,19 @@ function SeatRow({ player, seat, isMe, canKick }: { player: Player; seat: number
   return (
     <li className={`seat-row${isMe ? " me" : ""}`}>
       <span className="avatar" style={{ background: `hsl(${hue} 70% 55%)` }}>
-        {player.isBot ? "🤖" : player.name.slice(0, 1).toUpperCase()}
+        {player.isBot ? <Icon name="bot" /> : player.name.slice(0, 1).toUpperCase()}
       </span>
       <span className="seat-name">
         {player.name}
         {isMe && <span className="faint"> (you)</span>}
-        {player.isHost && <span className="crown" title="Host"> ♛</span>}
+        {player.isHost && <Icon name="crown" className="crown" title="Host" />}
       </span>
       <span className="spacer" />
       {!player.isBot && !player.connected && <span className="pill bad">away</span>}
       {player.isBot ? <span className="pill">bot</span> : player.ready ? <span className="pill ok">ready</span> : <span className="pill">not ready</span>}
       {canKick && (
-        <button className="btn ghost small" title="Remove" onClick={() => send({ t: "kick", playerId: player.id })}>
-          ✕
+        <button className="btn ghost small icon-only" title="Remove" aria-label={`Remove ${player.name}`} onClick={() => send({ t: "kick", playerId: player.id })}>
+          <Icon name="x" />
         </button>
       )}
     </li>
@@ -150,7 +161,7 @@ function CubePanel({ isHost }: { isHost: boolean }) {
           {cube.notFound.length > 0 && (
             <div className="notice-box bad">
               <button className="btn ghost small" onClick={() => setShowMissing((v) => !v)}>
-                {showMissing ? "▾" : "▸"} {cube.notFound.length} card(s) not found on Scryfall
+                <Icon name={showMissing ? "chevron-down" : "chevron-right"} /> {cube.notFound.length} card(s) not found on Scryfall
               </button>
               {showMissing && <p className="missing-list">{cube.notFound.join(" · ")}</p>}
             </div>
@@ -171,7 +182,7 @@ function CubePanel({ isHost }: { isHost: boolean }) {
       {isHost && !cube && (
         <div className="starter-cube">
           <button className="btn violet" disabled={running} onClick={() => send({ t: "import", source: presetSource(STARTER_CUBE.id) })}>
-            ⚡ Use the {STARTER_CUBE.name}
+            <Icon name="bolt" /> Use the {STARTER_CUBE.name}
           </button>
           <span className="faint small-print">
             {STARTER_CUBE.cards} cards, bundled with the site so it loads instantly. Or import any cube below.
@@ -281,7 +292,7 @@ function SettingsPanel({ isHost }: { isHost: boolean }) {
         {view.cube && (
           <>
             {" "}
-            · cube has <b>{view.cube.size}</b> {view.cube.size >= needed || d.allowDuplicates ? "✓" : "✗"}
+            · cube has <b>{view.cube.size}</b> {view.cube.size >= needed || d.allowDuplicates ? <Icon name="check" title="Enough cards" /> : <Icon name="x" title="Not enough cards" />}
           </>
         )}
       </p>
@@ -309,8 +320,8 @@ function NumberField({ label, value, min, max, onChange, hint }: { label: string
     <div className="field" title={hint}>
       <span className="label">{label}</span>
       <div className="stepper">
-        <button type="button" className="btn small" onClick={() => value > min && onChange(value - 1)}>
-          −
+        <button type="button" className="btn small icon-only" aria-label={`Decrease ${label.toLowerCase()}`} onClick={() => value > min && onChange(value - 1)}>
+          <Icon name="minus" />
         </button>
         <input
           className="input"
@@ -320,8 +331,8 @@ function NumberField({ label, value, min, max, onChange, hint }: { label: string
           onBlur={(e) => commit(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && commit((e.target as HTMLInputElement).value)}
         />
-        <button type="button" className="btn small" onClick={() => value < max && onChange(value + 1)}>
-          +
+        <button type="button" className="btn small icon-only" aria-label={`Increase ${label.toLowerCase()}`} onClick={() => value < max && onChange(value + 1)}>
+          <Icon name="plus" />
         </button>
       </div>
     </div>

@@ -4,6 +4,7 @@
 import type { CardData } from "../../shared/types";
 import { hasBackFace, nextFace, type ImageSize } from "../cardStyle";
 import { CardView } from "./CardView";
+import { Icon } from "./Icon";
 
 /** Width of the secondary face relative to the main one. */
 export const OTHER_FACE_SCALE = 0.72;
@@ -37,7 +38,7 @@ export function FacePair({
     <div className={`face-pair${otherSide === "left" ? " other-left" : ""}`} style={{ gap: GAP }}>
       {main}
       <div className="face-pair-other">
-        <span className="face-pair-label">⟲ {other === 0 ? "Front face" : "Back face"}</span>
+        <span className="face-pair-label"><Icon name="flip" /> {other === 0 ? "Front face" : "Back face"}</span>
         <CardView card={card} face={other} foil={foil} width={Math.round(width * OTHER_FACE_SCALE)} />
       </div>
     </div>

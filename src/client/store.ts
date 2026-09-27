@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { ClientMessage, RoomView } from "../shared/protocol";
 import type { CardMap } from "../shared/types";
+import type { IconName } from "./icons";
 
 export type ConnStatus = "idle" | "connecting" | "open" | "reconnecting" | "failed" | "claim";
 
@@ -30,6 +31,7 @@ export interface PreviewState {
 
 export interface MenuItem {
   label: string;
+  icon?: IconName;
   hint?: string;
   onSelect?: () => void;
   disabled?: boolean;

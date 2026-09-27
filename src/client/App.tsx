@@ -3,6 +3,7 @@ import { roomCodeFromPath, usePath } from "./router";
 import { Home } from "./screens/Home";
 import { RoomScreen } from "./screens/RoomScreen";
 import { SoloScreen } from "./screens/SoloScreen";
+import { IconGallery } from "./screens/IconGallery";
 import { Toasts } from "./components/Toasts";
 import { ContextMenu } from "./components/ContextMenu";
 import { DebugConsole } from "./debug/DebugConsole";
@@ -26,7 +27,7 @@ export function App() {
 
   return (
     <>
-      {path === "/solo" ? <SoloScreen /> : code ? <RoomScreen code={code} /> : <Home />}
+      {path === "/solo" ? <SoloScreen /> : path === "/dev/icons" ? <IconGallery /> : code ? <RoomScreen code={code} /> : <Home />}
       <Toasts />
       <ContextMenu />
       <DebugConsole />

@@ -242,7 +242,7 @@ export function battlefieldMenu(card: TableCard, x: number, y: number) {
     { label: "Bottom of library", onSelect: () => moveTo(ids, "library", { bottom: true }) },
     { separator: true, label: "" },
     ...(!many ? [{ label: "Create token copy", onSelect: () => act({ a: "clone", id: card.id }) }] : []),
-    { label: "Ping this card", hint: "Tab", onSelect: () => pingAt(card.x, card.y) },
+    { label: "Ping this card", icon: "pin", hint: "Tab", onSelect: () => pingAt(card.x, card.y) },
   ];
   useStore.getState().openMenu({ x, y, title: many ? `${ids.length} cards` : cardLabel(card), items });
 }
