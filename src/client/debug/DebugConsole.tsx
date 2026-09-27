@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "../store";
+import { Icon } from "../components/Icon";
 import type { DebugCommand } from "../../shared/protocol";
 import { quickstart, SAMPLE_CUBE, STARTER_CUBE } from "../quickstart";
 
@@ -18,7 +19,7 @@ export function DebugConsole() {
   if (!open) {
     return (
       <button className="debug-tab" onClick={() => setDebug({ open: true })} title="Debug console (`)">
-        ⚙
+        <Icon name="gear" />
       </button>
     );
   }
@@ -37,8 +38,8 @@ export function DebugConsole() {
         <b>Debug console</b>
         <span className="faint">` to toggle</span>
         <div className="spacer" />
-        <button className="btn ghost small" onClick={() => setDebug({ open: false })}>
-          ✕
+        <button className="btn ghost small icon-only" aria-label="Close debug console" onClick={() => setDebug({ open: false })}>
+          <Icon name="x" />
         </button>
       </div>
 
@@ -149,7 +150,7 @@ export function DebugConsole() {
 
       <section>
         <button className="btn ghost small" onClick={() => setShowState((v) => !v)}>
-          {showState ? "▾" : "▸"} Room state (your view)
+          <Icon name={showState ? "chevron-down" : "chevron-right"} /> Room state (your view)
         </button>
         {showState && <pre className="debug-state scroll">{JSON.stringify(view, null, 1)?.slice(0, 60_000)}</pre>}
       </section>

@@ -10,6 +10,7 @@ import { CARD_H, CARD_W, MAT_D, MAT_W, localToTable, pileAt, pilePosition, seatA
 import { backTexture, feltTexture, glowTexture, labelTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, type LabelVariant } from "./textures";
 import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
+import type { IconName } from "../icons";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
 const OUTLINE_GEO = roundedRectGeometry(CARD_W + 0.22, CARD_H + 0.22, 0.24);
@@ -234,7 +235,7 @@ function TableSurface({ seatCount }: { seatCount: number }) {
             x: e.nativeEvent.clientX,
             y: e.nativeEvent.clientY,
             title: "Table",
-            items: [{ label: "📍 Ping here", hint: "Tab", onSelect: () => pingAt(x, z) }],
+            items: [{ label: "Ping here", icon: "pin", hint: "Tab", onSelect: () => pingAt(x, z) }],
           });
         }}
       >
@@ -346,7 +347,7 @@ function OpponentHand({ count, seat, seatCount, viewerAngle }: { count: number; 
         );
       })}
       <group position={[0, 0.2, 2]} rotation-y={angle - viewerAngle}>
-        <Label text={`✋ ${count}`} position={[0, 0, 0]} height={0.7} />
+        <Label text={String(count)} icon="hand" position={[0, 0, 0]} height={0.7} />
       </group>
     </group>
   );
@@ -645,8 +646,8 @@ function PingMarker({ ping, hue, name }: { ping: Ping; hue: number; name: string
 }
 
 /** Flat text pill lying on the table (canvas texture; avoids DOM overlays in the 3D scene). */
-function Label({ text, variant = "count", position, height }: { text: string; variant?: LabelVariant; position: [number, number, number]; height: number }) {
-  const { texture, aspect } = labelTexture(text, variant);
+function Label({ text, icon, variant = "count", position, height }: { text: string; icon?: IconName; variant?: LabelVariant; position: [number, number, number]; height: number }) {
+  const { texture, aspect } = labelTexture(text, variant, icon);
   return (
     <mesh rotation-x={FLAT} position={position} renderOrder={5}>
       <planeGeometry args={[height * aspect, height]} />

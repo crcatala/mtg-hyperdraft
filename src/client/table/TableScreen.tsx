@@ -5,6 +5,7 @@ import { serverNow, useStore } from "../store";
 import { CardView } from "../components/CardView";
 import { PreviewPane } from "../components/Preview";
 import { NameEditor } from "../components/TopBar";
+import { Icon } from "../components/Icon";
 import { TableCanvas, seatHue } from "./TableScene";
 import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, targetIds, toggleTap, turnHandCard, useTableUi } from "./tableUi";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
@@ -148,26 +149,28 @@ function PlayersHud() {
             </div>
             <div className="hud-life">
               <button className="life-btn" onClick={(e) => bump(e.shiftKey ? -5 : -1)} title="−1 (Shift: −5)">
-                −
+                <Icon name="minus" />
               </button>
               <LifeTotal value={tp.life} onSet={(v) => bump(v - tp.life)} />
               <button className="life-btn" onClick={(e) => bump(e.shiftKey ? 5 : 1)} title="+1 (Shift: +5)">
-                +
+                <Icon name="plus" />
               </button>
             </div>
             <div className="hud-meta">
               <span title="Poison counters" className="poison" onClick={(e) => act({ a: "poison", playerId: pid, delta: e.shiftKey ? -1 : 1 })}>
-                ☠ {tp.poison}
+                <Icon name="skull" /> {tp.poison}
               </span>
-              <span title="Cards in hand">✋ {tp.zones.hand.length}</span>
+              <span title="Cards in hand">
+                <Icon name="hand" /> {tp.zones.hand.length}
+              </span>
               <span title="Library" onContextMenu={(e) => (e.preventDefault(), pileMenu(pid, "library", e.clientX, e.clientY))}>
-                📚 {tp.zones.library.length}
+                <Icon name="library" /> {tp.zones.library.length}
               </span>
               <span title="Graveyard — click to view" className="clickable" onClick={() => useTableUi.getState().setViewer({ playerId: pid, zone: "graveyard" })}>
-                🪦 {tp.zones.graveyard.length}
+                <Icon name="graveyard" /> {tp.zones.graveyard.length}
               </span>
               <span title="Exile — click to view" className="clickable" onClick={() => useTableUi.getState().setViewer({ playerId: pid, zone: "exile" })}>
-                ✧ {tp.zones.exile.length}
+                <Icon name="exile" /> {tp.zones.exile.length}
               </span>
             </div>
           </div>
@@ -224,7 +227,7 @@ function TurnBar() {
         Round {table.turn.number} · <b>{mine ? "Your turn" : `${name}'s turn`}</b>
       </span>
       <button className={`btn small ${mine ? "primary" : ""}`} onClick={() => act({ a: "nextTurn" })} title="Pass the turn (N)">
-        End turn ⏭
+        End turn <Icon name="skip" />
       </button>
     </div>
   );
@@ -246,11 +249,11 @@ function ActionBar() {
         Shuffle
       </button>
       <button className="btn small" onClick={() => set({ tokenDialog: true })} title="Create a token">
-        + Token
+        <Icon name="plus" /> Token
       </button>
       <div className="dice-wrap">
         <button className="btn small" onClick={() => setDice((d) => !d)}>
-          🎲 Dice
+          <Icon name="dice" /> Dice
         </button>
         {dice && (
           <div className="dice-menu panel">
@@ -377,7 +380,7 @@ function LogPanel() {
   return (
     <div className={`log-panel panel${open ? "" : " closed"}`}>
       <button className="log-head" onClick={() => set({ logOpen: !open })}>
-        Game log {open ? "▾" : "▸"}
+        Game log <Icon name={open ? "chevron-down" : "chevron-right"} />
       </button>
       {open && (
         <div
@@ -400,7 +403,7 @@ function LogPanel() {
       )}
       {open && unseen > 0 && (
         <button className="log-new" onClick={toLatest}>
-          <span aria-hidden>↓</span> {unseen} new event{unseen === 1 ? "" : "s"}
+          <Icon name="arrow-down" /> {unseen} new event{unseen === 1 ? "" : "s"}
         </button>
       )}
     </div>

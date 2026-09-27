@@ -73,6 +73,23 @@ a {
 
 /* ---------- primitives ---------- */
 
+/* Inline SVG icons (components/Icon.tsx): 1em square, coloured by the text colour. */
+.icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+  overflow: visible;
+  stroke-width: var(--icon-stroke, 2);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Buttons whose only content is an icon get a larger one. */
+.btn.icon-only .icon {
+  font-size: 16px;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -407,7 +424,7 @@ kbd {
 .ctx-item {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   width: 100%;
   padding: 7px 10px;
   border: 0;
@@ -429,6 +446,7 @@ kbd {
 }
 .ctx-item .hint {
   margin-left: auto;
+  padding-left: 8px;
   color: var(--faint);
   font-size: 11px;
 }
@@ -666,11 +684,11 @@ kbd {
 .tc-art.tall {
   height: 58%;
 }
-.tc-art span {
+.tc-art .icon {
   font-size: 22cqw;
   opacity: 0.35;
   color: white;
-  text-shadow: 0 0 6cqw rgba(255, 255, 255, 0.6);
+  filter: drop-shadow(0 0 3cqw rgba(255, 255, 255, 0.6));
 }
 .tc-type span:first-child {
   flex: 1;

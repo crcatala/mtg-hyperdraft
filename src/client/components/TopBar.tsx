@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useStore } from "../store";
 import { navigate } from "../router";
 import { saveName } from "../identity";
+import { Icon } from "./Icon";
 
 export function TopBar({ title, children }: { title?: ReactNode; children?: ReactNode }) {
   const code = useStore((s) => s.view?.code);
@@ -62,7 +63,7 @@ export function NameEditor() {
           setEditing(true);
         }}
       >
-        {me.name} ✎
+        {me.name} <Icon name="pencil" />
       </button>
     );
   }

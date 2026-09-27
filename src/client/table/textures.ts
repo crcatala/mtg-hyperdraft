@@ -7,6 +7,7 @@ import type { CardData, TokenDef } from "../../shared/types";
 import { faceOf, frameColors, imageUrl } from "../cardStyle";
 import { useStore } from "../store";
 import { whenLoaded } from "../imageCache";
+import { cardTypeIcon, drawIcon, type IconName } from "../icons";
 import { MAT_D, MAT_W, PILE_LOCAL, BATTLEFIELD_LOCAL, CARD_W, CARD_H } from "../../shared/tableLayout";
 
 const TW = 488;
@@ -136,10 +137,7 @@ function drawTextFace(f: FaceLike, footer: string): HTMLCanvasElement {
   ctx.strokeStyle = "rgba(0,0,0,0.6)";
   ctx.lineWidth = 4;
   ctx.strokeRect(34, artY, TW - 68, artH);
-  ctx.fillStyle = "rgba(255,255,255,0.35)";
-  ctx.font = "120px serif";
-  ctx.textAlign = "center";
-  ctx.fillText(glyph(f.typeLine), TW / 2, artY + artH / 2 + 8);
+  drawIcon(ctx, f.typeLine === "Token" ? "sparkle" : cardTypeIcon(f.typeLine), TW / 2 - 60, artY + artH / 2 - 60, 120, "rgba(255,255,255,0.35)");
   // type bar
   bar(artY + artH + 8, 44);
   ctx.fillStyle = col.text;
@@ -183,17 +181,6 @@ function drawTextFace(f: FaceLike, footer: string): HTMLCanvasElement {
   ctx.textBaseline = "alphabetic";
   ctx.fillText(footer, 30, TH - 18);
   return c;
-}
-
-function glyph(typeLine: string) {
-  if (/Creature/.test(typeLine)) return "⚔";
-  if (/Instant/.test(typeLine)) return "ϟ";
-  if (/Sorcery/.test(typeLine)) return "✺";
-  if (/Enchantment/.test(typeLine)) return "❂";
-  if (/Artifact/.test(typeLine)) return "⚙";
-  if (/Land/.test(typeLine)) return "⛰";
-  if (/Planeswalker/.test(typeLine)) return "✧";
-  return "◆";
 }
 
 function notify(e: Entry) {
@@ -420,9 +407,9 @@ const LABEL_STYLES: Record<LabelVariant, { bg: string; border: string; fg: strin
 
 const labelCache = new Map<string, { texture: THREE.Texture; aspect: number }>();
 
-/** A pill-shaped text label as a texture; `aspect` is width / height. */
-export function labelTexture(text: string, variant: LabelVariant = "count"): { texture: THREE.Texture; aspect: number } {
-  return pillTexture(`${variant}:${text}`, text, LABEL_STYLES[variant]);
+/** A pill-shaped text label (optionally led by an icon) as a texture; `aspect` is width / height. */
+export function labelTexture(text: string, variant: LabelVariant = "count", icon?: IconName): { texture: THREE.Texture; aspect: number } {
+  return pillTexture(`${variant}:${icon ?? ""}:${text}`, text, LABEL_STYLES[variant], icon);
 }
 
 /** Name tag floating over a ping, in the pinging player's colour. */
@@ -430,14 +417,18 @@ export function pingTagTexture(name: string, hue: number): { texture: THREE.Text
   return pillTexture(`ping:${hue}:${name}`, name, { bg: `hsla(${hue}, 45%, 14%, 0.94)`, border: `hsl(${hue}, 85%, 66%)`, fg: `hsl(${hue}, 90%, 88%)` });
 }
 
-function pillTexture(key: string, text: string, st: { bg: string; border: string; fg: string }): { texture: THREE.Texture; aspect: number } {
+function pillTexture(key: string, text: string, st: { bg: string; border: string; fg: string }, icon?: IconName): { texture: THREE.Texture; aspect: number } {
   const hit = labelCache.get(key);
   if (hit) return hit;
   const h = 64;
   const [probe, pctx] = canvas(8, 8);
   void probe;
   pctx.font = "800 38px Inter, sans-serif";
-  const w = Math.max(h, Math.ceil(pctx.measureText(text).width) + 40);
+  const textW = Math.ceil(pctx.measureText(text).width);
+  const iconSize = 36;
+  const iconGap = 8;
+  const contentW = textW + (icon ? iconSize + iconGap : 0);
+  const w = Math.max(h, contentW + 40);
   const [c, ctx] = canvas(w, h);
   roundRect(ctx, 3, 3, w - 6, h - 6, (h - 6) / 2);
   ctx.fillStyle = st.bg;
@@ -449,7 +440,9 @@ function pillTexture(key: string, text: string, st: { bg: string; border: string
   ctx.font = "800 38px Inter, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(text, w / 2, h / 2 + 2);
+  const left = (w - contentW) / 2;
+  if (icon) drawIcon(ctx, icon, left, (h - iconSize) / 2, iconSize, st.fg);
+  ctx.fillText(text, left + contentW - textW / 2, h / 2 + 2);
   const entry = { texture: finish(new THREE.CanvasTexture(c)), aspect: w / h };
   labelCache.set(key, entry);
   return entry;

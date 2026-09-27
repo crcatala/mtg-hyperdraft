@@ -7,6 +7,8 @@ import { faceOf, frameColors, hasBackFace, imageUrl, nextFace, type ImageSize } 
 import { useStore } from "../store";
 import { ManaCost, RulesText } from "./Mana";
 import { imageStatus, useImage } from "../imageCache";
+import { Icon } from "./Icon";
+import { cardTypeIcon } from "../icons";
 
 export interface CardViewProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   card?: CardData;
@@ -143,7 +145,7 @@ export const CardView = memo(function CardView({
             else setTurned((t) => !t);
           }}
         >
-          ⟲
+          <Icon name="flip" />
         </button>
       )}
     </div>
@@ -161,7 +163,7 @@ export function TextCard({ card, face = 0 }: { card: CardData; face?: number }) 
         <ManaCost cost={f.manaCost} shadow />
       </div>
       <div className="tc-art">
-        <span>{glyphFor(f.typeLine)}</span>
+        <Icon name={cardTypeIcon(f.typeLine)} />
       </div>
       <div className="tc-type">
         <span>{f.typeLine}</span>
@@ -183,7 +185,7 @@ function TokenCard({ token }: { token: TokenDef }) {
         <span className="tc-title">{token.name}</span>
       </div>
       <div className="tc-art tall">
-        <span>✦</span>
+        <Icon name="sparkle" />
       </div>
       <div className="tc-type">
         <span>Token</span>
@@ -208,15 +210,4 @@ export function CardBack() {
       </div>
     </div>
   );
-}
-
-function glyphFor(typeLine: string): string {
-  if (/Planeswalker/.test(typeLine)) return "✧";
-  if (/Creature/.test(typeLine)) return "⚔";
-  if (/Instant/.test(typeLine)) return "ϟ";
-  if (/Sorcery/.test(typeLine)) return "✺";
-  if (/Enchantment/.test(typeLine)) return "❂";
-  if (/Artifact/.test(typeLine)) return "⚙";
-  if (/Land/.test(typeLine)) return "⛰";
-  return "◆";
 }

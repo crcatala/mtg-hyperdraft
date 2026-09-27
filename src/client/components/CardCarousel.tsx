@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { createPortal } from "react-dom";
 import type { CardData } from "../../shared/types";
 import { CardView } from "./CardView";
+import { Icon } from "./Icon";
 import { faceOf, hasBackFace, nextFace } from "../cardStyle";
 
 export interface CarouselItem {
@@ -150,17 +151,17 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
           )}
         </div>
         <button className="carousel-close" onClick={close} aria-label="Close (Esc)" title="Close (Esc)">
-          ✕
+          <Icon name="x" />
         </button>
       </div>
 
       {items.length > 1 && (
         <>
           <button className="carousel-arrow left" onClick={() => go(-1)} aria-label="Previous card (←)" title="Previous (←)">
-            ‹
+            <Icon name="chevron-left" />
           </button>
           <button className="carousel-arrow right" onClick={() => go(1)} aria-label="Next card (→)" title="Next (→)">
-            ›
+            <Icon name="chevron-right" />
           </button>
         </>
       )}

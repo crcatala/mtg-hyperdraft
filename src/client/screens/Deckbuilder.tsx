@@ -6,6 +6,7 @@ import { useStore } from "../store";
 import { NameEditor, TopBar } from "../components/TopBar";
 import { Tooltip } from "../components/Tooltip";
 import { CardView } from "../components/CardView";
+import { Icon } from "../components/Icon";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import type { BasicCounts, BasicLand, CardData, CardInstance, CardMap, Color, DeckState } from "../../shared/types";
 import { BASIC_NAMES, COLORS } from "../../shared/types";
@@ -191,13 +192,13 @@ export function Deckbuilder() {
           {size} / {min}+ cards
         </span>
         <button className="btn small" onClick={doAutoBuild} disabled={deck.ready}>
-          ✨ Auto-build
+          <Icon name="sparkles" /> Auto-build
         </button>
         <button className="btn small" onClick={doLands} disabled={deck.ready} title="Fill to the minimum with basics matching your mana symbols">
-          ⛰ Auto lands
+          <Icon name="land" /> Auto lands
         </button>
         <button className="btn small" onClick={exportList}>
-          ⧉ Copy list
+          <Icon name="copy" /> Copy list
         </button>
         <span className="db-filter">
           <span className="faint">Pool filter:</span>
@@ -223,7 +224,14 @@ export function Deckbuilder() {
             const st = view.deckStatus[p.id];
             return (
               <span key={p.id} className={`pill ${st?.ready ? "ok" : ""}`}>
-                {p.name} {st?.ready ? "✓ ready" : "building…"}
+                {p.name}{" "}
+                {st?.ready ? (
+                  <>
+                    <Icon name="check" /> ready
+                  </>
+                ) : (
+                  "building…"
+                )}
               </span>
             );
           })}
@@ -234,7 +242,13 @@ export function Deckbuilder() {
           onClick={() => send({ t: "deckReady", ready: !deck.ready })}
           title={size < min ? `Add at least ${min - size} more card(s)` : ""}
         >
-          {deck.ready ? "✓ Ready — waiting for others" : "Ready to play"}
+          {deck.ready ? (
+            <>
+              <Icon name="check" /> Ready — waiting for others
+            </>
+          ) : (
+            "Ready to play"
+          )}
         </button>
       </div>
 
@@ -469,12 +483,12 @@ function BasicsEditor({ basics, basicIds, cards, onChange, disabled }: { basics:
         <div key={land} className="basic-row">
           <i className={`ms ms-${land.toLowerCase()} ms-cost ms-shadow`} />
           <span className="basic-name">{cards[basicIds[land] ?? ""]?.name ?? BASIC_NAMES[land]}</span>
-          <button className="btn small" disabled={disabled || basics[land] === 0} onClick={() => onChange(land, basics[land] - 1)}>
-            −
+          <button className="btn small icon-only" aria-label={`One less ${BASIC_NAMES[land]}`} disabled={disabled || basics[land] === 0} onClick={() => onChange(land, basics[land] - 1)}>
+            <Icon name="minus" />
           </button>
           <BasicCount value={basics[land]} disabled={disabled} label={BASIC_NAMES[land]} onChange={(n) => onChange(land, n)} />
-          <button className="btn small" disabled={disabled} onClick={() => onChange(land, basics[land] + 1)}>
-            +
+          <button className="btn small icon-only" aria-label={`One more ${BASIC_NAMES[land]}`} disabled={disabled} onClick={() => onChange(land, basics[land] + 1)}>
+            <Icon name="plus" />
           </button>
         </div>
       ))}

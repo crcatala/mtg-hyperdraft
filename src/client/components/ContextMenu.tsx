@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "../store";
+import { Icon } from "./Icon";
 
 export function ContextMenu() {
   const menu = useStore((s) => s.menu);
@@ -49,6 +50,7 @@ export function ContextMenu() {
               item.onSelect?.();
             }}
           >
+            {item.icon && <Icon name={item.icon} />}
             {item.label}
             {item.hint && <span className="hint">{item.hint}</span>}
           </button>

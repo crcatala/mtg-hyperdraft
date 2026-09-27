@@ -4,6 +4,7 @@ import { loadName, saveName } from "../identity";
 import { createRoom, deleteRoom, fetchInvite, forgetInvite, InviteError, loadInvite, saveInvite } from "../invite";
 import { navigate } from "../router";
 import { useStore } from "../store";
+import { Icon } from "../components/Icon";
 import { ROOM_CODE_LENGTH, ROOM_CODE_RE } from "../../shared/roomCode";
 import type { InviteInfo, RoomRecord } from "../../shared/invites";
 
@@ -52,7 +53,7 @@ export function Home() {
             </label>
             <input id="name" className="input" value={name} maxLength={24} placeholder="e.g. Chandra" onChange={(e) => setName(e.target.value)} autoFocus />
             <button className="btn primary big" onClick={() => !needName() && navigate("/solo")}>
-              ▶ Play solo vs bots
+              <Icon name="play" /> Play solo vs bots
             </button>
             <p className="faint small-print home-note">Runs entirely in your browser. No invite or sign-up needed.</p>
 
@@ -191,7 +192,7 @@ function HostSection({ needName }: { needName: () => boolean }) {
   return (
     <>
       <button className="btn big" disabled={busy || !info || !!blocker} onClick={host}>
-        ✦ Host an online game
+        <Icon name="sparkle" /> Host an online game
       </button>
       {blocker && <p className="pill warn home-blocker">{blocker}</p>}
       {info && q && (
@@ -245,8 +246,8 @@ function MyRooms({ rooms, onDelete }: { rooms: RoomRecord[]; onDelete: (r: RoomR
                 {r.cubeName ? `${r.cubeName} · ${r.cardCount} cards` : "No cube yet"} · created {new Date(r.createdAt).toLocaleDateString()}
               </span>
             </button>
-            <button className="btn ghost small" title="Delete room" aria-label={`Delete room ${r.code}`} onClick={() => onDelete(r)}>
-              ✕
+            <button className="btn ghost small icon-only" title="Delete room" aria-label={`Delete room ${r.code}`} onClick={() => onDelete(r)}>
+              <Icon name="x" />
             </button>
           </li>
         ))}
