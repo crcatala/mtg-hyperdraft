@@ -78,6 +78,8 @@
   place-items: center;
   width: 30px;
   height: 30px;
+  /* No UA button padding: it narrows the content box and pushes the symbol off-centre. */
+  padding: 0;
   border-radius: 50%;
   border: 1px solid var(--line-2);
   background: rgba(255, 255, 255, 0.04);
@@ -1811,6 +1813,35 @@ body.dragging * {
   pointer-events: none;
   animation: preview-in 0.12s ease-out;
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.6));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+/* Keep the main face against the anchor when the preview sits on its left. */
+.anchored-preview.side-left {
+  align-items: flex-end;
+}
+/* A how-to hint travelling with the preview, styled like a tooltip. */
+.preview-footer {
+  align-self: stretch;
+  /* Take the card's width instead of widening the panel to fit the hint on one line. */
+  contain: inline-size;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(30, 25, 50, 0.98);
+  border: 1px solid rgba(183, 155, 255, 0.35);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 450;
+  line-height: 1.5;
+}
+.preview-footer b {
+  color: var(--gold-2);
+  font-weight: 700;
+}
+.preview-footer .tip-keys {
+  white-space: normal;
 }
 
 /* ---------- zoom carousel ---------- */
@@ -2258,4 +2289,162 @@ body.dragging * {
 }
 .ig-canvas {
   display: block;
+}
+
+/* ---------- lobby: showcase + cube browser ---------- */
+
+/* The card count doubles as the way into the cube browser. */
+.pill-btn {
+  cursor: pointer;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pill.ok.pill-btn:hover {
+  background: rgba(75, 226, 154, 0.26);
+  border-color: rgba(75, 226, 154, 0.8);
+}
+.showcase-card {
+  cursor: pointer;
+}
+.showcase-card.is-selected,
+.showcase-card.is-selected * {
+  cursor: zoom-in;
+}
+.showcase-hint {
+  margin: 14px 0 0;
+  text-align: center;
+}
+
+.cube-browser {
+  width: min(1180px, calc(100vw - 32px));
+  height: calc(100vh - 64px);
+  padding: 0;
+  overflow: hidden;
+}
+.cb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.cb-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.cb-title h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cb-search {
+  position: relative;
+  order: 1;
+  flex: 0 1 280px;
+  min-width: 0;
+}
+.cb-head > .btn {
+  order: 2;
+}
+/* Narrow screens: title and close share the top row, search gets its own. */
+@media (max-width: 640px) {
+  .cb-search {
+    order: 3;
+    flex: 1 1 100%;
+  }
+}
+.cb-search .icon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  translate: 0 -50%;
+  color: var(--faint);
+  pointer-events: none;
+}
+.cb-search .input {
+  width: 100%;
+  padding-left: 34px;
+}
+.cb-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--tile-w));
+  grid-auto-rows: var(--tile-h);
+  justify-content: center;
+  align-content: start;
+  gap: 14px;
+  padding: 18px;
+}
+.cb-tile {
+  position: relative;
+  width: var(--tile-w);
+  height: var(--tile-h);
+  border-radius: 7px;
+  cursor: zoom-in;
+  outline-offset: 3px;
+  transition: transform 0.15s;
+}
+.cb-tile * {
+  cursor: zoom-in;
+}
+.cb-tile:hover,
+.cb-tile:focus-visible {
+  z-index: 1;
+  transform: translateY(-3px);
+}
+/* Before a tile nears the viewport: a card-shaped stand-in with the name, no image request. */
+.cb-placeholder {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+}
+/* The magnifier badge makes "click to zoom" clear, including where there's no zoom cursor. */
+.cb-zoom {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(14, 11, 26, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-size: 16px;
+  opacity: 0;
+  scale: 0.85;
+  transition: opacity 0.15s, scale 0.15s;
+  pointer-events: none;
+}
+.cb-tile:hover .cb-zoom,
+.cb-tile:focus-visible .cb-zoom {
+  opacity: 1;
+  scale: 1;
+}
+.cb-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+}
+.cb-foot {
+  margin: 0;
+  padding: 8px 18px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  text-align: center;
 }

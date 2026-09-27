@@ -108,6 +108,10 @@ export const ICONS = {
   /** Turn a card over: counter-clockwise arrow (the old ⟲). */
   flip: [stroke("M4.5 12A7.5 7.5 0 1 0 12 4.5"), stroke("M14.8 1.7L12 4.5l2.8 2.8")],
   gear: [stroke(gear(8, 7.3, 10)), stroke(circle(12, 12, 3))],
+  /** View all: a 2×2 grid of cards. */
+  grid: [stroke(roundRect(4, 4, 7, 7, 1.5)), stroke(roundRect(13, 4, 7, 7, 1.5)), stroke(roundRect(4, 13, 7, 7, 1.5)), stroke(roundRect(13, 13, 7, 7, 1.5))],
+  search: [stroke(circle(10.5, 10.5, 6.5)), stroke("M15.5 15.5L20 20")],
+  "zoom-in": [stroke(circle(10.5, 10.5, 6.5)), stroke("M15.5 15.5L20 20"), stroke("M10.5 8v5"), stroke("M8 10.5h5")],
   check: [stroke("M4.5 12.5l5 5 10-11")],
   x: [stroke("M6 6l12 12"), stroke("M18 6L6 18")],
   plus: [stroke("M12 5v14"), stroke("M5 12h14")],
