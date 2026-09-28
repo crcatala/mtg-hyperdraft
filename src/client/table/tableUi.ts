@@ -7,6 +7,7 @@ import { useStore, type MenuItem } from "../store";
 import { hasBackFace, nextFace } from "../cardStyle";
 import { sfx } from "../sfx";
 import { pilePosition } from "../../shared/tableLayout";
+export { seatsFromMe } from "../../shared/tableLayout";
 import { guardForAll, type GuardContext } from "./guards";
 
 export interface LocalDrag {
@@ -151,12 +152,6 @@ export function table(): TableState | null {
 
 export function me(): string {
   return useStore.getState().view?.you ?? "";
-}
-
-/** Seats in the order the camera switcher lists them: yours first, then around the table. */
-export function seatsFromMe(seats: string[], me: string): string[] {
-  const at = seats.indexOf(me);
-  return at < 0 ? seats.slice() : [...seats.slice(at), ...seats.slice(0, at)];
 }
 
 /** Moves the camera behind a player's seat (yours when null), leaving the overhead view. */
@@ -308,7 +303,8 @@ export function battlefieldMenu(card: TableCard, x: number, y: number) {
     { label: "Top of library", onSelect: () => moveTo(ids, "library") },
     { label: "Bottom of library", onSelect: () => moveTo(ids, "library", { bottom: true }) },
     { separator: true, label: "" },
-    ...(!many ? [{ label: "Create token copy", onSelect: () => act({ a: "clone", id: card.id }) }] : []),
+    // A face-down card can't be copied (the copy would reveal it).
+    ...(!many && !card.faceDown ? [{ label: "Create token copy", onSelect: () => act({ a: "clone", id: card.id }) }] : []),
     { label: "Ping this card", icon: "pin", hint: "Tab", onSelect: () => pingAt(card.x, card.y) },
   ];
   useStore.getState().openMenu({ x, y, title: many ? `${ids.length} cards` : cardLabel(card), items });

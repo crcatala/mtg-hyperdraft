@@ -136,7 +136,7 @@ function cardRef(table: TableState, id: string, env: TableEnv, forPublic = true)
   const card = table.cards[id];
   if (!card) return logText`a card`;
   if (forPublic && card.faceDown && card.zone === "battlefield") return logText`a face-down card`;
-  if (card.token) return logText`${cardText(card.token.name, card.cardId)} token`;
+  if (card.token) return logText`${cardText(card.token.name, card.cardId, card.face)} token`;
   const data = card.cardId ? env.cards[card.cardId] : undefined;
   if (!data) return logText`a card`;
   return data.faces && card.face > 0 ? cardText(data.faces[card.face].name, data.id, card.face) : cardText(data.name, data.id);
@@ -382,6 +382,8 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
     case "clone": {
       const src = getCard(action.id);
       if (src.zone !== "battlefield") throw new TableError("Only battlefield cards can be copied.");
+      // The copy would be face up, showing everyone what the hidden card is.
+      if (src.faceDown) throw new TableError("Face-down cards can't be copied.");
       const id = env.nextId("t");
       const card = blankCard(id, playerId, "battlefield", src.cardId);
       card.token = src.token ?? { name: cardName(table, src.id, env), colors: src.cardId ? env.cards[src.cardId]?.colors ?? [] : [] };

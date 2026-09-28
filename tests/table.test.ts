@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyTableAction, createTable, tableViewFor, type TableEnv } from "../src/shared/table";
+import { applyTableAction, createTable, TableError, tableViewFor, type TableEnv } from "../src/shared/table";
+import { seatsFromMe } from "../src/shared/tableLayout";
 import { mulberry32 } from "../src/shared/rng";
 import type { DeckState } from "../src/shared/types";
 import { basicIds, makeCube } from "./fixtures";
@@ -184,6 +185,24 @@ describe("tabletop", () => {
     const mark = e.marks!.find((m) => m[2] === "c")!;
     expect(e.text.slice(mark[0], mark[1])).toBe("Night Side");
     expect(mark.slice(3)).toEqual([data.id, 1]);
+    // A token copy of the back face links to the back face too, whenever the log names it.
+    applyTableAction(table, "a", { a: "clone", id }, env);
+    const copy = Object.values(table.cards).find((c) => c.token && c.cardId === data.id)!;
+    applyTableAction(table, "a", { a: "tap", ids: [copy.id] }, env);
+    const tapped = table.log.at(-1)!;
+    const tokenMark = tapped.marks!.find((m) => m[2] === "c")!;
+    expect(tapped.text.slice(tokenMark[0], tokenMark[1])).toBe("Night Side");
+    expect(tokenMark.slice(3)).toEqual([data.id, 1]);
+  });
+
+  it("refuses to copy a face-down card (the copy would reveal it)", () => {
+    const { table, env } = setup();
+    const id = table.players.b.zones.hand[0];
+    applyTableAction(table, "b", { a: "move", ids: [id], to: "battlefield", faceDown: true }, env);
+    const before = Object.keys(table.cards).length;
+    expect(() => applyTableAction(table, "a", { a: "clone", id }, env)).toThrow(TableError);
+    expect(() => applyTableAction(table, "b", { a: "clone", id }, env)).toThrow(TableError);
+    expect(Object.keys(table.cards)).toHaveLength(before);
   });
 
   it("names the owner when someone acts on another player's card", () => {
@@ -236,5 +255,20 @@ describe("tabletop", () => {
     // Leaving the battlefield turns it back to the front.
     applyTableAction(table, "a", { a: "move", ids: [back], to: "hand" }, env);
     expect(table.cards[back].face).toBe(0);
+  });
+});
+
+describe("seat order from a player's point of view", () => {
+  it("starts at your seat and wraps around the table", () => {
+    expect(seatsFromMe(["a", "b", "c", "d"], "a")).toEqual(["a", "b", "c", "d"]);
+    expect(seatsFromMe(["a", "b", "c", "d"], "c")).toEqual(["c", "d", "a", "b"]);
+    expect(seatsFromMe(["a", "b", "c", "d"], "d")).toEqual(["d", "a", "b", "c"]);
+  });
+
+  it("keeps table order for someone who isn't seated", () => {
+    const seats = ["a", "b"];
+    const out = seatsFromMe(seats, "zz");
+    expect(out).toEqual(["a", "b"]);
+    expect(out).not.toBe(seats);
   });
 });

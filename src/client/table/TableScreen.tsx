@@ -116,9 +116,7 @@ function useTableShortcuts() {
         case "1":
         case "2":
         case "3":
-        case "4":
-        case "5":
-        case "6": {
+        case "4": {
           // View from a seat, numbered as the camera switcher lists them (you're 1).
           const view = useStore.getState().view;
           const pid = view?.table && seatsFromMe(view.table.seats, view.you)[Number(k) - 1];
@@ -310,8 +308,18 @@ function ActionBar() {
     const onDown = (e: PointerEvent) => {
       if (!diceRef.current?.contains(e.target as Node)) setDice(false);
     };
+    // Esc closes it too (capture phase, so the table doesn't also clear its selection).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setDice(false);
+    };
     window.addEventListener("pointerdown", onDown);
-    return () => window.removeEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+    };
   }, [dice]);
   return (
     <div className="dock-actions panel" role="toolbar" aria-label="Table actions">
@@ -356,7 +364,7 @@ function CameraSwitcher() {
   const order = seatsFromMe(table.seats, me);
   const current = pov && table.seats.includes(pov) ? pov : me;
   return (
-    <div className="camera-switch panel" role="radiogroup" aria-label="Camera">
+    <div className="camera-switch panel" role="group" aria-label="Camera">
       <span className="camera-label">
         <Icon name="eye" /> View
       </span>
@@ -367,8 +375,7 @@ function CameraSwitcher() {
         return (
           <Tooltip key={pid} placement="bottom" content={<span className="dock-tip">{mine ? "Your seat" : `${name}'s seat`} {<kbd>{i + 1}</kbd>}</span>}>
             <button
-              role="radio"
-              aria-checked={active}
+              aria-pressed={active}
               aria-label={mine ? "View from your seat" : `View from ${name}'s seat`}
               className={`camera-opt${active ? " active" : ""}`}
               style={{ "--hue": seatHue(table.seats.indexOf(pid)) } as React.CSSProperties}
@@ -381,7 +388,7 @@ function CameraSwitcher() {
         );
       })}
       <Tooltip placement="bottom" content={<span className="dock-tip">Look down on the whole table <kbd>V</kbd></span>}>
-        <button role="radio" aria-checked={overview} aria-label="Overhead view of the whole table" className={`camera-opt overview${overview ? " active" : ""}`} onClick={() => set({ overview: true })}>
+        <button aria-pressed={overview} aria-label="Overhead view of the whole table" className={`camera-opt overview${overview ? " active" : ""}`} onClick={() => set({ overview: true })}>
           <Icon name="overview" />
           <span className="camera-name">Overview</span>
         </button>
@@ -411,7 +418,7 @@ function LogPanel() {
   const log = useStore((s) => s.view!.table!.log);
   const seats = useStore((s) => s.view!.table!.seats);
   const cards = useStore((s) => s.cards);
-  const [hover, setHover] = useState<{ card: CardData; face: number; rect: DOMRect } | null>(null);
+  const [hover, setHover] = useState<LogHover | null>(null);
   const open = useTableUi((s) => s.logOpen);
   const set = useTableUi((s) => s.set);
   const ref = useRef<HTMLDivElement>(null);
@@ -431,12 +438,18 @@ function LogPanel() {
   const newest = useRef<LogEntry | null>(null);
   const [unseen, setUnseen] = useState(0);
 
-  // Reopening the panel starts at the latest entry.
+  // Reopening the panel starts at the latest entry (and with no preview left over from before).
   useEffect(() => {
     stick.current = true;
     gliding.current = false;
     setUnseen(0);
+    setHover(null);
   }, [open]);
+
+  // A hovered line trimmed off the top of the log never gets its pointerleave: drop its preview.
+  useEffect(() => {
+    if (hover && !ref.current?.querySelector(`[data-log-card="${CSS.escape(hover.key)}"]`)) setHover(null);
+  });
 
   // Count entries that arrive while the reader is scrolled up.
   useLayoutEffect(() => {
@@ -545,6 +558,15 @@ const LOG_ICONS: Record<LogKind, IconName> = {
   reveal: "eye",
 };
 
+/** A card link under the pointer, previewed beside the log. */
+interface LogHover {
+  /** The link's data-log-card key. */
+  key: string;
+  card: CardData;
+  face: number;
+  rect: DOMRect;
+}
+
 /** Zone names as the log spells them, for colouring ("the battlefield" → battlefield). */
 const zoneClass = (text: string) => text.replace(/^the /, "").toLowerCase();
 
@@ -566,7 +588,7 @@ function LogLine({
   seats: string[];
   cards: Record<string, CardData>;
   now: number;
-  onHoverCard: (h: { card: CardData; face: number; rect: DOMRect } | null) => void;
+  onHoverCard: (h: LogHover | null) => void;
 }) {
   const kind = entry.kind;
   const divider = kind === "turn";
@@ -598,7 +620,7 @@ function LogLine({
               // Beside the log panel (not the link, which would cover the log), level with the link.
               const link = e.currentTarget.getBoundingClientRect();
               const panel = e.currentTarget.closest(".log-panel")?.getBoundingClientRect() ?? link;
-              onHoverCard({ card: data, face, rect: new DOMRect(panel.left, link.top, panel.width, link.height) });
+              onHoverCard({ key: linkKey, card: data, face, rect: new DOMRect(panel.left, link.top, panel.width, link.height) });
             }}
             onPointerLeave={() => onHoverCard(null)}
             onClick={() => {
