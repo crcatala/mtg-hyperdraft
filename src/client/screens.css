@@ -2462,6 +2462,21 @@ body.dragging * {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Whose room it is: yours (hosted) stands out, a friend's (joined) stays quiet. */
+.pill.room-role {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.pill.room-role.hosted {
+  background: rgba(143, 107, 255, 0.16);
+  border-color: rgba(143, 107, 255, 0.5);
+  color: var(--violet-2);
+}
+.pill.room-role.joined {
+  color: var(--muted);
+}
 
 /* ---------- solo + seat picker ---------- */
 

@@ -12,9 +12,14 @@ function alias(): string {
   return new URLSearchParams(location.search).get("as") ?? "";
 }
 
-function key(code: string) {
+/** A localStorage key kept apart per `?as=` alias, so test tabs don't share identities or lists. */
+export function aliasedKey(k: string): string {
   const a = alias();
-  return `hyperdraft:id:${code}${a ? `:${a}` : ""}`;
+  return a ? `${k}:${a}` : k;
+}
+
+function key(code: string) {
+  return aliasedKey(`hyperdraft:id:${code}`);
 }
 
 function safeGet(k: string): string | null {
@@ -48,13 +53,11 @@ export function saveIdentity(code: string, id: Identity) {
 }
 
 export function loadName(): string {
-  const a = alias();
-  return safeGet(a ? `${NAME_KEY}:${a}` : NAME_KEY) ?? "";
+  return safeGet(aliasedKey(NAME_KEY)) ?? "";
 }
 
 export function saveName(name: string) {
-  const a = alias();
-  safeSet(a ? `${NAME_KEY}:${a}` : NAME_KEY, name);
+  safeSet(aliasedKey(NAME_KEY), name);
 }
 
 export function withAlias(path: string): string {

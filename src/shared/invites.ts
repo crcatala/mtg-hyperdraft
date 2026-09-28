@@ -113,7 +113,7 @@ export function quotaInfo(ledger: InviteLedger, now: number): QuotaInfo {
 /** Null when another room may be created now, else a message for the player. */
 export function createBlocker(ledger: InviteLedger, now: number): string | null {
   const q = quotaInfo(ledger, now);
-  if (q.rooms >= q.maxRooms) return `This invite already has ${q.maxRooms} rooms. Delete one from "My rooms" to make space.`;
+  if (q.rooms >= q.maxRooms) return `This invite already has ${q.maxRooms} rooms. Delete one from "Your rooms" to make space.`;
   if (q.nextSlotAt !== null) {
     const hours = Math.max(1, Math.ceil((q.nextSlotAt - now) / 3_600_000));
     return `This invite created ${q.perWindow} rooms in the last 24 hours. Try again in about ${hours} hour${hours === 1 ? "" : "s"}.`;

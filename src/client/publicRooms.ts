@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { TURNSTILE_ACTION, type PublicStatus } from "../shared/publicRooms";
+import { rememberRoom } from "./recentRooms";
 
 const EXPIRY_KEY = "hyperdraft:public:";
 const MINE_KEY = "hyperdraft:public-mine";
@@ -50,6 +51,7 @@ export function loadMine(): { code: string; expiresAt: number } | null {
 
 export function rememberMine(code: string, expiresAt: number) {
   rememberExpiry(code, expiresAt);
+  rememberRoom(code, { hosted: true, expiresAt });
   try {
     localStorage.setItem(MINE_KEY, JSON.stringify({ code, expiresAt }));
   } catch {
