@@ -120,20 +120,28 @@ storage are available on the free Workers plan.
    `RoomDurableObject`, `v2` `InviteDurableObject`). Wrangler prints the URL, e.g.
    `https://hyperdraft.<your-subdomain>.workers.dev`. If this is your account's first Worker, Cloudflare
    asks you to pick a `workers.dev` subdomain.
-3. **Set the secrets** (they survive redeploys; online rooms stay off until both are set):
+3. **Set the production secrets** (they survive redeploys; online hosting needs both):
    ```bash
-   openssl rand -base64 32 | npx wrangler secret put ROOM_CODE_SECRET   # signs room codes
-   npm run invite:new -- sam          # prints a fresh `sam:<key>` entry and its magic link
+   ROOM_CODE_SECRET=$(openssl rand -base64 32)
+   printf '%s\n' "$ROOM_CODE_SECRET"  # copy this value to your password manager
+   printf '%s' "$ROOM_CODE_SECRET" | npx wrangler secret put ROOM_CODE_SECRET
+   unset ROOM_CODE_SECRET
+
+   npm run invite:new -- sam          # prints a fresh invite entry and magic link
    npx wrangler secret put INVITE_CODES   # paste entries, comma-separated: sam:<key>,jo:<key>
    ```
-   Changing `ROOM_CODE_SECRET` later makes every existing room code invalid, so set it once.
+   Save `ROOM_CODE_SECRET`: Cloudflare won't show secret values again, and changing this one invalidates
+   all existing room codes. In `invite:new -- sam`, `sam` is just a label to identify the invite; friends
+   use the generated key, not the label. Add the printed `sam:<key>` entry to `INVITE_CODES`.
 4. **Share** the site URL with anyone (solo mode needs nothing), and a magic link
    `<site URL>/?invite=<key>` with each friend who should be able to host. Room and invite links are
    built from whatever host serves the app, so any hostname you attach to the Worker works too.
 
 **Managing invites:** `INVITE_CODES` is the whole admin panel. Add an entry to invite someone; remove it
 to revoke (their existing room links keep working for players); change the key but keep the label to
-rotate it. The label is the invite's identity: renaming it starts a fresh, empty "My rooms".
+rotate it. Cloudflare won't reveal a lost invite key: generate a replacement and update the full
+`INVITE_CODES` value, keeping any other entries you still use. The label is the invite's identity:
+renaming it starts a fresh, empty "My rooms".
 
 **Kill switch:** `echo false | npx wrangler secret put ONLINE_ENABLED` turns online rooms off instantly
 (solo mode keeps working); `npx wrangler secret delete ONLINE_ENABLED` turns them back on.
