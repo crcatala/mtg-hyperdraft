@@ -1,7 +1,9 @@
 // Cloudflare Worker entry: a small HTTP API, invite checks, and routing websockets to one Durable
 // Object per room. Static client assets are served by Workers Static Assets (see wrangler.jsonc).
 //
-//   POST   /api/rooms                 create a room          (invite key required)
+//   POST   /api/rooms                 create a room: with an invite key, one of the invite's rooms;
+//                                     without one, a public room (when PUBLIC_ROOMS_ENABLED)
+//   GET    /api/public                public hosting: open slots, your room, Turnstile site key
 //   GET    /api/invite                invite info + "My rooms" (invite key required)
 //   DELETE /api/invite/rooms/:code    delete one of the invite's rooms (invite key required)
 //   GET    /api/rooms/:code/info      does the room exist?   (anyone with the code)
@@ -13,9 +15,12 @@
 import { inviteLabelFor, parseInviteCodes } from "../shared/invites";
 import { CLOSE } from "../shared/protocol";
 import { verifyRoomCode } from "../shared/roomCode";
-import { inviteStub, onlineEnabled, roomStub, type Env } from "./env";
+import { inviteStub, onlineEnabled, publicPoolStub, publicRoomsEnabled, roomStub, turnstileKeys, type Env } from "./env";
+import { verifyTurnstile, visitorId } from "./publicAccess";
+import type { PublicStatus } from "../shared/publicRooms";
 export { RoomDurableObject } from "./roomObject";
 export { InviteDurableObject } from "./inviteObject";
+export { PublicPoolDurableObject } from "./publicPoolObject";
 
 const OFFLINE_MESSAGE = "Online rooms are turned off right now. Solo mode still works!";
 
@@ -32,7 +37,7 @@ function refuseSocket(code: number, message: string): Response {
   const pair = new WebSocketPair();
   const [client, server] = [pair[0], pair[1]];
   server.accept();
-  server.send(JSON.stringify({ t: "error", message }));
+  server.send(JSON.stringify({ t: "closed", code, message }));
   server.close(code, message.slice(0, 100));
   return new Response(null, { status: 101, webSocket: client });
 }
@@ -50,6 +55,30 @@ export default {
     const parts = url.pathname.split("/").filter(Boolean); // e.g. ["api", "rooms", CODE, "ws"]
 
     if (url.pathname === "/api/health") return json({ ok: true, online: onlineEnabled(env) });
+
+    // --- public rooms (no invite) ----------------------------------------------------------------
+
+    const hasInviteKey = request.headers.has("Authorization");
+    if (url.pathname === "/api/public" && request.method === "GET") {
+      if (!publicRoomsEnabled(env)) return json({ enabled: false } satisfies PublicStatus);
+      if (!env.ROOM_CODE_SECRET) return json({ error: "The server is missing ROOM_CODE_SECRET." }, 503);
+      const status = await publicPoolStub(env).status(await visitorId(request, env.ROOM_CODE_SECRET));
+      return json({ enabled: true, ...status, turnstileSiteKey: turnstileKeys(env)?.siteKey ?? null } satisfies PublicStatus);
+    }
+    if (url.pathname === "/api/rooms" && request.method === "POST" && !hasInviteKey) {
+      if (!publicRoomsEnabled(env)) return json({ error: onlineEnabled(env) ? "Hosting needs an invite code." : OFFLINE_MESSAGE }, onlineEnabled(env) ? 401 : 503);
+      if (!env.ROOM_CODE_SECRET) return json({ error: "The server is missing ROOM_CODE_SECRET." }, 503);
+      const turnstile = turnstileKeys(env);
+      if (turnstile) {
+        const body = (await request.json().catch(() => ({}))) as { turnstileToken?: string };
+        // Checked here, before the pool: failed checks never cost a Durable Object request.
+        if (!(await verifyTurnstile(body.turnstileToken, turnstile.secretKey, request.headers.get("CF-Connecting-IP")))) {
+          return json({ error: "Couldn't confirm you're not a bot. Try again in a moment." }, 403);
+        }
+      }
+      const res = await publicPoolStub(env).create(await visitorId(request, env.ROOM_CODE_SECRET));
+      return res.ok ? json({ code: res.code, expiresAt: res.expiresAt }) : json({ error: res.error, code: res.code }, res.status);
+    }
 
     // --- invite-only endpoints -------------------------------------------------------------------
 

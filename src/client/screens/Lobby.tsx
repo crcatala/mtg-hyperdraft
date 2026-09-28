@@ -12,6 +12,8 @@ import { MAX_HUMANS, MAX_SEATS } from "../../shared/types";
 import { cardsNeeded } from "../../shared/draft";
 import { quickstart, STARTER_CUBE } from "../quickstart";
 import { presetSource } from "../../shared/presets";
+import { durationLabel, PUBLIC_LIMITS } from "../../shared/publicRooms";
+import { clockTime } from "../expiry";
 
 const SAMPLE_CUBES = [
   { label: "Vintage Cube", value: "https://cubecobra.com/cube/list/vintage" },
@@ -50,6 +52,17 @@ export function Lobby() {
                 </>
               )}
             </button>
+          </section>
+        )}
+        {view.expiresAt !== null && (
+          <section className="panel solo-banner public-banner">
+            <div>
+              <h2>Public room · open until {clockTime(view.expiresAt)}</h2>
+              <p className="muted">
+                Hosted from the free public pool: it closes {durationLabel(PUBLIC_LIMITS.ttlMs)} after it was created, or once nobody's been here for{" "}
+                {durationLabel(PUBLIC_LIMITS.idleMs)}, and nothing in it is kept. Anyone with the link can join.
+              </p>
+            </div>
           </section>
         )}
         <section className="panel lobby-players">

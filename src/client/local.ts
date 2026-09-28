@@ -31,6 +31,7 @@ export function startLocal() {
     mode: "solo",
     status: "open",
     fatal: null,
+    fatalCode: null,
     claimSeats: [],
     cards: {},
     clockOffset: 0,

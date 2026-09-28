@@ -10,3 +10,13 @@ INVITE_CODES="dev:dev-invite-key"
 
 # Kill switch: uncomment to turn online rooms off (solo mode keeps working).
 # ONLINE_ENABLED="false"
+
+# Public rooms (anyone can host, no invite; a small shared pool of rooms that close on their own).
+# Off unless set to "true". Uncomment to try them locally.
+# PUBLIC_ROOMS_ENABLED="true"
+
+# Optional Turnstile bot check for hosting public rooms: asked for only when both keys are set.
+# These are Cloudflare's test keys (always pass); swap the secret for 2x0000000000000000000000000000000AA
+# to see a failed check.
+# TURNSTILE_SITE_KEY="1x00000000000000000000AA"
+# TURNSTILE_SECRET_KEY="1x0000000000000000000000000000000AA"

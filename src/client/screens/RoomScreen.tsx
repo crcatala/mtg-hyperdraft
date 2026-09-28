@@ -10,6 +10,12 @@ import { Draft } from "./Draft";
 import { Deckbuilder } from "./Deckbuilder";
 import { TableScreen } from "../table/TableScreen";
 import { presenceChanges } from "../presence";
+import { Icon } from "../components/Icon";
+import { knownExpiry } from "../publicRooms";
+import { useExpiryWarnings } from "../components/PublicRoomChip";
+import { clockTime } from "../expiry";
+import { CLOSE } from "../../shared/protocol";
+import { durationLabel, PUBLIC_LIMITS } from "../../shared/publicRooms";
 import type { Player } from "../../shared/types";
 
 /** How long someone can be gone before it's announced (a page reload shouldn't make a fuss). */
@@ -62,7 +68,9 @@ export function RoomScreen({ code }: { code: string }) {
   const fatal = useStore((s) => s.fatal);
   const phase = useStore((s) => s.view?.phase);
   const claimSeats = useStore((s) => s.claimSeats);
+  const fatalCode = useStore((s) => s.fatalCode);
   usePresenceToasts();
+  useExpiryWarnings();
 
   useEffect(() => {
     if (!named) return;
@@ -75,12 +83,27 @@ export function RoomScreen({ code }: { code: string }) {
   if (status === "claim") return <SeatPicker code={code} seats={claimSeats} />;
 
   if (status === "failed") {
+    // A public room this browser has been in, now gone: it closed on its own, say so.
+    const expiry = knownExpiry(code);
+    const closed = fatalCode === CLOSE.expired || (fatalCode === CLOSE.notFound && expiry !== null);
     return (
       <div className="screen">
         <div className="center-stage">
           <div className="panel notice">
-            <h2 className="brand">Can't join {code}</h2>
-            <p className="muted">{fatal}</p>
+            <h2 className="brand">{closed ? `Room ${code} has closed` : `Can't join ${code}`}</h2>
+            <p className="muted">
+              {closed && fatalCode === CLOSE.notFound
+                ? expiry! <= Date.now()
+                  ? `It reached its time limit at ${clockTime(expiry!)}: public rooms last ${durationLabel(PUBLIC_LIMITS.ttlMs)}.`
+                  : `It closed early because nobody was in it for ${durationLabel(PUBLIC_LIMITS.idleMs)}. Public rooms last up to ${durationLabel(PUBLIC_LIMITS.ttlMs)} while people are playing.`
+                : fatal}
+            </p>
+            {closed && <p className="faint small-print">Host a new one from the home page, or play solo against bots anytime.</p>}
+            {closed && (
+              <button className="btn" onClick={() => navigate("/solo")}>
+                <Icon name="play" /> Play solo vs bots
+              </button>
+            )}
             <button className="btn primary" onClick={() => navigate("/")}>
               Back home
             </button>

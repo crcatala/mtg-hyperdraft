@@ -2,11 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 import { roomExists } from "../net";
 import { loadName, saveName } from "../identity";
 import { createRoom, deleteRoom, fetchInvite, forgetInvite, InviteError, loadInvite, saveInvite } from "../invite";
+import { createPublicRoom, fetchPublicStatus, PublicRoomError, rememberExpiry, useTurnstile } from "../publicRooms";
+import { clockTime } from "../expiry";
 import { navigate } from "../router";
 import { useStore } from "../store";
 import { Icon } from "../components/Icon";
 import { ROOM_CODE_LENGTH, ROOM_CODE_RE } from "../../shared/roomCode";
 import type { InviteInfo, RoomRecord } from "../../shared/invites";
+import { durationLabel, type PublicStatus } from "../../shared/publicRooms";
 
 export function Home() {
   const [name, setName] = useState(loadName());
@@ -87,7 +90,10 @@ export function Home() {
   );
 }
 
-/** Hosting online rooms needs an invite code; with one, this also lists the invite's rooms. */
+/**
+ * Hosting online rooms: with an invite code, the invite's rooms (and "My rooms"). Without one, a
+ * public room from the shared pool, when the server has public rooms switched on.
+ */
 function HostSection({ needName }: { needName: () => boolean }) {
   const toast = useStore((s) => s.toast);
   const [key, setKey] = useState(loadInvite);
@@ -156,7 +162,7 @@ function HostSection({ needName }: { needName: () => boolean }) {
   };
 
   if (!key) {
-    return entering ? (
+    const inviteEntry = entering ? (
       <div className="row">
         <input
           className="input"
@@ -178,6 +184,12 @@ function HostSection({ needName }: { needName: () => boolean }) {
       <button className="btn ghost small home-invite-link" onClick={() => setEntering(true)}>
         Have an invite code? Host your own online games
       </button>
+    );
+    return (
+      <>
+        <PublicHost needName={needName} />
+        {inviteEntry}
+      </>
     );
   }
 
@@ -212,6 +224,88 @@ function HostSection({ needName }: { needName: () => boolean }) {
       )}
       {info && info.rooms.length > 0 && <MyRooms rooms={info.rooms} onDelete={remove} />}
     </>
+  );
+}
+
+/** Hosting from the public pool: a few shared slots, rooms that close on their own. */
+function PublicHost({ needName }: { needName: () => boolean }) {
+  const toast = useStore((s) => s.toast);
+  const [status, setStatus] = useState<PublicStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const turnstile = useTurnstile(status?.enabled ? (status.turnstileSiteKey ?? null) : null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setStatus(await fetchPublicStatus());
+    } catch {
+      setStatus({ enabled: false });
+    }
+  }, []);
+
+  // Slots free up while you wait: look again whenever the tab comes back into focus.
+  useEffect(() => {
+    void refresh();
+    const onFocus = () => document.visibilityState === "visible" && void refresh();
+    document.addEventListener("visibilitychange", onFocus);
+    return () => document.removeEventListener("visibilitychange", onFocus);
+  }, [refresh]);
+
+  if (!status?.enabled) return null;
+  const { slots = 0, used = 0, nextFreeAt, yours, ttlMs = 0, idleMs = 0 } = status;
+  const needsCheck = !!status.turnstileSiteKey;
+  // Always mounted (the widget renders into it once), hidden while there's nothing to host.
+  const check = needsCheck && <div ref={turnstile.ref} className="turnstile-slot" hidden={!!yours} />;
+
+  const host = async () => {
+    if (needName()) return;
+    setBusy(true);
+    try {
+      const room = await createPublicRoom(turnstile.token);
+      rememberExpiry(room.code, room.expiresAt);
+      navigate(`/r/${room.code}`);
+    } catch (e) {
+      if (e instanceof PublicRoomError && e.code) navigate(`/r/${e.code}`);
+      else toast(e instanceof Error ? e.message : "Could not create a room.", "error");
+      void refresh();
+    } finally {
+      // Turnstile passes are single-use.
+      if (needsCheck) turnstile.reset();
+      setBusy(false);
+    }
+  };
+
+  if (yours) {
+    return (
+      <div className="public-host">
+        <p className="pill ok home-blocker">
+          Your public room {yours.code} is open until {clockTime(yours.expiresAt)}.
+        </p>
+        <button className="btn big" onClick={() => !needName() && navigate(`/r/${yours.code}`)}>
+          <Icon name="play" /> Back to room {yours.code}
+        </button>
+        {check}
+      </div>
+    );
+  }
+
+  const full = nextFreeAt != null;
+  return (
+    <div className="public-host">
+      <button className="btn big" disabled={busy || full || (needsCheck && !turnstile.token)} onClick={host}>
+        <Icon name="sparkle" /> Host a public room
+      </button>
+      {full ? (
+        <p className="pill warn home-blocker">
+          All {slots} public tables are in use. One frees up by {clockTime(nextFreeAt)} at the latest, sooner if a table goes idle. Solo mode is always open.
+        </p>
+      ) : (
+        <p className="faint small-print home-note">
+          No invite needed. Open until about {clockTime(Date.now() + ttlMs)} ({durationLabel(ttlMs)}), or until nobody's been in it for {durationLabel(idleMs)} · {slots - used} of {slots} tables free
+        </p>
+      )}
+      {check}
+      {needsCheck && turnstile.failed && !full && <p className="faint small-print home-note">Couldn't run the quick bot check. Reload the page to try again.</p>}
+    </div>
   );
 }
 

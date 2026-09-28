@@ -123,7 +123,7 @@ describe("room flow", () => {
 
   it("keeps the invite id out of player views", () => {
     const deps = testDeps();
-    const room = new Room(createRoomState("ABCDEFG", deps.now(), "sam"), {}, deps);
+    const room = new Room(createRoomState("ABCDEFG", deps.now(), { inviteId: "sam" }), {}, deps);
     const a = room.join({});
     expect(room.state.inviteId).toBe("sam");
     expect(JSON.stringify(room.viewFor(a.playerId))).not.toContain("sam");

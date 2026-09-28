@@ -1,11 +1,14 @@
 // One Durable Object per room. Thin shell around the pure `Room` engine:
-// websockets (hibernation API), persistence to DO storage, alarms for pick timers, cube imports,
-// and summaries pushed to the invite that owns the room ("My rooms").
+// websockets (hibernation API), persistence to DO storage, alarms for pick timers and public-room
+// expiry, cube imports, flood control, and summaries pushed to the invite that owns the room
+// ("My rooms").
 
 import { DurableObject } from "cloudflare:workers";
-import { inviteStub, type Env } from "./env";
-import { CLOSE, clientMessageSchema, type ServerMessage } from "../shared/protocol";
-import { createRoomState, Room, RoomError, SeatClaimNeeded } from "../shared/room";
+import { inviteStub, publicPoolStub, type Env } from "./env";
+import { CLOSE, clientMessageSchema, type ClientMessage, type ServerMessage } from "../shared/protocol";
+import { createRoomState, Room, RoomError, SeatClaimNeeded, type RoomOwner } from "../shared/room";
+import { RATE_LIMITS, TokenBucket } from "../shared/rateLimit";
+import { durationLabel, PUBLIC_LIMITS } from "../shared/publicRooms";
 import type { CardData, CardMap, RoomState } from "../shared/types";
 import { importCube } from "../shared/importCube";
 
@@ -44,10 +47,18 @@ const HEARTBEAT_STALE_MS = 90 * 1000;
  * the room (pings alone don't), so keep it infrequent: a dead socket is noticed within 90-150 s.
  */
 const PRESENCE_SWEEP_MS = 60 * 1000;
+/** Messages that never change room state, so they don't spend the room's write budget. */
+const STATELESS: ReadonlySet<ClientMessage["t"]> = new Set(["ping", "drag", "point"]);
+/** A throttled socket hears "slow down" at most this often. */
+const THROTTLE_NOTICE_MS = 5000;
 
 export class RoomDurableObject extends DurableObject<Env> {
   private room: Room | null = null;
   private pushed: Pushed = { key: "", at: 0 };
+  /** Flood control, in memory only (see shared/rateLimit.ts): one bucket per socket id, one per room. */
+  private socketBuckets = new Map<string, TokenBucket>();
+  private writeBucket = new TokenBucket(RATE_LIMITS.roomWrites, Date.now());
+  private throttleNoticeAt = new Map<string, number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -80,19 +91,27 @@ export class RoomDurableObject extends DurableObject<Env> {
   // --- RPC (called by the Worker and the invite ledger) ------------------------------------------
 
   /** Creates the room. Returns false if this code is already in use. */
-  async init(code: string, inviteId: string): Promise<boolean> {
+  async init(code: string, owner: RoomOwner): Promise<boolean> {
     if (this.room) return false;
-    this.room = new Room(createRoomState(code, Date.now(), inviteId), {}, { now: () => Date.now(), rng: Math.random });
+    this.room = new Room(createRoomState(code, Date.now(), owner), {}, { now: () => Date.now(), rng: Math.random });
     await this.saveState();
+    // Public rooms close on their own: until someone joins, that's the idle deadline.
+    await this.scheduleAlarm();
     return true;
   }
 
+  /** For the public pool: is this room still open? Closes it first if it's past its deadline. */
+  async publicAlive(): Promise<boolean> {
+    if (!this.room) return false;
+    return !(await this.closeIfDue());
+  }
+
   /** Deletes the room: closes sockets and wipes storage, after which Cloudflare drops the object. */
-  async destroy(): Promise<void> {
+  async destroy(closeCode: number = CLOSE.deleted, reason = "room deleted"): Promise<void> {
     for (const ws of this.ctx.getWebSockets()) {
-      this.sendTo(ws, { t: "closed", code: CLOSE.deleted, message: "This room was deleted." });
+      if (closeCode === CLOSE.deleted) this.sendTo(ws, { t: "closed", code: CLOSE.deleted, message: "This room was deleted." });
       try {
-        ws.close(CLOSE.deleted, "room deleted");
+        ws.close(closeCode, reason);
       } catch {
         /* already closing */
       }
@@ -109,6 +128,9 @@ export class RoomDurableObject extends DurableObject<Env> {
     const url = new URL(request.url);
     const [code, action] = url.pathname.split("/").filter(Boolean);
 
+    // A public room whose alarm hasn't fired yet (they can run late) is closed here instead.
+    await this.closeIfDue();
+
     if (action === "info") {
       if (!this.room) return Response.json({ error: "No such room." }, { status: 404 });
       const s = this.room.state;
@@ -122,7 +144,7 @@ export class RoomDurableObject extends DurableObject<Env> {
       this.ctx.acceptWebSocket(server);
 
       if (!this.room) {
-        this.sendTo(server, { t: "error", message: `Room ${code} doesn't exist. Check the code?` });
+        this.sendTo(server, { t: "closed", code: CLOSE.notFound, message: `Room ${code} doesn't exist. Check the code?` });
         server.close(CLOSE.notFound, "no such room");
         return new Response(null, { status: 101, webSocket: client });
       }
@@ -158,6 +180,7 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): Promise<void> {
+    if (await this.closeIfDue()) return;
     const room = this.room;
     const att = ws.deserializeAttachment() as Attachment | null;
     if (!room || !att) return;
@@ -169,6 +192,7 @@ export class RoomDurableObject extends DurableObject<Env> {
       return this.sendTo(ws, { t: "error", message: "Malformed message." });
     }
     if (!parsed.success) return this.sendTo(ws, { t: "error", message: "Invalid message." });
+    if (!this.allow(ws, att, parsed.data)) return;
 
     const result = room.handle(att.playerId, parsed.data);
     for (const out of result.outbound) {
@@ -195,6 +219,10 @@ export class RoomDurableObject extends DurableObject<Env> {
   private async handleDisconnect(ws: WebSocket) {
     const att = ws.deserializeAttachment() as Attachment | null;
     if (!this.room || !att) return;
+    if (att.sid) {
+      this.socketBuckets.delete(att.sid);
+      this.throttleNoticeAt.delete(att.sid);
+    }
     // It can linger in getWebSockets() for a while: stop counting it as live.
     try {
       ws.serializeAttachment({ ...att, stale: true } satisfies Attachment);
@@ -243,6 +271,7 @@ export class RoomDurableObject extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     if (!this.room) return;
+    if (await this.closeIfDue()) return;
     await this.sweepStaleSockets();
     const progressed = this.room.tick();
     if (progressed) {
@@ -251,6 +280,50 @@ export class RoomDurableObject extends DurableObject<Env> {
       await this.pushSummary(false);
     }
     await this.scheduleAlarm(progressed);
+  }
+
+  // --- public-room expiry + flood control -----------------------------------------------------
+
+  /**
+   * Closes a public room that has reached its deadline (hard expiry, or idle for too long): tells
+   * everyone, deletes the room, and hands its slot back to the pool. Returns true if it closed.
+   */
+  private async closeIfDue(): Promise<boolean> {
+    const closeAt = this.room?.closeAt() ?? null;
+    if (closeAt === null || closeAt > Date.now()) return false;
+    const code = this.room!.state.code;
+    const timedOut = closeAt >= this.room!.state.expiresAt!;
+    const message = timedOut
+      ? `This public room has closed: public rooms last ${durationLabel(PUBLIC_LIMITS.ttlMs)}.`
+      : `This public room closed because nobody was in it for ${durationLabel(PUBLIC_LIMITS.idleMs)}.`;
+    for (const ws of this.ctx.getWebSockets()) this.sendTo(ws, { t: "closed", code: CLOSE.expired, message });
+    await this.destroy(CLOSE.expired, "room expired");
+    console.log(`Closed public room ${code} (${timedOut ? "time limit" : "idle"})`);
+    try {
+      await publicPoolStub(this.env).release(code);
+    } catch (err) {
+      // The pool frees the slot on its own at the hard expiry, or when it next checks on its rooms.
+      console.error(`Room ${code}: could not release its public slot`, err);
+    }
+    return true;
+  }
+
+  /**
+   * Flood control: a per-socket budget for every message, and a per-room budget for messages that
+   * may change state (each such message is a storage write). Over budget, the message is dropped
+   * and the sender told to slow down, at most every few seconds.
+   */
+  private allow(ws: WebSocket, att: Attachment, msg: ClientMessage): boolean {
+    const now = Date.now();
+    const sid = att.sid ?? att.playerId;
+    let bucket = this.socketBuckets.get(sid);
+    if (!bucket) this.socketBuckets.set(sid, (bucket = new TokenBucket(RATE_LIMITS.socket, now)));
+    if (bucket.take(now) && (STATELESS.has(msg.t) || this.writeBucket.take(now))) return true;
+    if (now - (this.throttleNoticeAt.get(sid) ?? 0) >= THROTTLE_NOTICE_MS) {
+      this.throttleNoticeAt.set(sid, now);
+      this.sendTo(ws, { t: "error", message: "Whoa, too many actions at once. Give it a second." });
+    }
+    return false;
   }
 
   // --- imports --------------------------------------------------------------------------------
@@ -303,6 +376,7 @@ export class RoomDurableObject extends DurableObject<Env> {
     const current = await this.ctx.storage.getAlarm();
     let next = this.room?.nextAlarm() ?? null;
     const now = Date.now();
+    const closeAt = this.room?.closeAt() ?? null;
     if (next !== null) {
       if (!progressed && next <= now) {
         console.warn(`Room ${this.room?.state.code}: pick deadline overdue but nothing advanced; backing off.`);
@@ -317,6 +391,8 @@ export class RoomDurableObject extends DurableObject<Env> {
       const sweep = current !== null && current > now && current <= now + PRESENCE_SWEEP_MS ? current : now + PRESENCE_SWEEP_MS;
       next = next === null ? sweep : Math.min(next, sweep);
     }
+    // Public rooms close on time even if nothing else would wake them.
+    if (closeAt !== null) next = next === null ? Math.max(closeAt, now + 50) : Math.min(next, Math.max(closeAt, now + 50));
     if (next === current) return;
     if (next === null) await this.ctx.storage.deleteAlarm();
     else await this.ctx.storage.setAlarm(next);

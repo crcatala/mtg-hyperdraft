@@ -149,6 +149,8 @@ export interface RoomView {
   /** Instances the viewer can currently see (their pack, picks, deck). */
   instances: Record<string, CardInstance>;
   table: TableState | null;
+  /** Public rooms only: when the room closes for good (it can close sooner if everyone leaves). */
+  expiresAt: number | null;
   serverNow: number;
 }
 
@@ -175,5 +177,7 @@ export const CLOSE = {
   notFound: 4404,
   claim: 4409,
   deleted: 4410,
+  /** A public room reached its time limit, or sat empty too long. */
+  expired: 4411,
   offline: 4503,
 } as const;
