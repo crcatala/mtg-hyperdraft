@@ -23,7 +23,8 @@ Durable Objects inside `workerd` on your machine. The first `npm run dev` copies
 
 **Solo playtest:** click **Play solo vs bots** on the home page, then **Quick start** (loads the bundled
 Hypercube and readies you up). Press <kbd>`</kbd> (backtick) for the debug console: **Skip to table** jumps
-straight to the tabletop with an auto-built deck. The same tools work in online rooms.
+straight to the tabletop with an auto-built deck, and **Slow-motion card animations** runs every card
+animation 6× slower for tuning them. The same tools work in online rooms.
 
 **Multiple players on one machine:** open the room link with `?as=2`, `?as=3`… in other tabs — each alias
 is a separate player identity (the debug console has links).

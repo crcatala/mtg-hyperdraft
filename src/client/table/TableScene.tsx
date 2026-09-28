@@ -1,7 +1,7 @@
 // The 3D tabletop: felt table, one mat per seat, piles, battlefield cards and other players' hands,
 // plus drag feedback (shadows, drop targets) and pings.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store";
@@ -10,6 +10,8 @@ import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, localToTable, pileAt, pilePos
 import { backTexture, feltTexture, glowTexture, labelTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, type LabelVariant } from "./textures";
 import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
+import { DRAG_LIFT, livePoses, motionScale, reducedMotion, useMotion } from "./motion";
+import { easeInOutCubic, Flights } from "./Flights";
 import type { IconName } from "../icons";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
@@ -73,6 +75,7 @@ function Scene() {
       <DropTarget mySeat={mySeat} seatCount={n} shadowY={shadowY} />
       <RemoteHandDrags table={table} shadowY={shadowY} />
       <Pings table={table} />
+      <Flights />
     </>
   );
 }
@@ -267,7 +270,8 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
   const offlineAt = localToTable({ x: PILE_LOCAL.sideboard.x, y: -1.5 }, seat, seatCount);
   const angle = seatAngle(seat, seatCount);
   const player = table.players[playerId];
-  const handCount = player?.zones.hand.length ?? 0;
+  const arriving = useMotion((s) => s.arriving);
+  const handCount = player?.zones.hand.filter((id) => !arriving[id]).length ?? 0;
 
   return (
     <group>
@@ -290,7 +294,10 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
 }
 
 function Pile({ table, ownerId, zone, seat, seatCount, viewerAngle }: { table: TableState; ownerId: string; zone: PileZone; seat: number; seatCount: number; viewerAngle: number }) {
-  const ids = table.players[ownerId]?.zones[zone] ?? [];
+  // Cards still flying in don't count yet (and don't spoil the top of the graveyard early).
+  const arriving = useMotion((s) => s.arriving);
+  const all = table.players[ownerId]?.zones[zone] ?? [];
+  const ids = all.filter((id) => !arriving[id]);
   const count = ids.length;
   const pos = pilePosition(zone, seat, seatCount);
   const angle = seatAngle(seat, seatCount);
@@ -368,16 +375,30 @@ function OpponentHand({ count, seat, seatCount, viewerAngle }: { count: number; 
 
 // --- battlefield cards ----------------------------------------------------------------------
 
+/** Tapping: a little hop while the card turns. */
+const TAP_HOP_MS = 300;
+/** Turning face down / face up or transforming: a flip over the long edge. */
+const FLIP_MS = 420;
+/** A new token popping onto the table. */
+const SPAWN_MS = 480;
+const easeOutBack = (t: number) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2;
+const NO_RAYCAST = () => {};
+
 function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableCard; elevation: number; shadowY: number; table: TableState; me: string }) {
   const data = useStore((s) => (card.cardId ? s.cards[card.cardId] : undefined));
   const drag = useTableUi((s) => (s.drag?.ids.includes(card.id) ? s.drag : null));
   const settling = useTableUi((s) => s.settling[card.id]);
   const selected = useTableUi((s) => s.selected.includes(card.id));
   const hovered = useTableUi((s) => s.hovered === card.id);
+  // Still flying in from its previous zone (Flights draws it until it lands).
+  const arriving = useMotion((s) => !!s.arriving[card.id]);
   const setPreview = useStore((s) => s.setPreview);
   const showBack = card.hidden || card.faceDown;
   const tex = useCardTexture(showBack ? undefined : data, card.face, showBack ? undefined : card.token);
   const group = useRef<THREE.Group>(null);
+  const body = useRef<THREE.Group>(null);
+  const flipper = useRef<THREE.Group>(null);
+  const cardMat = useRef<THREE.MeshStandardMaterial>(null);
   const restShadow = useRef<THREE.MeshBasicMaterial>(null);
   const liftShadow = useRef<THREE.Group>(null);
   const liftShadowMat = useRef<THREE.MeshBasicMaterial>(null);
@@ -414,33 +435,121 @@ function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableC
     ui.set({ settling: rest });
   }, [card.id, card.x, card.y]);
 
+  // Cards leaving the battlefield start their flight from exactly where this one is drawn.
+  useEffect(() => {
+    const pose = () => {
+      const g = group.current!;
+      return { x: g.position.x, y: g.position.z, h: g.position.y + (body.current?.position.y ?? 0), yaw: g.rotation.y };
+    };
+    livePoses.set(card.id, pose);
+    return () => {
+      if (livePoses.get(card.id) === pose) livePoses.delete(card.id);
+      // Leaving the table from under the pointer never fires pointer-out: drop its hover preview.
+      if (useTableUi.getState().hovered === card.id) {
+        useTableUi.getState().setHovered(null);
+        useStore.getState().setPreview({});
+      }
+    };
+  }, [card.id]);
+
+  // Tapped / untapped: turn (after its turn in an "untap all" ripple) with a little hop.
+  const tapAnim = useRef<{ start: number; fromRot: number } | null>(null);
+  const firstTap = useRef(true);
+  useLayoutEffect(() => {
+    if (firstTap.current) {
+      firstTap.current = false;
+      return;
+    }
+    if (!group.current || reducedMotion()) return;
+    tapAnim.current = { start: performance.now() + (useMotion.getState().tapDelay[card.id] ?? 0), fromRot: group.current.rotation.y };
+  }, [card.tapped, card.id]);
+
+  // Turned face down / up or transformed: flip over, showing the old face until it's edge-on.
+  const faceKey = showBack ? "back" : `face${card.face}`;
+  const shownTex = useRef(tex);
+  const flipAnim = useRef<{ start: number; from: THREE.Texture } | null>(null);
+  const lastFaceKey = useRef(faceKey);
+  useLayoutEffect(() => {
+    if (lastFaceKey.current === faceKey) return;
+    lastFaceKey.current = faceKey;
+    if (!reducedMotion()) flipAnim.current = { start: performance.now(), from: shownTex.current };
+  }, [faceKey]);
+  useLayoutEffect(() => {
+    shownTex.current = tex;
+  }, [tex]);
+
+  // A brand-new token pops in.
+  const spawnAt = useRef<number | undefined>(useMotion.getState().spawns[card.id]);
+
   useFrame((_, dt) => {
     const g = group.current;
     if (!g) return;
+    const now = performance.now();
     const a = 1 - Math.exp(-dt * (drag ? 30 : 12));
     const remote = useStore.getState().drags[card.id];
-    const t = remoteCanMove.current && remote && performance.now() - remote.at < REMOTE_DRAG_MS ? { ...target.current, x: remote.x, y: 1.0, z: remote.y } : target.current;
+    const t = remoteCanMove.current && remote && now - remote.at < REMOTE_DRAG_MS ? { ...target.current, x: remote.x, y: 1.0, z: remote.y } : target.current;
     g.position.x += (t.x - g.position.x) * a;
     g.position.y += (t.y - g.position.y) * a;
     g.position.z += (t.z - g.position.z) * a;
-    g.rotation.y += (t.rot - g.rotation.y) * a;
+
+    let hop = 0;
+    let scale = 1;
+    const tap = tapAnim.current;
+    let rot = t.rot;
+    if (tap) {
+      const u = (now - tap.start) / (TAP_HOP_MS * motionScale());
+      if (u < 0) rot = tap.fromRot;
+      else if (u < 1) hop += Math.sin(Math.PI * u) * 0.35;
+      else tapAnim.current = null;
+    }
+    g.rotation.y += (rot - g.rotation.y) * (tap && now >= tap.start ? 1 - Math.exp(-dt * 16) : a);
+
+    const flip = flipAnim.current;
+    if (flipper.current && cardMat.current) {
+      if (flip) {
+        const u = Math.min(1, (now - flip.start) / (FLIP_MS * motionScale()));
+        const angle = easeInOutCubic(u) * Math.PI;
+        // First half: the old face tips up to edge-on; second half: the new face comes down.
+        flipper.current.rotation.z = angle < Math.PI / 2 ? angle : angle - Math.PI;
+        cardMat.current.map = angle < Math.PI / 2 ? flip.from : shownTex.current;
+        hop += Math.sin(Math.PI * u) * 0.9;
+        if (u >= 1) flipAnim.current = null;
+      } else if (flipper.current.rotation.z !== 0) {
+        flipper.current.rotation.z = 0;
+        cardMat.current.map = shownTex.current;
+      }
+    }
+
+    const spawn = spawnAt.current;
+    if (spawn !== undefined) {
+      const u = (now - spawn) / (SPAWN_MS * motionScale());
+      if (u < 0) scale = 0.001;
+      else if (u < 1) {
+        scale = Math.max(0.001, easeOutBack(u));
+        hop += (1 - u) ** 2 * 2.2;
+      } else spawnAt.current = undefined;
+    }
+    if (body.current) {
+      body.current.position.y = hop;
+      body.current.scale.setScalar(scale);
+    }
 
     // Lifted (dragged here or by someone else): the contact shadow gives way to a soft shadow on the
     // table that spreads and fades with height. For our own drag it sits exactly where the card
     // will land (under the pointer), with a faint outline.
-    const lift = Math.max(0, g.position.y - elevation);
+    const lift = Math.max(0, g.position.y - elevation) + hop;
     const k = Math.min(1, lift / 0.4);
-    if (restShadow.current) restShadow.current.opacity = 0.35 * (1 - k);
+    if (restShadow.current) restShadow.current.opacity = 0.35 * (1 - k) * Math.min(1, scale);
     const ls = liftShadow.current;
     if (!ls || !liftShadowMat.current) return;
-    ls.visible = k > 0.02;
+    ls.visible = k > 0.02 && !arriving;
     if (!ls.visible) return;
     const at = drag ? target.current : g.position;
     ls.position.set(at.x, shadowY, at.z);
     ls.rotation.y = drag ? target.current.rot : g.rotation.y;
     const spread = 1 + lift * 0.09;
     ls.scale.set(spread, 1, spread);
-    liftShadowMat.current.opacity = k * Math.max(0.3, 0.82 - lift * 0.16);
+    liftShadowMat.current.opacity = k * Math.max(0.3, 0.82 - lift * 0.16) * Math.min(1, scale);
   });
 
   const counters = Object.entries(card.counters);
@@ -453,67 +562,70 @@ function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableC
           <meshBasicMaterial ref={liftShadowMat} map={drag ? shadows.landing : shadows.soft} transparent opacity={0} depthWrite={false} />
         </mesh>
       </group>
-      <group ref={group} position={[card.x, elevation, card.y]} rotation-y={baseAngle}>
+      <group ref={group} position={[card.x, elevation, card.y]} rotation-y={baseAngle} visible={!arriving}>
         <mesh rotation-x={FLAT} position-y={-0.01} geometry={SHADOW_GEO}>
           <meshBasicMaterial ref={restShadow} color="#000" transparent opacity={0.35} depthWrite={false} />
         </mesh>
-        {(selected || hovered) && (
-          <mesh rotation-x={FLAT} position-y={-0.004} geometry={OUTLINE_GEO}>
-            <meshBasicMaterial color={selected ? "#45e0ff" : "#f4c55b"} transparent opacity={selected ? 0.95 : 0.7} />
-          </mesh>
-        )}
-        <mesh
-          rotation-x={FLAT}
-          geometry={CARD_GEO}
-          onPointerOver={(e) => {
-            e.stopPropagation();
-            useTableUi.getState().setHovered(card.id);
-            if (!card.hidden && (data || card.token)) setPreview(data ? { cardId: data.id, face: card.face, foil: card.foil } : {});
-          }}
-          onPointerOut={() => {
-            if (useTableUi.getState().hovered === card.id) useTableUi.getState().setHovered(null);
-            setPreview({});
-          }}
-          onPointerDown={(e) => {
-            if (e.button !== 0) return;
-            e.stopPropagation();
-            const ui = useTableUi.getState();
-            const ids = ui.selected.includes(card.id) ? ui.selected : [card.id];
-            const shift = e.shiftKey;
-            beginDrag(e.nativeEvent, "battlefield", ids, () => {
-              const cur = useTableUi.getState().selected;
-              if (shift) ui.setSelected(cur.includes(card.id) ? cur.filter((x) => x !== card.id) : [...cur, card.id]);
-              else ui.set({ selected: [card.id], handSelected: null });
-            });
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            toggleTap([card.id]);
-          }}
-          onContextMenu={(e) => {
-            e.stopPropagation();
-            e.nativeEvent.preventDefault();
-            battlefieldMenu(card, e.nativeEvent.clientX, e.nativeEvent.clientY);
-          }}
-        >
-          <meshStandardMaterial map={tex} roughness={card.foil ? 0.25 : 0.5} metalness={card.foil ? 0.35 : 0} />
-        </mesh>
-        {[
-          ...(peekable ? [{ text: "face down", variant: "muted" as const }] : []),
-          ...(card.token && !showBack ? [{ text: "token", variant: "token" as const }] : []),
-          ...counters.map(([k, v]) => ({ text: `${k} ×${v}`, variant: "counter" as const })),
-        ].map((b, i) => (
-          <Label key={b.text} text={b.text} variant={b.variant} position={[0, 0.02, CARD_H / 2 - 0.35 - i * 0.55]} height={0.48} />
-        ))}
+        <group ref={body}>
+          {(selected || hovered) && (
+            <mesh rotation-x={FLAT} position-y={-0.004} geometry={OUTLINE_GEO}>
+              <meshBasicMaterial color={selected ? "#45e0ff" : "#f4c55b"} transparent opacity={selected ? 0.95 : 0.7} />
+            </mesh>
+          )}
+          <group ref={flipper}>
+            <mesh
+              rotation-x={FLAT}
+              geometry={CARD_GEO}
+              // Hidden while it flies in: nothing to hover, drag or right-click yet.
+              raycast={arriving ? NO_RAYCAST : THREE.Mesh.prototype.raycast}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                useTableUi.getState().setHovered(card.id);
+                if (!card.hidden && (data || card.token)) setPreview(data ? { cardId: data.id, face: card.face, foil: card.foil } : {});
+              }}
+              onPointerOut={() => {
+                if (useTableUi.getState().hovered === card.id) useTableUi.getState().setHovered(null);
+                setPreview({});
+              }}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                const ui = useTableUi.getState();
+                const ids = ui.selected.includes(card.id) ? ui.selected : [card.id];
+                const shift = e.shiftKey;
+                beginDrag(e.nativeEvent, "battlefield", ids, () => {
+                  const cur = useTableUi.getState().selected;
+                  if (shift) ui.setSelected(cur.includes(card.id) ? cur.filter((x) => x !== card.id) : [...cur, card.id]);
+                  else ui.set({ selected: [card.id], handSelected: null });
+                });
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation();
+                toggleTap([card.id]);
+              }}
+              onContextMenu={(e) => {
+                e.stopPropagation();
+                e.nativeEvent.preventDefault();
+                battlefieldMenu(card, e.nativeEvent.clientX, e.nativeEvent.clientY);
+              }}
+            >
+              <meshStandardMaterial ref={cardMat} map={tex} roughness={card.foil ? 0.25 : 0.5} metalness={card.foil ? 0.35 : 0} />
+            </mesh>
+          </group>
+          {[
+            ...(peekable ? [{ text: "face down", variant: "muted" as const }] : []),
+            ...(card.token && !showBack ? [{ text: "token", variant: "token" as const }] : []),
+            ...counters.map(([k, v]) => ({ text: `${k} ×${v}`, variant: "counter" as const })),
+          ].map((b, i) => (
+            <Label key={b.text} text={b.text} variant={b.variant} position={[0, 0.02, CARD_H / 2 - 0.35 - i * 0.55]} height={0.48} />
+          ))}
+        </group>
       </group>
     </>
   );
 }
 
 // --- drag feedback --------------------------------------------------------------------------
-
-/** Height of a card being dragged over the table (battlefield cards and cards from hand alike). */
-const DRAG_LIFT = 1.6;
 
 /** Drop feedback: a glowing slot when over a pile, and a 3D body for cards dragged out of the hand. */
 function DropTarget({ mySeat, seatCount, shadowY }: { mySeat: number; seatCount: number; shadowY: number }) {
@@ -635,7 +747,6 @@ function Pings({ table }: { table: TableState }) {
 
 const RING_GEO = new THREE.RingGeometry(0.82, 1, 64);
 const PING_ARROW_SCALE = 1.35;
-const easeOutBack = (t: number) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2;
 
 /**
  * A spinning, bobbing arrow in the player's colour with ripples spreading over the table and a

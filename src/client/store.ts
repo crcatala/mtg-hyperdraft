@@ -49,6 +49,8 @@ export interface MenuState {
 interface DebugState {
   open: boolean;
   forceText: boolean;
+  /** Card animations run 6× slower (for tuning them). */
+  slowMotion: boolean;
   msgIn: number;
   msgOut: number;
   bytesIn: number;
@@ -93,7 +95,7 @@ export const useStore = create<Store>((set, get) => ({
   toasts: [],
   preview: {},
   menu: null,
-  debug: { open: false, forceText: false, msgIn: 0, msgOut: 0, bytesIn: 0 },
+  debug: { open: false, forceText: false, slowMotion: false, msgIn: 0, msgOut: 0, bytesIn: 0 },
   sendImpl: () => {},
 
   send: (msg) => {

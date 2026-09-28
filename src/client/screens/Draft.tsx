@@ -33,6 +33,14 @@ export function Draft() {
   const [selected, setSelected] = useState<string[]>([]);
   const [burning, setBurning] = useState<string[]>([]);
   const [leaving, setLeaving] = useState(false);
+  // The picked cards' flight into the picks list. If the pick doesn't go through (e.g. a stale
+  // pack), it's undone so the cards come back.
+  const pickFlight = useRef<Animation[]>([]);
+  useEffect(() => {
+    if (leaving) return;
+    pickFlight.current.forEach((a) => a.cancel());
+    pickFlight.current = [];
+  }, [leaving]);
   const [zoom, setZoom] = useState<{ source: "pack" | "picks"; key: string } | null>(null);
   const [stage, setStage] = useState<Stage>("revealed");
   const [revealCount, setRevealCount] = useState(99);
@@ -143,10 +151,13 @@ export function Draft() {
       if (picks.length !== need.picks || burns.length !== need.burns) return;
       setLeaving(true);
       sfx.pick();
+      // The next pack replaces this one, so wait for the picked cards to land first.
+      const flight = flyToPicks(picks);
+      pickFlight.current = flight.animations;
       const packId = pack.id;
-      setTimeout(() => send({ t: "pick", packId, picks, burns }), 360);
+      setTimeout(() => send({ t: "pick", packId, picks, burns }), Math.max(360, flight.duration));
       // If the server rejects the pick (stale pack), let the player try again.
-      setTimeout(() => setLeaving(false), 2500);
+      setTimeout(() => setLeaving(false), Math.max(2500, flight.duration + 500));
     },
     [pack, leaving, selected, burning, need, send],
   );
@@ -354,6 +365,52 @@ export function Draft() {
       )}
     </div>
   );
+}
+
+/**
+ * Picked cards fly into the picks list, shrinking onto the spot where their row is about to appear
+ * (instead of off towards a fixed corner). Returns the animations and how long they take in all.
+ */
+function flyToPicks(picks: string[]): { animations: Animation[]; duration: number } {
+  const none = { animations: [], duration: 0 };
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return none;
+  const list = document.querySelector<HTMLElement>(".picks-list");
+  if (!list) return none;
+  const box = list.getBoundingClientRect();
+  const last = list.lastElementChild?.getBoundingClientRect();
+  const rowH = last?.height || 26;
+  const slow = useStore.getState().debug.slowMotion ? 6 : 1;
+  const duration = 400 * slow;
+  const stagger = 60 * slow;
+  // Measure everything first, then animate (each animation would otherwise force a fresh layout).
+  const slots = picks.flatMap((iid) => {
+    const el = document.querySelector<HTMLElement>(`.fan-slot[data-iid="${CSS.escape(iid)}"]`);
+    if (!el) return [];
+    const transform = getComputedStyle(el).transform;
+    // The slot is lifted and scaled (selected, hovered) around its centre. The flight replaces that
+    // transform, so it has to start from where the slot's centre sits without it.
+    const m = new DOMMatrix(transform === "none" ? undefined : transform);
+    const r = el.getBoundingClientRect();
+    return [{ el, transform, cx: r.left + r.width / 2 - m.e, cy: r.top + r.height / 2 - m.f, height: el.offsetHeight || r.height }];
+  });
+  const animations = slots.map(({ el, transform, cx, cy, height }, i) => {
+    // Where the new row lands: under the last one, but never below the visible part of the list.
+    const y = Math.min((last ? last.bottom : box.top) + rowH * (i + 0.5), box.bottom - rowH / 2);
+    const x = box.left + Math.min(90, box.width / 3);
+    const scale = Math.max(0.12, (rowH * 2.2) / height);
+    const dx = x - cx;
+    const dy = y - cy;
+    return el.animate(
+      [
+        { transform, opacity: 1 },
+        { transform: `translate(${dx * 0.35}px, ${dy * 0.35 - 40}px) rotate(-4deg) scale(0.85)`, opacity: 1, offset: 0.35 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(6deg) scale(${scale})`, opacity: 0.85, offset: 0.9 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(6deg) scale(${scale * 0.8})`, opacity: 0 },
+      ],
+      { duration, delay: i * stagger, easing: "cubic-bezier(0.45, 0, 0.2, 1)", fill: "forwards" },
+    );
+  });
+  return { animations, duration: duration + Math.max(0, animations.length - 1) * stagger };
 }
 
 function sortPack(ids: string[], instances: Record<string, CardInstance>, cards: CardMap): string[] {
@@ -596,6 +653,21 @@ function PicksList({ picks, instances, cards, onOpen }: { picks: string[]; insta
   }, [picks, instances, cards]);
   const [hover, setHover] = useState<{ iid: string; rect: DOMRect } | null>(null);
   const listRef = useRef<HTMLOListElement>(null);
+  // Rows for cards just picked light up as the flying card lands on them. Kept in state for the
+  // length of the effect: the next pack arriving re-renders the list straight away.
+  const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
+  const known = useRef(picks);
+  const picksKey = picks.join();
+  useEffect(() => {
+    const before = new Set(known.current);
+    known.current = picks;
+    const added = picks.filter((iid) => !before.has(iid));
+    if (added.length === 0 || added.length > 4) return;
+    setFresh(new Set(added));
+    const t = setTimeout(() => setFresh(new Set()), 1400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picksKey]);
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [picks.length]);
@@ -625,7 +697,7 @@ function PicksList({ picks, instances, cards, onOpen }: { picks: string[]; insta
             <li
               key={iid}
               data-iid={iid}
-              className={`pick-row r-${card.rarity}`}
+              className={`pick-row r-${card.rarity}${fresh.has(iid) ? " just-picked" : ""}`}
               onPointerEnter={(e) => setHover({ iid, rect: e.currentTarget.getBoundingClientRect() })}
               onPointerLeave={() => setHover(null)}
               onClick={() => {

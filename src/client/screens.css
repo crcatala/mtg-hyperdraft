@@ -848,16 +848,27 @@
   }
 }
 /* departures */
+/* Flown into the picks list by script (flyToPicks); this just keeps it above the rest. */
 .fan-slot.to-tray {
-  animation: to-tray 0.36s cubic-bezier(0.5, 0, 0.8, 0.4) forwards;
   z-index: 20;
+  pointer-events: none;
 }
-@keyframes to-tray {
-  to {
-    translate: 40vw 30vh;
-    scale: 0.2;
-    rotate: 25deg;
-    opacity: 0.2;
+.pick-row.just-picked {
+  animation: pick-land 0.9s ease-out 0.25s backwards;
+}
+@keyframes pick-land {
+  0% {
+    background: rgba(244, 197, 91, 0);
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  25% {
+    background: rgba(244, 197, 91, 0.3);
+    transform: none;
+    opacity: 1;
+  }
+  100% {
+    background: rgba(244, 197, 91, 0);
   }
 }
 .fan-slot.pass-left {
@@ -1875,6 +1886,10 @@ body.dragging * {
 }
 .hand-card.dragging .hand-card-visual {
   opacity: 0.3;
+}
+/* Flying in from the table (drawn in 3D until it lands here). */
+.hand-card.arriving .hand-card-visual {
+  opacity: 0;
 }
 /* Selected (clicked once): raised a little and straightened; clicking again zooms in. */
 .hand-card.is-selected:not(:hover) .hand-card-visual {

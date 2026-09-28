@@ -62,6 +62,12 @@ export const CardView = memo(function CardView({
   const status = useImage(url);
   // Only fade in images that arrive after mount; cached ones appear instantly.
   const [fadeIn] = useState(() => imageStatus(url) !== "loaded");
+  // Which image has finished fading in (turning a double-faced card over loads another one).
+  const [fadedIn, setFadedIn] = useState<string>();
+  // Once the image covers the card, drop the text version underneath: laying out and painting
+  // hidden rules text for every card made re-sizing many cards at once (deckbuilder) slow.
+  const imageShown = !!url && status === "loaded";
+  const showText = !imageShown || (fadeIn && fadedIn !== url);
   const ref = useRef<HTMLDivElement>(null);
 
   // Turning over: swing the new face in edge-on (skipped on mount and for reduced motion).
@@ -120,17 +126,25 @@ export const CardView = memo(function CardView({
       {...rest}
     >
       <div className="card-inner">
-        {back ? (
-          <CardBack />
-        ) : card ? (
-          <TextCard card={card} face={face} />
-        ) : token ? (
-          <TokenCard token={token} />
-        ) : (
-          <CardBack />
-        )}
-        {url && status === "loaded" && (
-          <img className={`card-img${fadeIn ? " fade-in" : ""}`} src={url} crossOrigin="anonymous" alt={card?.name} draggable={false} />
+        {showText &&
+          (back ? (
+            <CardBack />
+          ) : card ? (
+            <TextCard card={card} face={face} />
+          ) : token ? (
+            <TokenCard token={token} />
+          ) : (
+            <CardBack />
+          ))}
+        {imageShown && (
+          <img
+            className={`card-img${fadeIn ? " fade-in" : ""}`}
+            src={url}
+            crossOrigin="anonymous"
+            alt={card?.name}
+            draggable={false}
+            onAnimationEnd={() => setFadedIn(url)}
+          />
         )}
         {shiny && <div className="holo" />}
         {tilt && !back && <div className="glare" />}

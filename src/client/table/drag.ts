@@ -1,9 +1,10 @@
 // Pointer-driven dragging shared by battlefield cards (3D) and hand cards (DOM).
 // A press becomes a drag after a few pixels; releasing drops onto a pile, the hand, or the battlefield.
 
-import { pileAt, type Vec2 } from "../../shared/tableLayout";
+import { pileAt, seatAngle, type Vec2 } from "../../shared/tableLayout";
 import { useStore } from "../store";
-import { actAll, moveTo, playFromHand, settle, table, unsettle, useTableUi, type LocalDrag } from "./tableUi";
+import { actAll, me, moveTo, playFromHand, settle, table, unsettle, useTableUi, type LocalDrag } from "./tableUi";
+import { DRAG_LIFT, noteDrop } from "./motion";
 
 /** Set by the canvas: converts a screen point to table coordinates (ray vs. table plane). */
 export const tableApi: { screenToTable: (clientX: number, clientY: number) => Vec2 | null } = {
@@ -77,6 +78,8 @@ function drop(source: LocalDrag["source"], ids: string[], offsets: LocalDrag["of
     return;
   }
   if (!pt) return;
+  // A card from the hand was drawn in 3D under the pointer: it continues from there.
+  if (source === "hand") noteDrop(ids, pt.x, pt.y, DRAG_LIFT, -seatAngle(Math.max(0, t.seats.indexOf(me())), t.seats.length));
   const pile = pileAt(pt, t.seats.length);
   if (pile) {
     moveTo(ids, pile.zone);
