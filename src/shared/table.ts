@@ -273,7 +273,9 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
         if (i === 0 && cards.length === 1) {
           const place = action.to === "library" ? logText`the ${action.bottom ? "bottom" : "top"} of ${theirs} ${zone("library")}` : logText`${theirs} ${zone(ZONE_LABELS[action.to].toLowerCase())}`;
           const fromLabel = from === action.to ? "" : logText` from ${from === "battlefield" ? zone("the battlefield") : logText`${theirs} ${zone(ZONE_LABELS[from].toLowerCase())}`}`;
-          if (from !== action.to) log(table, playerId, action.to, logText`${who} ${verb("moved")} ${names[0]}${fromLabel} to ${action.to === "battlefield" ? zone("the battlefield") : place}.`, env);
+          // Same-zone moves are just reordering, except in the library: at a real table everyone sees a
+          // scried card go to the top or bottom (just not which card).
+          if (from !== action.to || from === "library") log(table, playerId, action.to, logText`${who} ${verb("moved")} ${names[0]}${fromLabel} to ${action.to === "battlefield" ? zone("the battlefield") : place}.`, env);
         }
       }
       if (cards.length > 1) log(table, playerId, action.to, logText`${who} ${verb("moved")} ${num(cards.length)} cards to ${zone(ZONE_LABELS[action.to].toLowerCase())}.`, env);

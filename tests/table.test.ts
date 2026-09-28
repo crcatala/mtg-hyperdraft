@@ -120,6 +120,24 @@ describe("tabletop", () => {
       expect(tableViewFor(table, "a").cards[c3].cardId).toBeUndefined();
     });
 
+    it("logs where each card went without naming library cards", () => {
+      const { table, env } = setup();
+      const [c1, c2] = lib(table).slice(0, 2);
+      applyTableAction(table, "a", { a: "peek", n: 2 }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c1], to: "library", bottom: true }, env);
+      expect(table.log.at(-1)?.text).toBe("Alice moved a card to the bottom of their library.");
+      applyTableAction(table, "a", { a: "move", ids: [c2], to: "library" }, env);
+      expect(table.log.at(-1)?.text).toBe("Alice moved a card to the top of their library.");
+    });
+
+    it("still doesn't log other same-zone moves", () => {
+      const { table, env } = setup();
+      const id = table.players.a.zones.hand[0];
+      const before = table.log.length;
+      applyTableAction(table, "a", { a: "move", ids: [id], to: "hand" }, env);
+      expect(table.log.length).toBe(before);
+    });
+
     it("cards put on top one at a time stack: the last one placed ends up on top", () => {
       const { table, env } = setup();
       const [c1, c2, c3, c4] = lib(table).slice(0, 4);
