@@ -8,6 +8,7 @@ import type {
   CardInstance,
   LogEntry,
   LogKind,
+  LibraryPeek,
   TableCard,
   TablePlayer,
   TableState,
@@ -31,7 +32,7 @@ export type TableAction =
   | { a: "draw"; n: number }
   | { a: "shuffle" }
   | { a: "mill"; n: number }
-  | { a: "peek"; n: number }
+  | { a: "peek"; n: number; search?: boolean }
   | { a: "life"; playerId: string; delta: number }
   | { a: "poison"; playerId: string; delta: number }
   | { a: "counter"; id: string; kind: string; delta: number }
@@ -147,6 +148,25 @@ export function faceCount(data: CardData | undefined): number {
   return data?.faces?.[1]?.images ? data.faces.length : 1;
 }
 
+/**
+ * The player's current look at their library, if any. Rooms saved before looks were snapshots
+ * stored a bare count here; those read as no look (the player just opens it again).
+ */
+export function activePeek(table: TableState, playerId: string): LibraryPeek | undefined {
+  const peek = table.peek[playerId] as LibraryPeek | number | undefined;
+  return typeof peek === "object" && Array.isArray(peek.ids) ? peek : undefined;
+}
+
+/** Once a card being looked at goes anywhere (even back on top), the look is done with it. */
+function leavePeek(table: TableState, card: TableCard) {
+  const peek = activePeek(table, card.owner);
+  if (!peek || peek.search) return;
+  const idx = peek.ids.indexOf(card.id);
+  if (idx < 0) return;
+  peek.ids.splice(idx, 1);
+  if (peek.ids.length === 0) delete table.peek[card.owner];
+}
+
 function removeFromZone(table: TableState, card: TableCard) {
   if (card.zone === "battlefield") return;
   const zone = table.players[card.owner].zones[card.zone];
@@ -184,6 +204,7 @@ function moveCard(
 ) {
   const from = card.zone;
   removeFromZone(table, card);
+  leavePeek(table, card);
   // Tokens stop existing once they leave the battlefield.
   if (card.token && to !== "battlefield") {
     delete table.cards[card.id];
@@ -327,12 +348,18 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
       return;
     }
     case "peek": {
-      const n = Math.max(0, Math.min(action.n, me.zones.library.length));
-      if (n === 0) delete table.peek[playerId];
-      else {
-        table.peek[playerId] = n;
-        const all = n >= me.zones.library.length;
-        log(table, playerId, "peek", all ? logText`${who} is ${verb("searching")} their ${zone("library")}.` : logText`${who} ${verb("looked at")} the top ${num(n)} card(s) of their ${zone("library")}.`, env);
+      const library = me.zones.library;
+      const n = action.search ? library.length : Math.max(0, Math.min(Math.floor(action.n), library.length));
+      if (n === 0) {
+        delete table.peek[playerId];
+        return;
+      }
+      if (action.search) {
+        table.peek[playerId] = { n, ids: [], search: true };
+        log(table, playerId, "peek", logText`${who} is ${verb("searching")} their ${zone("library")}.`, env);
+      } else {
+        table.peek[playerId] = { n, ids: library.slice(0, n) };
+        log(table, playerId, "peek", logText`${who} ${verb("looked at")} the top ${num(n)} card(s) of their ${zone("library")}.`, env);
       }
       return;
     }
@@ -396,6 +423,7 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
     case "mulligan": {
       for (const id of me.zones.hand.slice()) moveCard(table, table.cards[id], "library", env);
       me.zones.library = shuffle(me.zones.library, env.rng);
+      delete table.peek[playerId];
       const n = table.openingHandSize;
       for (let i = 0; i < n && me.zones.library.length > 0; i++) moveCard(table, table.cards[me.zones.library[0]], "hand", env);
       log(table, playerId, "mulligan", logText`${who} ${verb("took a mulligan")} (shuffled their hand away and drew ${num(n)}). Put cards on the bottom as needed.`, env);
@@ -431,9 +459,8 @@ function clampCount(n: number) {
 
 /** What one player may see: other players' hands, all libraries (except peeks) and face-down cards are hidden. */
 export function tableViewFor(table: TableState, viewer: string): TableState {
-  const peekIds = new Set<string>();
-  const peekN = table.peek[viewer] ?? 0;
-  if (peekN > 0) table.players[viewer]?.zones.library.slice(0, peekN).forEach((id) => peekIds.add(id));
+  const own = activePeek(table, viewer);
+  const peekIds = new Set(own?.search ? table.players[viewer]?.zones.library : own?.ids);
 
   const cards: Record<string, TableCard> = {};
   for (const card of Object.values(table.cards)) {
@@ -445,5 +472,6 @@ export function tableViewFor(table: TableState, viewer: string): TableState {
       (card.zone === "library" && peekIds.has(card.id));
     cards[card.id] = visible ? card : { ...card, cardId: undefined, token: undefined, face: 0, hidden: true };
   }
-  return { ...table, cards };
+  // Only your own look is anyone's business.
+  return { ...table, cards, peek: own ? { [viewer]: own } : {} };
 }

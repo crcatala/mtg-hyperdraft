@@ -44,7 +44,7 @@ export const tableActionSchema = z.discriminatedUnion("a", [
   z.object({ a: z.literal("draw"), n: z.number().int().min(1).max(60) }),
   z.object({ a: z.literal("shuffle") }),
   z.object({ a: z.literal("mill"), n: z.number().int().min(1).max(60) }),
-  z.object({ a: z.literal("peek"), n: z.number().int().min(0).max(500) }),
+  z.object({ a: z.literal("peek"), n: z.number().int().min(0).max(500), search: z.boolean().optional() }),
   z.object({ a: z.literal("life"), playerId: id, delta: z.number().int().min(-999).max(999) }),
   z.object({ a: z.literal("poison"), playerId: id, delta: z.number().int().min(-99).max(99) }),
   z.object({ a: z.literal("counter"), id, kind: z.string().max(24), delta: z.number().int().min(-99).max(99) }),

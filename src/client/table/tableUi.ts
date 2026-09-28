@@ -361,7 +361,7 @@ export function pileMenu(ownerId: string, zone: Exclude<ZoneName, "battlefield" 
           {
             label: "Search library",
             onSelect: () => {
-              act({ a: "peek", n: count });
+              act({ a: "peek", n: count, search: true });
               view();
             },
           },

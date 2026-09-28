@@ -307,6 +307,19 @@ export interface LogEntry {
   marks?: LogMark[];
 }
 
+/**
+ * A look at your own library. "Look at top X" snapshots those X cards: moving one anywhere (even
+ * back on top) takes it out of the look, and the rest simply stay on top in their order. A search
+ * instead shows the whole library, live.
+ */
+export interface LibraryPeek {
+  /** How many cards the look started with (for "2 of 3 left"). */
+  n: number;
+  /** The cards still being looked at, top first. Unused by a search. */
+  ids: string[];
+  search?: boolean;
+}
+
 export interface TableState {
   seats: string[];
   players: Record<string, TablePlayer>;
@@ -314,8 +327,8 @@ export interface TableState {
   turn: { playerId: string; number: number };
   nextZ: number;
   log: LogEntry[];
-  /** How many top library cards each player is currently looking at (search = whole library). */
-  peek: Record<string, number>;
+  /** What each player is currently looking at in their own library (scry, surveil, search). */
+  peek: Record<string, LibraryPeek>;
   openingHandSize: number;
 }
 
