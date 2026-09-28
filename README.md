@@ -92,7 +92,7 @@ src/
   rolling 24h and 25 saved rooms (delete one from **My rooms** to make space). Rooms push a short summary
   (players, phase, cube) to it when that changes, so listing rooms wakes one object, not 25. Rooms idle
   for 90 days are deleted lazily the next time the ledger is used; there are no expiry timers.
-- **Public rooms close on their own** (when enabled): at most 3 exist at once, each lasts up to 6 hours
+- **Public rooms close on their own** (when enabled): at most 3 exist at once, each lasts up to 3 hours
   (closing sooner once nobody has been connected for 15 minutes), and all of them together get 12
   room-hours per UTC day. See [Public rooms](#public-rooms-optional).
 - **Flood control** (`src/shared/rateLimit.ts`). Every room, invite or public, limits:
@@ -179,14 +179,14 @@ npx wrangler secret delete PUBLIC_ROOMS_ENABLED               # turn off again
 How they work:
 
 - **3 public rooms at once**, shared by everyone. A slot frees up as soon as its room closes.
-- **Each room lasts up to 6 hours**, and closes sooner **once nobody has been connected for 15
+- **Each room lasts up to 3 hours**, and closes sooner **once nobody has been connected for 15
   minutes**. Its link stops working and nothing in it is kept. Everyone in the room sees a countdown and
   gets warnings 30, 10 and 1 minute before it closes.
 - **12 room-hours per UTC day** for all public rooms together. Each new room books its whole lifetime up
-  front (6 hours, or whatever is left of today's budget, shortening the last rooms of the day) and gets
+  front (3 hours, or whatever is left of today's budget, shortening the last rooms of the day) and gets
   back the time it didn't use when it closes early. Whatever happens in the rooms, public rooms can't run
-  for more than 12 hours a day in total. With 6-hour rooms, two rooms that start together book the whole
-  day until one closes early.
+  for more than 12 hours a day in total. That's all three tables used from start to finish, plus one more
+  full room, before any time comes back from rooms that closed early.
 - **One public room per visitor at a time, and 2 per UTC day.** Visitors are told apart by IP address (a
   whole /64 for IPv6). The pool only stores a keyed hash of it, never the address itself.
 - **An invite code takes precedence.** A browser with a valid invite hosts invite rooms as before, which

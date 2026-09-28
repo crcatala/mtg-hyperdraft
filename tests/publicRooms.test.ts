@@ -40,11 +40,11 @@ function poolWith(...rooms: [code: string, visitor: string, at: number][]): Publ
 describe("public room pool", () => {
   it("allows up to 3 rooms at once, then says when one frees up", () => {
     const pool = emptyPool();
-    pool.slots = [slot("A", T - 5 * HOUR), slot("B", T - 2 * HOUR)];
+    pool.slots = [slot("A", T - 2 * HOUR), slot("B", T - HOUR)];
     expect(publicBlocker(pool, "me", T)).toBeNull();
     expect(poolStatus(pool, T)).toMatchObject({ slots: 3, used: 2, nextFreeAt: null });
 
-    pool.slots.push(slot("C", T - HOUR));
+    pool.slots.push(slot("C", T - 30 * MIN));
     const blocker = publicBlocker(pool, "me", T);
     expect(blocker?.status).toBe(429);
     expect(blocker?.error).toMatch(/All 3 public tables are in use.*in about 1h/);
@@ -63,7 +63,7 @@ describe("public room pool", () => {
 
   it("gives each visitor one public room at a time", () => {
     const pool = poolWith(["A", "sam", T - HOUR]);
-    expect(publicBlocker(pool, "sam", T)).toMatchObject({ status: 409, code: "A", expiresAt: T + 5 * HOUR });
+    expect(publicBlocker(pool, "sam", T)).toMatchObject({ status: 409, code: "A", expiresAt: T + 2 * HOUR });
     expect(publicBlocker(pool, "jo", T)).toBeNull();
   });
 
@@ -82,25 +82,31 @@ describe("public room pool", () => {
 describe("public room daily budget", () => {
   it("reserves each room's whole lifetime and refunds what an early close didn't use", () => {
     const pool = poolWith(["A", "sam", T]);
-    expect(pool.usedMs).toBe(6 * HOUR);
-    // Closed after 2 hours (idle): 4 hours go back to the budget.
-    expect(releaseSlots(pool, new Set(["A"]), T + 2 * HOUR)).toBe(true);
-    expect(pool.usedMs).toBe(2 * HOUR);
+    expect(pool.usedMs).toBe(3 * HOUR);
+    // Closed after 1 hour (idle): 2 hours go back to the budget.
+    expect(releaseSlots(pool, new Set(["A"]), T + HOUR)).toBe(true);
+    expect(pool.usedMs).toBe(HOUR);
     expect(pool.slots).toEqual([]);
   });
 
   it("shortens the last rooms of the day to what's left, then closes for the day", () => {
-    const pool = poolWith(["A", "a", T], ["B", "b", T]);
-    expect(nextRoomMs(pool, T)).toBe(0);
-    expect(poolStatus(pool, T)).toMatchObject({ nextRoomMs: 0, reopensAt: Date.UTC(2026, 8, 29) });
-    expect(publicBlocker(pool, "c", T)?.error).toMatch(/all booked/);
+    // Three 3-hour rooms book 9 of the 12 hours.
+    const pool = poolWith(["A", "a", T], ["B", "b", T], ["C", "c", T]);
+    expect(nextRoomMs(pool, T)).toBe(3 * HOUR);
 
-    // B closes after an hour: 5 hours come back, and the next room may run them all.
-    releaseSlots(pool, new Set(["B"]), T + HOUR);
-    expect(nextRoomMs(pool, T + HOUR)).toBe(5 * HOUR);
-    const c = reserveSlot(pool, "c", T + HOUR);
-    expect(c.expiresAt).toBe(T + 6 * HOUR);
+    // A closes after 2 hours (1 back: 8 booked); D takes the free slot for a full 3 hours (11 booked).
+    releaseSlots(pool, new Set(["A"]), T + 2 * HOUR);
+    reserveSlot(pool, "d", T + 2 * HOUR).code = "D";
+    // B closes half an hour later (half an hour back): E gets the last 1.5 hours.
+    releaseSlots(pool, new Set(["B"]), T + 2.5 * HOUR);
+    expect(nextRoomMs(pool, T + 2.5 * HOUR)).toBe(1.5 * HOUR);
+    const e = reserveSlot(pool, "e", T + 2.5 * HOUR);
+    expect(e.expiresAt).toBe(T + 4 * HOUR);
     expect(pool.usedMs).toBe(PUBLIC_LIMITS.dailyBudgetMs);
+
+    expect(nextRoomMs(pool, T + 2.5 * HOUR)).toBe(0);
+    expect(poolStatus(pool, T + 2.5 * HOUR)).toMatchObject({ nextRoomMs: 0, reopensAt: Date.UTC(2026, 8, 29) });
+    expect(publicBlocker(pool, "f", T + 2.5 * HOUR)?.error).toMatch(/all booked/);
   });
 
   it("doesn't start rooms shorter than the minimum", () => {
@@ -115,7 +121,7 @@ describe("public room daily budget", () => {
   it("charges a room to the day it was created, with no refund after midnight", () => {
     const late = Date.UTC(2026, 8, 28, 22);
     const pool = poolWith(["A", "sam", late]);
-    const nextDay = Date.UTC(2026, 8, 29, 1);
+    const nextDay = Date.UTC(2026, 8, 29, 0, 30);
     releaseSlots(pool, new Set(["A"]), nextDay);
     expect(pool.day).toBe("2026-09-29");
     expect(pool.usedMs).toBe(0);

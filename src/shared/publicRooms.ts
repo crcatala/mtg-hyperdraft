@@ -7,7 +7,7 @@
 // PUBLIC_LIMITS.idleMs (the room enforces both with its own alarm).
 //
 // A daily budget of room time caps the worst case: each new room reserves its whole lifetime
-// (6 hours, or whatever is left of today's budget) up front, and gets back what it didn't use when
+// (3 hours, or whatever is left of today's budget) up front, and gets back what it didn't use when
 // it closes early. However rooms are used, public rooms never run for more than the budget per UTC
 // day, which keeps them well inside the free plan's daily Durable Object limits.
 
@@ -15,7 +15,7 @@ export const PUBLIC_LIMITS = {
   /** Public rooms that may exist at once. */
   slots: 3,
   /** The longest a public room stays open, whatever is going on in it. */
-  ttlMs: 6 * 60 * 60 * 1000,
+  ttlMs: 3 * 60 * 60 * 1000,
   /** A public room closes once no human has been connected for this long. */
   idleMs: 15 * 60 * 1000,
   /** Room time all public rooms together may use per UTC day. */
