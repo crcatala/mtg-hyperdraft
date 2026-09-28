@@ -30,26 +30,30 @@ export interface FlipOptions {
 export function playFlip(before: RectSnapshot, selector: string, attr: string, opts: FlipOptions = {}) {
   if (reducedMotion()) return;
   const { emphasize = new Set(), duration = 240, emphasizedDuration = 380 } = opts;
+  // Measure everything before starting any animation: each animate() dirties style, so
+  // interleaving reads and writes forces a full layout per element.
+  const items: { el: HTMLElement; key: string; to: DOMRect }[] = [];
   document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
     const key = el.dataset[attr];
-    if (!key) return;
+    if (key) items.push({ el, key, to: el.getBoundingClientRect() });
+  });
+  for (const { el, key, to } of items) {
     const from = before.get(key);
-    const to = el.getBoundingClientRect();
     if (!from) {
       el.animate([{ opacity: 0, transform: "scale(0.92)" }, { opacity: 1, transform: "none" }], { duration, easing: "ease-out" });
-      return;
+      continue;
     }
     const dx = from.left - to.left;
     const dy = from.top - to.top;
     const scale = to.width > 0 ? from.width / to.width : 1;
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(scale - 1) < 0.01) return;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(scale - 1) < 0.01) continue;
 
     const hero = emphasize.has(key);
     if (hero) el.style.zIndex = "200";
     const anim = el.animate(
       [
         { transformOrigin: "0 0", transform: `translate(${dx}px, ${dy}px) scale(${scale})`, ...(hero ? { filter: "drop-shadow(0 18px 28px rgba(0,0,0,0.55))" } : {}) },
-        { transformOrigin: "0 0", transform: "none", filter: "none" },
+        { transformOrigin: "0 0", transform: "none", ...(hero ? { filter: "none" } : {}) },
       ],
       { duration: hero ? emphasizedDuration : duration, easing: hero ? "cubic-bezier(0.2, 0.9, 0.25, 1)" : "cubic-bezier(0.25, 0.8, 0.25, 1)" },
     );
@@ -58,5 +62,5 @@ export function playFlip(before: RectSnapshot, selector: string, attr: string, o
       anim.onfinish = reset;
       anim.oncancel = reset;
     }
-  });
+  }
 }
