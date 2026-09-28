@@ -78,9 +78,9 @@ describe("other players' cards", () => {
 
   it("judges a dropped group of cards as one move", () => {
     const c = ctx("a", cards);
-    const drop = ["mine", "bob1", "bob2"].map((id) => ({ a: "setPos" as const, id, x: 0, y: 0 }));
-    expect(guardForAll(drop, c)?.question).toBe("2 of these 3 cards belong to Bob. Move them anyway?");
-    expect(guardForAll([{ a: "setPos", id: "mine", x: 0, y: 0 }], c)).toBeNull();
+    const drop = ["mine", "bob1", "bob2"].map((id) => ({ id, x: 0, y: 0 }));
+    expect(guardFor({ a: "place", cards: drop }, c)?.question).toBe("2 of these 3 cards belong to Bob. Move them anyway?");
+    expect(guardFor({ a: "place", cards: [{ id: "mine", x: 0, y: 0 }] }, c)).toBeNull();
   });
 
   it("off-turn questions come first when an action is both", () => {

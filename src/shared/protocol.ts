@@ -37,6 +37,7 @@ const tokenDef = z.object({
 export const tableActionSchema = z.discriminatedUnion("a", [
   z.object({ a: z.literal("move"), ids: z.array(id).min(1).max(100), to: zone, x: coord.optional(), y: coord.optional(), bottom: z.boolean().optional(), faceDown: z.boolean().optional(), face: z.number().int().min(0).max(3).optional() }),
   z.object({ a: z.literal("setPos"), id, x: coord, y: coord }),
+  z.object({ a: z.literal("place"), cards: z.array(z.object({ id, x: coord, y: coord })).min(1).max(100) }),
   z.object({ a: z.literal("tap"), ids: z.array(id).min(1).max(100), tapped: z.boolean().optional() }),
   z.object({ a: z.literal("untapAll") }),
   z.object({ a: z.literal("flip"), ids: z.array(id).min(1).max(100) }),
@@ -149,6 +150,8 @@ export interface RoomView {
   /** Instances the viewer can currently see (their pack, picks, deck). */
   instances: Record<string, CardInstance>;
   table: TableState | null;
+  /** Public rooms only: when the room closes for good (it can close sooner if everyone leaves). */
+  expiresAt: number | null;
   serverNow: number;
 }
 
@@ -175,5 +178,9 @@ export const CLOSE = {
   notFound: 4404,
   claim: 4409,
   deleted: 4410,
+  /** A public room reached its time limit, or sat empty too long. */
+  expired: 4411,
+  /** Closed for flooding the room with messages. */
+  flood: 4429,
   offline: 4503,
 } as const;

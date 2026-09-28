@@ -55,6 +55,19 @@ describe("tabletop", () => {
     expect(table.log.at(-1)?.text).toMatch(/Alice moved .+ from the battlefield to their graveyard/);
   });
 
+  it("places a dropped group of battlefield cards in one action", () => {
+    const { table, env } = setup();
+    const [x, y, inHand] = table.players.a.zones.hand;
+    applyTableAction(table, "a", { a: "move", ids: [x, y], to: "battlefield", x: 0, y: 0 }, env);
+    applyTableAction(table, "a", { a: "place", cards: [{ id: x, x: 5, y: 6 }, { id: y, x: 7, y: 8 }] }, env);
+    expect(table.cards[x]).toMatchObject({ x: 5, y: 6 });
+    expect(table.cards[y]).toMatchObject({ x: 7, y: 8 });
+    expect(table.cards[y].z).toBeGreaterThan(table.cards[x].z);
+    // All or nothing: a card that isn't on the battlefield refuses the whole group.
+    expect(() => applyTableAction(table, "a", { a: "place", cards: [{ id: x, x: 1, y: 1 }, { id: inHand, x: 2, y: 2 }] }, env)).toThrow(TableError);
+    expect(table.cards[x]).toMatchObject({ x: 5, y: 6 });
+  });
+
   it("face-down cards are hidden from opponents but not their controller", () => {
     const { table, env } = setup();
     const id = table.players.a.zones.hand[0];

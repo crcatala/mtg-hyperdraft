@@ -5,6 +5,7 @@ import { serverNow, useStore } from "../store";
 import { CardView } from "../components/CardView";
 import { PreviewPane } from "../components/Preview";
 import { NameEditor } from "../components/TopBar";
+import { PublicRoomChip } from "../components/PublicRoomChip";
 import { Icon } from "../components/Icon";
 import { TableCanvas, seatHue } from "./TableScene";
 import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom } from "./tableUi";
@@ -264,6 +265,7 @@ function TurnBar() {
       <span className="turn-label">
         Round {table.turn.number} · <b>{mine ? "Your turn" : `${name}'s turn`}</b>
       </span>
+      <PublicRoomChip />
       <button className={`btn small ${mine ? "primary" : ""}`} onClick={() => act({ a: "nextTurn" })} title="Pass the turn (N)">
         End turn <Icon name="skip" />
       </button>

@@ -44,7 +44,7 @@ export class InviteDurableObject extends DurableObject<Env> {
       for (let attempt = 0; attempt < 5; attempt++) {
         const code = await signRoomCode(secret, Math.random);
         // A collision means the code is taken; try another.
-        if (await roomStub(this.env, code).init(code, label)) {
+        if (await roomStub(this.env, code).init(code, { inviteId: label })) {
           record.code = code;
           await this.save();
           return { ok: true, code };

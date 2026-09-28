@@ -340,6 +340,13 @@ export interface RoomState {
   createdAt: number;
   /** Label of the invite that created this room (online rooms only). Never sent to clients. */
   inviteId?: string;
+  /** Public rooms only: the room closes for good at this time. */
+  expiresAt?: number;
+  /**
+   * Public rooms only: since when no human has been connected (creation, before anyone joined);
+   * null while someone is here. The room closes PUBLIC_LIMITS.idleMs after this.
+   */
+  idleSince?: number | null;
   phase: Phase;
   players: Player[];
   /** Reconnect secrets per player id. Never sent to clients. */

@@ -60,6 +60,8 @@ interface Store {
   mode: SessionMode;
   status: ConnStatus;
   fatal: string | null;
+  /** The server's close code (CLOSE.*) behind `fatal`, when it gave one. */
+  fatalCode: number | null;
   /** Free seats offered when rejoining a started game without a valid seat secret. */
   claimSeats: { id: string; name: string }[];
   view: RoomView | null;
@@ -87,6 +89,7 @@ export const useStore = create<Store>((set, get) => ({
   mode: "online",
   status: "idle",
   fatal: null,
+  fatalCode: null,
   claimSeats: [],
   view: null,
   cards: {},

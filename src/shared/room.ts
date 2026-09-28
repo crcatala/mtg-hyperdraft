@@ -9,6 +9,7 @@ import { autoBuild, deckSize, newDeck } from "./deck";
 import { applyTableAction, createTable, TableError, tableViewFor, type TableEnv } from "./table";
 import { randomCode, type Rng } from "./rng";
 import type { RoomSummary } from "./invites";
+import { PUBLIC_LIMITS } from "./publicRooms";
 
 export interface RoomDeps {
   now: () => number;
@@ -56,11 +57,18 @@ export const PING_COOLDOWN_MS = 300;
 
 const BOT_NAMES = ["Ava", "Blix", "Cogsworth", "Dross", "Echo", "Fizz", "Gloom", "Hex"];
 
-export function createRoomState(code: string, now: number, inviteId?: string): RoomState {
+/** Who a room belongs to: an invite (kept until deleted) or the public pool (closes at `expiresAt`). */
+export interface RoomOwner {
+  inviteId?: string;
+  expiresAt?: number;
+}
+
+export function createRoomState(code: string, now: number, owner: RoomOwner = {}): RoomState {
   return {
     code,
     createdAt: now,
-    ...(inviteId ? { inviteId } : {}),
+    ...(owner.inviteId ? { inviteId: owner.inviteId } : {}),
+    ...(owner.expiresAt ? { expiresAt: owner.expiresAt, idleSince: now } : {}),
     phase: "lobby",
     players: [],
     secrets: {},
@@ -137,7 +145,7 @@ export class Room {
     const existing = opts.playerId ? this.player(opts.playerId) : undefined;
     if (existing && !existing.isBot && this.state.secrets[existing.id] === opts.secret) {
       existing.connected = true;
-      this.syncDraftClock();
+      this.syncPresence();
       return { playerId: existing.id, secret: opts.secret! };
     }
     if (this.state.phase !== "lobby") return this.claimSeat(opts.claim);
@@ -161,6 +169,7 @@ export class Room {
     if (firstBot >= 0) this.state.players.splice(firstBot, 0, player);
     else this.state.players.push(player);
     this.state.secrets[playerId] = secret;
+    this.syncPresence();
     return { playerId, secret };
   }
 
@@ -185,7 +194,7 @@ export class Room {
     const secret = Array.from({ length: 4 }, () => randomCode(this.deps.rng, 8)).join("");
     this.state.secrets[player.id] = secret;
     player.connected = true;
-    this.syncDraftClock();
+    this.syncPresence();
     return { playerId: player.id, secret };
   }
 
@@ -201,7 +210,7 @@ export class Room {
         next.isHost = true;
       }
     }
-    this.syncDraftClock();
+    this.syncPresence();
     return true;
   }
 
@@ -212,7 +221,33 @@ export class Room {
   syncConnections(connected: Set<string>): boolean {
     let changed = false;
     for (const p of this.humans()) changed = this.setConnected(p.id, connected.has(p.id)) || changed;
-    return this.syncDraftClock() || changed;
+    return this.syncPresence() || changed;
+  }
+
+  /** Keeps the pick clock and the public-room idle timer in line with who's connected. */
+  private syncPresence(): boolean {
+    const clock = this.syncDraftClock();
+    return this.syncIdle() || clock;
+  }
+
+  /** Public rooms: starts the idle countdown when the last human leaves, clears it when one is back. */
+  private syncIdle(): boolean {
+    if (this.state.expiresAt === undefined) return false;
+    const anyoneHere = this.humans().some((p) => p.connected);
+    const idleSince = anyoneHere ? null : (this.state.idleSince ?? this.deps.now());
+    if (idleSince === this.state.idleSince) return false;
+    this.state.idleSince = idleSince;
+    return true;
+  }
+
+  /**
+   * When this public room closes for good: its hard expiry, or sooner if nobody has been connected
+   * for PUBLIC_LIMITS.idleMs. Null for rooms that don't expire (invite rooms, solo).
+   */
+  closeAt(): number | null {
+    const { expiresAt, idleSince } = this.state;
+    if (expiresAt === undefined) return null;
+    return idleSince == null ? expiresAt : Math.min(expiresAt, idleSince + PUBLIC_LIMITS.idleMs);
   }
 
   /** Pick timers only run while at least one human is here, so an abandoned draft waits for you. */
@@ -584,6 +619,7 @@ export class Room {
       basicIds: this.state.cube?.basics ?? {},
       instances,
       table: this.state.table ? tableViewFor(this.state.table, viewer) : null,
+      expiresAt: this.state.expiresAt ?? null,
       serverNow: this.deps.now(),
     };
   }

@@ -2387,6 +2387,15 @@ body.dragging * {
   white-space: normal;
   line-height: 1.4;
 }
+.public-host {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* Turnstile keeps a zero-height widget here unless it needs a click: don't let it add a gap. */
+.public-host > .turnstile-slot {
+  margin-top: -10px;
+}
 .link-btn {
   background: none;
   border: 0;
@@ -2463,6 +2472,9 @@ body.dragging * {
   justify-content: space-between;
   flex-wrap: wrap;
   border-color: var(--violet);
+}
+.lobby-grid > .public-banner {
+  border-color: rgba(244, 197, 91, 0.45);
 }
 .solo-banner h2 {
   margin: 0 0 4px;

@@ -4,6 +4,7 @@ import { CLOSE, type ClientMessage, type ServerMessage } from "../shared/protoco
 import { loadIdentity, loadName, saveIdentity } from "./identity";
 import { useStore } from "./store";
 import { showPing } from "./table/tableUi";
+import { rememberExpiry } from "./publicRooms";
 
 let socket: WebSocket | null = null;
 let retry = 0;
@@ -21,6 +22,8 @@ const PONG_TIMEOUT_MS = 10_000;
 const CLOSE_MESSAGES: Record<number, string> = {
   [CLOSE.notFound]: "This room doesn't exist. Check the code?",
   [CLOSE.deleted]: "This room was deleted.",
+  [CLOSE.expired]: "This public room has closed.",
+  [CLOSE.flood]: "You were disconnected for sending too many messages. Wait a minute, then reload to rejoin.",
   [CLOSE.offline]: "Online rooms are turned off right now.",
 };
 
@@ -51,7 +54,7 @@ export function disconnect() {
     socket.close();
     socket = null;
   }
-  useStore.setState({ status: "idle", view: null, fatal: null, cards: {}, claimSeats: [] });
+  useStore.setState({ status: "idle", view: null, fatal: null, fatalCode: null, cards: {}, claimSeats: [] });
 }
 
 function open() {
@@ -122,6 +125,7 @@ function open() {
         saveIdentity(msg.code, { pid: msg.you, secret: msg.secret });
         break;
       case "state":
+        if (msg.view.expiresAt && !useStore.getState().view?.expiresAt) rememberExpiry(msg.view.code, msg.view.expiresAt);
         useStore.setState({ view: msg.view, clockOffset: msg.view.serverNow - Date.now() });
         break;
       case "cards":
@@ -136,7 +140,7 @@ function open() {
         break;
       case "closed":
         // Final: don't wait for the close event (it can trail the message by seconds).
-        stop({ status: "failed", fatal: msg.message || CLOSE_MESSAGES[msg.code] || "This room is no longer available." });
+        stop({ status: "failed", fatal: msg.message || CLOSE_MESSAGES[msg.code] || "This room is no longer available.", fatalCode: msg.code });
         break;
       case "point":
         showPing(msg.by, msg.x, msg.y);
@@ -160,7 +164,7 @@ function open() {
     clearInterval(heartbeat);
     // 4xxx closes are the server saying "don't come back" (refused, missing, deleted, offline).
     if (refusal || (event.code >= 4000 && event.code < 5000)) {
-      useStore.setState({ status: "failed", fatal: refusal ?? CLOSE_MESSAGES[event.code] ?? "Could not join this room." });
+      useStore.setState({ status: "failed", fatal: refusal ?? CLOSE_MESSAGES[event.code] ?? "Could not join this room.", fatalCode: event.code >= 4000 ? event.code : null });
       return;
     }
     if (!currentCode) return;

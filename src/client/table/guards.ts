@@ -39,6 +39,8 @@ function touchedIds(action: TableAction): string[] {
     case "counter":
     case "setPos":
       return [action.id];
+    case "place":
+      return action.cards.map((c) => c.id);
     default:
       return [];
   }
@@ -74,6 +76,7 @@ function doing(action: TableAction, it: string): { phrase: string; confirm: stri
     case "counter":
       return action.delta > 0 ? { phrase: `add a ${action.kind} counter to ${it}`, confirm: "Add counter" } : { phrase: `remove a ${action.kind} counter from ${it}`, confirm: "Remove counter" };
     case "setPos":
+    case "place":
       return { phrase: `move ${it}`, confirm: "Move" };
     case "move": {
       const where =
@@ -119,8 +122,6 @@ function cardGuard(action: TableAction, ids: string[], ctx: GuardContext): Guard
 
 /** One guard for several actions sent together (so they share one prompt). */
 export function guardForAll(actions: TableAction[], ctx: GuardContext): Guard | null {
-  // A dropped group of battlefield cards is one repositioning per card: judge them as a group.
-  if (actions.length > 1 && actions.every((a) => a.a === "setPos")) return cardGuard(actions[0], actions.flatMap(touchedIds), ctx);
   for (const a of actions) {
     const g = guardFor(a, ctx);
     if (g) return g;

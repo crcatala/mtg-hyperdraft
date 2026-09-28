@@ -4,6 +4,7 @@ import { navigate } from "../router";
 import { saveName } from "../identity";
 import { copyText } from "../clipboard";
 import { Icon } from "./Icon";
+import { PublicRoomChip } from "./PublicRoomChip";
 
 export function TopBar({ title, children }: { title?: ReactNode; children?: ReactNode }) {
   const code = useStore((s) => s.view?.code);
@@ -32,6 +33,7 @@ export function TopBar({ title, children }: { title?: ReactNode; children?: Reac
         </span>
       ) : (
         <>
+          <PublicRoomChip />
           {code && (
             <span className="code-chip" onClick={copyInvite} title="Click to copy invite link">
               {code}

@@ -3,7 +3,7 @@
 
 import { pileAt, seatAngle, type Vec2 } from "../../shared/tableLayout";
 import { useStore } from "../store";
-import { actAll, me, moveTo, playFromHand, settle, table, unsettle, useTableUi, type LocalDrag } from "./tableUi";
+import { act, me, moveTo, playFromHand, settle, table, unsettle, useTableUi, type LocalDrag } from "./tableUi";
 import { DRAG_LIFT, noteDrop } from "./motion";
 
 /** Set by the canvas: converts a screen point to table coordinates (ray vs. table plane). */
@@ -97,8 +97,6 @@ function drop(source: LocalDrag["source"], ids: string[], offsets: LocalDrag["of
   // Hold the cards where they were dropped; if moving someone else's cards needs confirming and the
   // player cancels, they slide back.
   settle(targets, Infinity);
-  actAll(
-    ids.map((id) => ({ a: "setPos" as const, id, ...targets[id] })),
-    { onSend: () => settle(targets), onCancel: () => unsettle(ids) },
-  );
+  // One action for the whole group: one message and one storage write, however many cards.
+  act({ a: "place", cards: ids.map((id) => ({ id, ...targets[id] })) }, { onSend: () => settle(targets), onCancel: () => unsettle(ids) });
 }

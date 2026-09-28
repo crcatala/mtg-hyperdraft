@@ -6,7 +6,9 @@ Create a lobby → share the code → import a cube (CubeCobra link or pasted li
 rip packs and draft → build decks (unlimited basics) → play on a shared freeform 3D table.
 
 Anyone can **play solo against bots** straight away: it runs entirely in the browser, no server or sign-up.
-Hosting **online rooms** for friends needs an invite code; joining a room only needs its link.
+Hosting **online rooms** for friends needs an invite code; joining a room only needs its link. Optionally,
+you can also let anyone host a limited **public room** without an invite (off unless you turn it on, see
+[Public rooms](#public-rooms-optional)).
 
 ## Quick start
 
@@ -19,7 +21,9 @@ npm run dev          # http://localhost:3000 — Vite + the Worker + Durable Obj
 No Cloudflare account is needed for local development: the Cloudflare Vite plugin runs the Worker and
 Durable Objects inside `workerd` on your machine. The first `npm run dev` copies `.dev.vars.example` to
 `.dev.vars` (local secrets, gitignored), which includes a dev invite: open
-<http://localhost:3000/?invite=dev-invite-key> once to be able to host online rooms locally.
+<http://localhost:3000/?invite=dev-invite-key> once to be able to host online rooms locally. To try public
+rooms, uncomment `PUBLIC_ROOMS_ENABLED` (and optionally the Turnstile test keys) in `.dev.vars` and restart
+`npm run dev`. `.dev.vars` is only created once, so copy those lines from `.dev.vars.example` if yours is older.
 
 **Solo playtest:** click **Play solo vs bots** on the home page, then **Quick start** (loads the bundled
 Hypercube and readies you up). Press <kbd>`</kbd> (backtick) for the debug console: **Skip to table** jumps
@@ -53,14 +57,19 @@ src/
     presets.ts       cubes bundled as static snapshots (public/presets/*.json)
     roomCode.ts      signed room codes (HMAC check characters)
     invites.ts       invite codes, quotas, "My rooms" ledger, idle expiry
+    publicRooms.ts   public room pool: slots, per-visitor rule, IPv6 /64 grouping
+    rateLimit.ts     token buckets for flood control in rooms
   worker/        Cloudflare Worker + Durable Objects
     index.ts         routing, invite checks, room-code verification, kill switch
     roomObject.ts    one DO per room: hibernating websockets, storage, pick-timer alarms, imports
     inviteObject.ts  one DO per invite: room ledger, quotas, lazy expiry
+    publicPoolObject.ts  the one public pool DO: slots, one room per visitor
+    publicAccess.ts  hashed visitor ids, Turnstile verification
   client/        React + React Three Fiber
     net.ts           websocket transport (online rooms)
     local.ts         in-browser transport (solo mode): runs the same Room engine in the tab
     invite.ts        invite key storage, magic links, invite API calls
+    publicRooms.ts   public pool status/create calls, Turnstile widget
     screens/         Home (+ My rooms), Solo, Lobby, Draft (pack opening), Deckbuilder
     table/           3D scene, textures, drag & drop, HUD, dialogs
     debug/           debug console
@@ -83,6 +92,17 @@ src/
   rolling 24h and 25 saved rooms (delete one from **My rooms** to make space). Rooms push a short summary
   (players, phase, cube) to it when that changes, so listing rooms wakes one object, not 25. Rooms idle
   for 90 days are deleted lazily the next time the ledger is used; there are no expiry timers.
+- **Public rooms close on their own** (when enabled): at most 3 exist at once, each lasts up to 3 hours
+  (closing sooner once nobody has been connected for 15 minutes), and all of them together get 12
+  room-hours per UTC day. See [Public rooms](#public-rooms-optional).
+- **Flood control** (`src/shared/rateLimit.ts`). Every room, invite or public, limits:
+  - each socket to bursts of 60 messages, 30/s for a few minutes and 5/s over the long run;
+  - the whole room to 10 messages/s, and to bursts of 120 state changes at 1/s sustained. State changes
+    are what cost storage writes, the scarcest free-plan quota.
+
+  Extra messages are dropped with a "slow down" notice. A socket that keeps going over its own limits is
+  closed, and that player can't rejoin for a minute. Dropped messages still wake the room and count as
+  requests, so dropping alone isn't enough. A dragged group of cards is one message, however many cards.
 - **Nothing wakes a room by accident.** Room codes carry HMAC check characters, so the Worker rejects
   made-up codes without touching a Durable Object; the draft clock pauses (no alarms) while no humans are
   connected, so an abandoned draft waits for you; alarms are only rewritten when the deadline changes, and
@@ -145,6 +165,66 @@ renaming it starts a fresh, empty "My rooms".
 
 **Kill switch:** `echo false | npx wrangler secret put ONLINE_ENABLED` turns online rooms off instantly
 (solo mode keeps working); `npx wrangler secret delete ONLINE_ENABLED` turns them back on.
+
+### Public rooms (optional)
+
+Public rooms let anyone host a game without an invite code, from a small shared pool. **They're off unless
+you turn them on:**
+
+```bash
+echo true | npx wrangler secret put PUBLIC_ROOMS_ENABLED      # turn on
+npx wrangler secret delete PUBLIC_ROOMS_ENABLED               # turn off again
+```
+
+How they work:
+
+- **3 public rooms at once**, shared by everyone. A slot frees up as soon as its room closes.
+- **Each room lasts up to 3 hours**, and closes sooner **once nobody has been connected for 15
+  minutes**. Its link stops working and nothing in it is kept. Everyone in the room sees a countdown and
+  gets warnings 30, 10 and 1 minute before it closes.
+- **12 room-hours per UTC day** for all public rooms together. Each new room books its whole lifetime up
+  front (3 hours, or whatever is left of today's budget, shortening the last rooms of the day) and gets
+  back the time it didn't use when it closes early. Whatever happens in the rooms, public rooms can't run
+  for more than 12 hours a day in total. That's all three tables used from start to finish, plus one more
+  full room, before any time comes back from rooms that closed early.
+- **One public room per visitor at a time, and 2 per UTC day.** Visitors are told apart by IP address (a
+  whole /64 for IPv6). The pool only stores a keyed hash of it, never the address itself.
+- **An invite code takes precedence.** A browser with a valid invite hosts invite rooms as before, which
+  never use public slots. Solo mode is unaffected, and `ONLINE_ENABLED=false` turns public rooms off too.
+- Tune the limits in `src/shared/publicRooms.ts` (`PUBLIC_LIMITS`). The hosting status shown on the home
+  page is cached by the Worker for 15 seconds, so visitors loading the page don't each wake the pool.
+
+**Optional: Turnstile bot check.** [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) is a
+free CAPTCHA alternative that most visitors never see. With it, a script can't grab every public slot the
+moment one frees up. The check is asked for **only when both keys are set**:
+
+1. In the Cloudflare dashboard, go to **Turnstile → Add widget**. Add your site's hostname (e.g.
+   `hyperdraft.<your-subdomain>.workers.dev`, plus any custom domain) and pick **Managed** mode.
+2. Store the two keys it gives you:
+   ```bash
+   npx wrangler secret put TURNSTILE_SITE_KEY      # public "site key", sent to browsers
+   npx wrangler secret put TURNSTILE_SECRET_KEY    # "secret key", stays on the server
+   ```
+   Delete either one to turn the check off. Failed checks are rejected by the Worker before any Durable
+   Object is involved, so they don't use Durable Object quota. Tokens must come from your site and from the
+   public-room widget (Cloudflare's `hostname` and `action` checks). Cloudflare's test keys skip those two
+   checks. Without Turnstile, a script can still send create requests, and each one wakes the pool, so
+   set it up if public rooms see much traffic.
+
+**Free-plan costs.** When any Durable Object free-tier daily limit is exceeded, Durable Object calls fail for
+the whole account until the daily reset, so invite rooms would stop working too. The daily budget and flood
+control keep public rooms well inside the limits, even if every public room is flooded around the clock:
+
+| Free daily limit | Public rooms at most | Why |
+|---|---|---|
+| Duration, 13,000 GB-s | about 5,400 GB-s | 12 room-hours × 450 GB-s per room kept awake for an hour |
+| Storage writes, 100k rows | about 44,000 | 12 room-hours × 1 state change/s, plus bursts |
+| Requests, 100k | about 22,000 for messages handled | 12 room-hours × 10 messages/s ÷ 20 (WebSocket messages bill 20:1) |
+
+Real games use far less, since rooms hibernate between moves. Messages dropped just before a flooding socket
+is closed, reconnects and page loads add some requests on top. That leaves more than half of each limit for
+invite rooms. If public rooms get heavy use, the Workers Paid plan ($5/month) turns these hard limits into
+small overage charges. Turn public rooms off at any time with the commands above.
 
 **Optional: a rate-limiting rule.** If you serve the Worker from a zone on your Cloudflare account, add a
 WAF rate-limiting rule there, e.g. requests to URI path starting with `/api/` above 60 per 10 seconds per

@@ -25,6 +25,8 @@ import { card as cardText, joinLog, logText, num, player, verb, zone, type LogPi
 export type TableAction =
   | { a: "move"; ids: string[]; to: ZoneName; x?: number; y?: number; bottom?: boolean; faceDown?: boolean; face?: number }
   | { a: "setPos"; id: string; x: number; y: number }
+  /** Repositions a dropped group of battlefield cards in one go (one message, one write). */
+  | { a: "place"; cards: { id: string; x: number; y: number }[] }
   | { a: "tap"; ids: string[]; tapped?: boolean }
   | { a: "untapAll" }
   | { a: "flip"; ids: string[] }
@@ -281,12 +283,16 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
       if (cards.length > 1) log(table, playerId, action.to, logText`${who} ${verb("moved")} ${num(cards.length)} cards to ${zone(ZONE_LABELS[action.to].toLowerCase())}.`, env);
       return;
     }
-    case "setPos": {
-      const card = getCard(action.id);
-      if (card.zone !== "battlefield") throw new TableError("Only battlefield cards can be repositioned.");
-      card.x = action.x;
-      card.y = action.y;
-      card.z = table.nextZ++;
+    case "setPos":
+    case "place": {
+      const moves = action.a === "setPos" ? [action] : action.cards;
+      const cards = moves.map((m) => getCard(m.id));
+      if (cards.some((c) => c.zone !== "battlefield")) throw new TableError("Only battlefield cards can be repositioned.");
+      moves.forEach((m, i) => {
+        cards[i].x = m.x;
+        cards[i].y = m.y;
+        cards[i].z = table.nextZ++;
+      });
       return;
     }
     case "tap": {
