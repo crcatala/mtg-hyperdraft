@@ -3,3 +3,6 @@
 worker-configuration.d.ts
 node_modules/
 dist/
+
+# Vitest cache and reporter output
+.vitest/
