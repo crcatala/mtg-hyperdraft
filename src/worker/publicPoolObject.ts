@@ -1,25 +1,40 @@
 // The one Durable Object behind public rooms: a pool of PUBLIC_LIMITS.slots slots shared by every
-// visitor without an invite. Being single-threaded makes the limits exact: two visitors can't both
-// take the last slot.
+// visitor without an invite, and the daily budget of room time. Being single-threaded makes the
+// limits exact: two visitors can't both take the last slot.
 //
-// Rooms close themselves (hard expiry or idle, with their own alarm) and hand their slot back via
-// release(). Slots past their hard expiry count as free no matter what, and when the pool is full a
-// create asks the rooms whether they're still alive (at most once a minute), so a missed release
-// only delays a free slot, never loses it. There are no alarms here: nothing wakes the pool but a
-// visitor.
+// Rooms close themselves (expiry or idle, with their own alarm) and hand their slot back via
+// release(). Slots past their expiry count as free no matter what, and a create that finds the pool
+// full (or the visitor's own room still listed) asks those rooms whether they're still alive, at
+// most once a minute, so a missed release only delays a free slot, never loses it. There are no
+// alarms here: nothing wakes the pool but a visitor or a closing room.
 
 import { DurableObject } from "cloudflare:workers";
 import { roomStub, type Env } from "./env";
-import { emptyPool, poolStatus, PUBLIC_LIMITS, prunePool, publicBlocker, type PublicPool, type PublicStatus } from "../shared/publicRooms";
+import {
+  emptyPool,
+  poolStatus,
+  PUBLIC_LIMITS,
+  prunePool,
+  publicBlocker,
+  releaseSlots,
+  reserveSlot,
+  rollDay,
+  unreserveSlot,
+  visitorSlot,
+  type PublicPool,
+  type PublicSlot,
+  type PublicStatus,
+} from "../shared/publicRooms";
 import { signRoomCode } from "../shared/roomCode";
 
-export type PublicCreateResult = { ok: true; code: string; expiresAt: number } | { ok: false; status: number; error: string; code?: string };
+export type PublicCreateResult = { ok: true; code: string; expiresAt: number } | { ok: false; status: number; error: string; code?: string; expiresAt?: number };
 
 export class PublicPoolDurableObject extends DurableObject<Env> {
   private pool: PublicPool | null = null;
 
   private async load(): Promise<PublicPool> {
-    if (!this.pool) this.pool = (await this.ctx.storage.get<PublicPool>("pool")) ?? emptyPool();
+    // Spread over emptyPool() so pools saved before the daily budget existed get its fields.
+    if (!this.pool) this.pool = { ...emptyPool(), ...(await this.ctx.storage.get<PublicPool>("pool")) };
     return this.pool;
   }
 
@@ -27,8 +42,9 @@ export class PublicPoolDurableObject extends DurableObject<Env> {
     if (this.pool) await this.ctx.storage.put("pool", this.pool);
   }
 
-  async status(visitor: string): Promise<Omit<PublicStatus, "enabled" | "turnstileSiteKey">> {
-    return poolStatus(await this.load(), visitor, Date.now());
+  /** The same for every visitor (the Worker caches it). Never wakes a room. */
+  async status(): Promise<Omit<PublicStatus, "enabled" | "turnstileSiteKey">> {
+    return poolStatus(await this.load(), Date.now());
   }
 
   async create(visitor: string): Promise<PublicCreateResult> {
@@ -36,18 +52,20 @@ export class PublicPoolDurableObject extends DurableObject<Env> {
     if (!secret) return { ok: false, status: 503, error: "The server is missing ROOM_CODE_SECRET." };
     const pool = await this.load();
     let now = Date.now();
+    rollDay(pool, now);
     prunePool(pool, now);
-    if (pool.slots.length >= PUBLIC_LIMITS.slots && now - pool.checkedAt >= PUBLIC_LIMITS.aliveCheckMs) {
-      await this.dropDeadRooms(pool, now);
-      now = Date.now();
-    }
+
+    // Before refusing, make sure the rooms in the way are really still open: the visitor's own room
+    // (maybe it closed and its release was missed), or the whole pool when it's full.
+    const mine = visitorSlot(pool, visitor, now);
+    const suspects = mine ? [mine] : pool.slots.length >= PUBLIC_LIMITS.slots ? pool.slots.slice() : [];
+    if (await this.dropDeadRooms(pool, suspects, now)) now = Date.now();
 
     const blocker = publicBlocker(pool, visitor, now);
     if (blocker) return { ok: false, ...blocker };
 
     // Reserve the slot before any await, so concurrent requests see it.
-    const slot = { code: "", createdAt: now, expiresAt: now + PUBLIC_LIMITS.ttlMs, visitor };
-    pool.slots.push(slot);
+    const slot = reserveSlot(pool, visitor, now);
     try {
       for (let attempt = 0; attempt < 5; attempt++) {
         const code = await signRoomCode(secret, Math.random);
@@ -61,35 +79,38 @@ export class PublicPoolDurableObject extends DurableObject<Env> {
     } catch (err) {
       console.error("Public room creation failed", err);
     }
-    // Give the reserved slot back.
-    pool.slots = pool.slots.filter((s) => s !== slot);
+    unreserveSlot(pool, slot);
     return { ok: false, status: 503, error: "Could not create a room, try again." };
   }
 
   /** Called by a public room as it closes. Unknown codes are ignored. */
   async release(code: string): Promise<void> {
     const pool = await this.load();
-    const before = pool.slots.length;
-    pool.slots = pool.slots.filter((s) => s.code !== code);
-    if (pool.slots.length !== before) await this.save();
+    if (releaseSlots(pool, new Set([code]), Date.now())) await this.save();
   }
 
-  /** Asks each room in the pool whether it's still open; frees the slots of those that aren't. */
-  private async dropDeadRooms(pool: PublicPool, now: number) {
-    pool.checkedAt = now;
-    const alive = await Promise.all(
-      pool.slots.map(async (s) => {
-        // A slot still being set up (no code yet) belongs to a create in flight.
-        if (!s.code) return true;
+  /**
+   * Asks the given rooms whether they're still open (each at most once per aliveCheckMs) and frees
+   * the slots of those that aren't. Returns true if it asked anything.
+   */
+  private async dropDeadRooms(pool: PublicPool, slots: PublicSlot[], now: number): Promise<boolean> {
+    // A slot still being set up (no code yet) belongs to a create in flight.
+    const due = slots.filter((s) => s.code && now - (s.checkedAt ?? 0) >= PUBLIC_LIMITS.aliveCheckMs);
+    if (due.length === 0) return false;
+    for (const s of due) s.checkedAt = now;
+    const dead = new Set<string>();
+    await Promise.all(
+      due.map(async (s) => {
         try {
-          return await roomStub(this.env, s.code).publicAlive();
+          if (!(await roomStub(this.env, s.code).publicAlive())) dead.add(s.code);
         } catch (err) {
           console.error(`Could not check public room ${s.code}`, err);
-          return true;
         }
       }),
     );
-    pool.slots = pool.slots.filter((_, i) => alive[i]);
+    // Other calls may have changed the pool while we waited: release by code, not position.
+    releaseSlots(pool, dead, Date.now());
     await this.save();
+    return true;
   }
 }

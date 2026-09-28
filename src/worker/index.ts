@@ -3,7 +3,7 @@
 //
 //   POST   /api/rooms                 create a room: with an invite key, one of the invite's rooms;
 //                                     without one, a public room (when PUBLIC_ROOMS_ENABLED)
-//   GET    /api/public                public hosting: open slots, your room, Turnstile site key
+//   GET    /api/public                public hosting: open slots, daily budget, Turnstile site key
 //   GET    /api/invite                invite info + "My rooms" (invite key required)
 //   DELETE /api/invite/rooms/:code    delete one of the invite's rooms (invite key required)
 //   GET    /api/rooms/:code/info      does the room exist?   (anyone with the code)
@@ -26,6 +26,21 @@ const OFFLINE_MESSAGE = "Online rooms are turned off right now. Solo mode still 
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+/**
+ * GET /api/public is open to anyone, so it mustn't wake the pool Durable Object on every call:
+ * the answer is the same for every visitor and kept in this isolate's memory for a few seconds.
+ */
+const STATUS_CACHE_MS = 15_000;
+let cachedStatus: { at: number; body: PublicStatus } | null = null;
+
+async function publicStatus(env: Env): Promise<PublicStatus> {
+  const now = Date.now();
+  if (cachedStatus && now - cachedStatus.at < STATUS_CACHE_MS) return cachedStatus.body;
+  const body: PublicStatus = { enabled: true, ...(await publicPoolStub(env).status()), turnstileSiteKey: turnstileKeys(env)?.siteKey ?? null };
+  cachedStatus = { at: now, body };
+  return body;
 }
 
 function isWebSocket(request: Request) {
@@ -61,9 +76,7 @@ export default {
     const hasInviteKey = request.headers.has("Authorization");
     if (url.pathname === "/api/public" && request.method === "GET") {
       if (!publicRoomsEnabled(env)) return json({ enabled: false } satisfies PublicStatus);
-      if (!env.ROOM_CODE_SECRET) return json({ error: "The server is missing ROOM_CODE_SECRET." }, 503);
-      const status = await publicPoolStub(env).status(await visitorId(request, env.ROOM_CODE_SECRET));
-      return json({ enabled: true, ...status, turnstileSiteKey: turnstileKeys(env)?.siteKey ?? null } satisfies PublicStatus);
+      return json(await publicStatus(env));
     }
     if (url.pathname === "/api/rooms" && request.method === "POST" && !hasInviteKey) {
       if (!publicRoomsEnabled(env)) return json({ error: onlineEnabled(env) ? "Hosting needs an invite code." : OFFLINE_MESSAGE }, onlineEnabled(env) ? 401 : 503);
@@ -72,12 +85,13 @@ export default {
       if (turnstile) {
         const body = (await request.json().catch(() => ({}))) as { turnstileToken?: string };
         // Checked here, before the pool: failed checks never cost a Durable Object request.
-        if (!(await verifyTurnstile(body.turnstileToken, turnstile.secretKey, request.headers.get("CF-Connecting-IP")))) {
+        if (!(await verifyTurnstile(body.turnstileToken, turnstile.secretKey, request.headers.get("CF-Connecting-IP"), url.hostname))) {
           return json({ error: "Couldn't confirm you're not a bot. Try again in a moment." }, 403);
         }
       }
       const res = await publicPoolStub(env).create(await visitorId(request, env.ROOM_CODE_SECRET));
-      return res.ok ? json({ code: res.code, expiresAt: res.expiresAt }) : json({ error: res.error, code: res.code }, res.status);
+      cachedStatus = null;
+      return res.ok ? json({ code: res.code, expiresAt: res.expiresAt }) : json({ error: res.error, code: res.code, expiresAt: res.expiresAt }, res.status);
     }
 
     // --- invite-only endpoints -------------------------------------------------------------------

@@ -11,7 +11,7 @@ import { Deckbuilder } from "./Deckbuilder";
 import { TableScreen } from "../table/TableScreen";
 import { presenceChanges } from "../presence";
 import { Icon } from "../components/Icon";
-import { knownExpiry } from "../publicRooms";
+import { forgetMine, knownExpiry } from "../publicRooms";
 import { useExpiryWarnings } from "../components/PublicRoomChip";
 import { clockTime } from "../expiry";
 import { CLOSE } from "../../shared/protocol";
@@ -86,6 +86,7 @@ export function RoomScreen({ code }: { code: string }) {
     // A public room this browser has been in, now gone: it closed on its own, say so.
     const expiry = knownExpiry(code);
     const closed = fatalCode === CLOSE.expired || (fatalCode === CLOSE.notFound && expiry !== null);
+    if (closed) forgetMine(code);
     return (
       <div className="screen">
         <div className="center-stage">
@@ -94,7 +95,7 @@ export function RoomScreen({ code }: { code: string }) {
             <p className="muted">
               {closed && fatalCode === CLOSE.notFound
                 ? expiry! <= Date.now()
-                  ? `It reached its time limit at ${clockTime(expiry!)}: public rooms last ${durationLabel(PUBLIC_LIMITS.ttlMs)}.`
+                  ? `It reached its closing time at ${clockTime(expiry!)}. Public rooms last up to ${durationLabel(PUBLIC_LIMITS.ttlMs)}.`
                   : `It closed early because nobody was in it for ${durationLabel(PUBLIC_LIMITS.idleMs)}. Public rooms last up to ${durationLabel(PUBLIC_LIMITS.ttlMs)} while people are playing.`
                 : fatal}
             </p>

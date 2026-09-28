@@ -1,11 +1,13 @@
 // Public rooms from the browser's side: the pool status and create calls, the optional Turnstile
-// widget, and a note of each public room's closing time (so an old link can say "this room has
-// closed" rather than "no such room").
+// widget, the public room this browser hosts (the server's status is the same for everyone, so
+// "your room" is remembered here), and a note of each public room's closing time (so an old link
+// can say "this room has closed" rather than "no such room").
 
 import { useEffect, useRef, useState } from "react";
-import type { PublicStatus } from "../shared/publicRooms";
+import { TURNSTILE_ACTION, type PublicStatus } from "../shared/publicRooms";
 
 const EXPIRY_KEY = "hyperdraft:public:";
+const MINE_KEY = "hyperdraft:public-mine";
 
 export async function fetchPublicStatus(): Promise<PublicStatus> {
   const res = await fetch("/api/public");
@@ -17,8 +19,9 @@ export class PublicRoomError extends Error {
   constructor(
     message: string,
     public status: number,
-    /** Set when the visitor already has a public room open. */
+    /** Set when the visitor already has a public room open: that room. */
     public code?: string,
+    public expiresAt?: number,
   ) {
     super(message);
   }
@@ -31,8 +34,36 @@ export async function createPublicRoom(turnstileToken: string | null): Promise<{
     body: JSON.stringify(turnstileToken ? { turnstileToken } : {}),
   });
   const body = (await res.json().catch(() => ({}))) as { code?: string; expiresAt?: number; error?: string };
-  if (!res.ok || !body.code || !body.expiresAt) throw new PublicRoomError(body.error ?? `Request failed (${res.status}).`, res.status, body.code);
+  if (!res.ok || !body.code || !body.expiresAt) throw new PublicRoomError(body.error ?? `Request failed (${res.status}).`, res.status, body.code, body.expiresAt);
   return { code: body.code, expiresAt: body.expiresAt };
+}
+
+/** The public room this browser hosts, while it can still be open. */
+export function loadMine(): { code: string; expiresAt: number } | null {
+  try {
+    const mine = JSON.parse(localStorage.getItem(MINE_KEY) ?? "null") as { code: string; expiresAt: number } | null;
+    return mine && mine.expiresAt > Date.now() ? mine : null;
+  } catch {
+    return null;
+  }
+}
+
+export function rememberMine(code: string, expiresAt: number) {
+  rememberExpiry(code, expiresAt);
+  try {
+    localStorage.setItem(MINE_KEY, JSON.stringify({ code, expiresAt }));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Forgets the hosted room once it's known to be closed. */
+export function forgetMine(code: string) {
+  try {
+    if (loadMine()?.code === code) localStorage.removeItem(MINE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
 }
 
 /** Remembers when a public room closes (seen in its view), for a friendlier message afterwards. */
@@ -104,7 +135,7 @@ export function useTurnstile(siteKey: string | null) {
         if (cancelled) return;
         widget.current = api.render(el, {
           sitekey: siteKey,
-          action: "host-public-room",
+          action: TURNSTILE_ACTION,
           appearance: "interaction-only",
           theme: "dark",
           callback: (t: string) => {
