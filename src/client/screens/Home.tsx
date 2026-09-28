@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer, useState } from "react";
 import { roomExists } from "../net";
 import { loadName, saveName } from "../identity";
 import { createRoom, deleteRoom, fetchInvite, forgetInvite, InviteError, loadInvite, saveInvite } from "../invite";
 import { createPublicRoom, fetchPublicStatus, loadMine, PublicRoomError, rememberMine, useTurnstile } from "../publicRooms";
+import { forgetRoom, loadRecent, mergeRooms, rememberRoom, type RoomEntry } from "../recentRooms";
 import { clockTime } from "../expiry";
 import { navigate } from "../router";
 import { useStore } from "../store";
@@ -91,8 +92,8 @@ export function Home() {
 }
 
 /**
- * Hosting online rooms: with an invite code, the invite's rooms (and "My rooms"). Without one, a
- * public room from the shared pool, when the server has public rooms switched on.
+ * Hosting online rooms: with an invite code, the invite's rooms. Without one, a public room from
+ * the shared pool, when the server has public rooms switched on. Either way, "Your rooms" below.
  */
 function HostSection({ needName }: { needName: () => boolean }) {
   const toast = useStore((s) => s.toast);
@@ -141,7 +142,9 @@ function HostSection({ needName }: { needName: () => boolean }) {
     if (!key || needName()) return;
     setBusy(true);
     try {
-      navigate(`/r/${await createRoom(key)}`);
+      const code = await createRoom(key);
+      rememberRoom(code, { hosted: true });
+      navigate(`/r/${code}`);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Could not create a room.", "error");
       void refresh(key);
@@ -150,10 +153,11 @@ function HostSection({ needName }: { needName: () => boolean }) {
     }
   };
 
-  const remove = async (room: RoomRecord) => {
+  const remove = async (room: RoomEntry) => {
     if (!key || !confirm(`Delete room ${room.code}? Everything in it (draft, decks, table) is gone for good.`)) return;
     try {
       await deleteRoom(key, room.code);
+      forgetRoom(room.code);
       toast(`Deleted room ${room.code}.`);
     } catch (e) {
       toast(e instanceof Error ? e.message : "Could not delete the room.", "error");
@@ -189,6 +193,7 @@ function HostSection({ needName }: { needName: () => boolean }) {
       <>
         <PublicHost needName={needName} />
         {inviteEntry}
+        <YourRooms ledger={[]} />
       </>
     );
   }
@@ -222,7 +227,7 @@ function HostSection({ needName }: { needName: () => boolean }) {
           </button>
         </p>
       )}
-      {info && info.rooms.length > 0 && <MyRooms rooms={info.rooms} onDelete={remove} />}
+      <YourRooms ledger={info?.rooms ?? []} onDelete={remove} />
     </>
   );
 }
@@ -333,20 +338,41 @@ const PHASE_LABELS: Record<RoomRecord["phase"], string> = {
   playing: "Playing",
 };
 
-function MyRooms({ rooms, onDelete }: { rooms: RoomRecord[]; onDelete: (r: RoomRecord) => void }) {
+/**
+ * Rooms to go back to: the invite's rooms (from the server, so on any device) and the rooms this
+ * browser has hosted or joined. Only an invite's own rooms can be deleted; the rest can only be
+ * taken off this list.
+ */
+function YourRooms({ ledger, onDelete }: { ledger: RoomRecord[]; onDelete?: (r: RoomEntry) => void }) {
+  // Read fresh each render (it's a few entries): a delete elsewhere on Home also forgets the room.
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  const rooms = mergeRooms(ledger, loadRecent());
+  if (rooms.length === 0) return null;
+
+  const hide = (r: RoomEntry) => {
+    forgetRoom(r.code);
+    rerender();
+  };
+
   return (
     <div className="my-rooms">
-      <div className="label">My rooms</div>
+      <div className="label">Your rooms</div>
       <ul>
         {rooms.map((r) => (
           <li key={r.code} className="my-room">
             <button className="my-room-main" onClick={() => navigate(`/r/${r.code}`)} title={`Open room ${r.code}`}>
               <span className="my-room-top">
                 <b className="my-room-code">{r.code}</b>
+                <span
+                  className={`pill room-role ${r.role}`}
+                  title={r.role === "hosted" ? (r.onInvite ? "Created with your invite" : "Created from this browser") : "Someone else's room you joined"}
+                >
+                  {r.role === "hosted" ? "Hosted" : "Joined"}
+                </span>
                 <span className="pill">{PHASE_LABELS[r.phase]}</span>
                 <span className="spacer" />
-                <span className="faint" title={`Created ${new Date(r.createdAt).toLocaleString()}`}>
-                  active {timeAgo(r.lastActiveAt)}
+                <span className="faint" title={r.createdAt ? `Created ${new Date(r.createdAt).toLocaleString()}` : undefined}>
+                  {r.onInvite ? "active" : "visited"} {timeAgo(r.activeAt)}
                 </span>
               </span>
               <span className="muted my-room-detail">
@@ -354,12 +380,19 @@ function MyRooms({ rooms, onDelete }: { rooms: RoomRecord[]; onDelete: (r: RoomR
                 {r.bots > 0 && ` + ${r.bots} bot${r.bots === 1 ? "" : "s"}`}
               </span>
               <span className="faint my-room-detail">
-                {r.cubeName ? `${r.cubeName} · ${r.cardCount} cards` : "No cube yet"} · created {new Date(r.createdAt).toLocaleDateString()}
+                {r.cubeName ? `${r.cubeName} · ${r.cardCount} cards` : "No cube yet"}
+                {r.expiresAt ? ` · public, closes ${clockTime(r.expiresAt)}` : r.createdAt ? ` · created ${new Date(r.createdAt).toLocaleDateString()}` : ""}
               </span>
             </button>
-            <button className="btn ghost small icon-only" title="Delete room" aria-label={`Delete room ${r.code}`} onClick={() => onDelete(r)}>
-              <Icon name="x" />
-            </button>
+            {r.onInvite && onDelete ? (
+              <button className="btn ghost small icon-only" title="Delete room for everyone" aria-label={`Delete room ${r.code}`} onClick={() => onDelete(r)}>
+                <Icon name="trash" />
+              </button>
+            ) : (
+              <button className="btn ghost small icon-only" title="Remove from this list (the room stays open)" aria-label={`Remove room ${r.code} from this list`} onClick={() => hide(r)}>
+                <Icon name="x" />
+              </button>
+            )}
           </li>
         ))}
       </ul>

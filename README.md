@@ -70,7 +70,8 @@ src/
     local.ts         in-browser transport (solo mode): runs the same Room engine in the tab
     invite.ts        invite key storage, magic links, invite API calls
     publicRooms.ts   public pool status/create calls, Turnstile widget
-    screens/         Home (+ My rooms), Solo, Lobby, Draft (pack opening), Deckbuilder
+    recentRooms.ts   rooms this browser hosted or joined, merged with the invite's for "Your rooms"
+    screens/         Home (+ Your rooms), Solo, Lobby, Draft (pack opening), Deckbuilder
     table/           3D scene, textures, drag & drop, HUD, dialogs
     debug/           debug console
 ```
@@ -86,10 +87,15 @@ src/
 - **Reconnects:** your seat is remembered in `localStorage` per room, so refreshing or closing the tab
   rejoins the same seat. From another device or browser, a started game offers the seats nobody is using
   ("I'm Alice"); picking one issues a new seat secret (trust-based, it's a game among friends).
+- **Your rooms** on Home lists the rooms to go back to, tagged **Hosted** or **Joined**: the invite's
+  rooms (from its ledger, so on any device) plus the last 8 rooms this browser hosted or joined, kept in
+  `localStorage` next to the seat secrets. The browser's entries are a snapshot from the last visit (no
+  server calls); public rooms drop off at their closing time, others after 30 days unseen or when a join
+  finds the room gone. Only an invite's own rooms can be deleted; × on the rest just hides them.
 - **Solo mode** swaps the websocket for `local.ts`, which runs `Room` in the tab: `setTimeout` stands in
   for alarms and nothing is persisted. Screens can't tell the difference.
 - **Invites own rooms.** Each invite code has a small Durable Object ledger: at most 10 new rooms per
-  rolling 24h and 25 saved rooms (delete one from **My rooms** to make space). Rooms push a short summary
+  rolling 24h and 25 saved rooms (delete one from **Your rooms** to make space). Rooms push a short summary
   (players, phase, cube) to it when that changes, so listing rooms wakes one object, not 25. Rooms idle
   for 90 days are deleted lazily the next time the ledger is used; there are no expiry timers.
 - **Public rooms close on their own** (when enabled): at most 3 exist at once, each lasts up to 3 hours

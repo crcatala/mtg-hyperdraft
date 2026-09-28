@@ -5,6 +5,7 @@ import { loadIdentity, loadName, saveIdentity } from "./identity";
 import { useStore } from "./store";
 import { showPing } from "./table/tableUi";
 import { rememberExpiry } from "./publicRooms";
+import { forgetRoom, rememberRoom, snapshotOf } from "./recentRooms";
 
 let socket: WebSocket | null = null;
 let retry = 0;
@@ -26,6 +27,9 @@ const CLOSE_MESSAGES: Record<number, string> = {
   [CLOSE.flood]: "You were disconnected for sending too many messages. Wait a minute, then reload to rejoin.",
   [CLOSE.offline]: "Online rooms are turned off right now.",
 };
+
+/** Closes that mean the room itself is gone: it comes off the "Your rooms" list. */
+const GONE: ReadonlySet<number> = new Set([CLOSE.notFound, CLOSE.deleted, CLOSE.expired]);
 
 export async function roomExists(code: string): Promise<boolean> {
   const res = await fetch(`/api/rooms/${encodeURIComponent(code)}/info`);
@@ -73,6 +77,8 @@ function open() {
   // A server error before "welcome" means the join was refused (room full, started, missing).
   let welcomed = false;
   let refusal: string | null = null;
+  // The room as last written to "Your rooms": each connection writes it once, then only on changes.
+  let noted: string | null = null;
   useStore.setState({ status: retry === 0 ? "connecting" : "reconnecting" });
 
   const stop = (update: Partial<ReturnType<typeof useStore.getState>>) => {
@@ -124,10 +130,17 @@ function open() {
         claim = null;
         saveIdentity(msg.code, { pid: msg.you, secret: msg.secret });
         break;
-      case "state":
+      case "state": {
         if (msg.view.expiresAt && !useStore.getState().view?.expiresAt) rememberExpiry(msg.view.code, msg.view.expiresAt);
         useStore.setState({ view: msg.view, clockOffset: msg.view.serverNow - Date.now() });
+        const snapshot = snapshotOf(msg.view);
+        const key = JSON.stringify(snapshot);
+        if (key !== noted) {
+          noted = key;
+          rememberRoom(msg.view.code, snapshot);
+        }
         break;
+      }
       case "cards":
         useStore.setState({ cards: msg.cards });
         break;
@@ -140,6 +153,7 @@ function open() {
         break;
       case "closed":
         // Final: don't wait for the close event (it can trail the message by seconds).
+        if (GONE.has(msg.code)) forgetRoom(code);
         stop({ status: "failed", fatal: msg.message || CLOSE_MESSAGES[msg.code] || "This room is no longer available.", fatalCode: msg.code });
         break;
       case "point":
@@ -164,6 +178,7 @@ function open() {
     clearInterval(heartbeat);
     // 4xxx closes are the server saying "don't come back" (refused, missing, deleted, offline).
     if (refusal || (event.code >= 4000 && event.code < 5000)) {
+      if (GONE.has(event.code)) forgetRoom(code);
       useStore.setState({ status: "failed", fatal: refusal ?? CLOSE_MESSAGES[event.code] ?? "Could not join this room.", fatalCode: event.code >= 4000 ? event.code : null });
       return;
     }

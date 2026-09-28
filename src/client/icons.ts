@@ -140,6 +140,8 @@ export const ICONS = {
   x: [stroke("M6 6l12 12"), stroke("M18 6L6 18")],
   plus: [stroke("M12 5v14"), stroke("M5 12h14")],
   minus: [stroke("M5 12h14")],
+  /** Delete for good (a plain × only takes something off a list). */
+  trash: [stroke("M4 6.5h16"), stroke("M9.5 6.5V4h5v2.5"), stroke("M6.2 6.5l.9 13.5h9.8l.9-13.5"), stroke("M10 10.5v6"), stroke("M14 10.5v6")],
   "chevron-down": [stroke("M6 9l6 6 6-6")],
   "chevron-right": [stroke("M9 6l6 6-6 6")],
   "chevron-left": [stroke("M15 6l-6 6 6 6")],
