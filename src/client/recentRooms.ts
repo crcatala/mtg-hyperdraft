@@ -7,12 +7,15 @@
 // room. Rooms that turn out to be gone are dropped when a join says so (see net.ts).
 
 import type { RoomRecord } from "../shared/invites";
-import type { RoomView } from "../shared/protocol";
+import { CLOSE, type RoomView } from "../shared/protocol";
 import type { Phase } from "../shared/types";
 import { aliasedKey } from "./identity";
 
 export const RECENT_LIMITS = {
-  /** Rooms remembered at once; the least recently seen fall off. */
+  /**
+   * Rooms remembered at once, hosted and joined counted apart (so hosting a run of invite rooms
+   * can't push out a friend's room); the least recently seen fall off.
+   */
   maxRooms: 8,
   /** Rooms not seen for this long are forgotten. */
   maxAgeMs: 30 * 24 * 60 * 60 * 1000,
@@ -51,6 +54,14 @@ export interface RoomEntry extends RoomSnapshot {
 }
 
 const EMPTY: RoomSnapshot = { phase: "lobby", players: [], bots: 0, cubeName: null, cardCount: 0, expiresAt: null };
+const PHASES: readonly Phase[] = ["lobby", "drafting", "deckbuilding", "playing"];
+
+/** Closes that mean the room itself is gone, so it comes off the list. Not refusals or outages. */
+const GONE: ReadonlySet<number> = new Set([CLOSE.notFound, CLOSE.deleted, CLOSE.expired]);
+
+export function isRoomGone(closeCode: number): boolean {
+  return GONE.has(closeCode);
+}
 
 export function snapshotOf(view: RoomView): RoomSnapshot {
   const humans = view.players.filter((p) => !p.isBot);
@@ -66,10 +77,11 @@ export function snapshotOf(view: RoomView): RoomSnapshot {
 
 /** Drops closed public rooms and rooms not seen for a long time; newest first, capped. */
 export function pruneRecent(list: RecentRoom[], now: number): RecentRoom[] {
+  const kept = { hosted: 0, joined: 0 };
   return list
     .filter((r) => (r.expiresAt === null || r.expiresAt > now) && now - r.seenAt < RECENT_LIMITS.maxAgeMs)
     .sort((a, b) => b.seenAt - a.seenAt)
-    .slice(0, RECENT_LIMITS.maxRooms);
+    .filter((r) => kept[r.hosted ? "hosted" : "joined"]++ < RECENT_LIMITS.maxRooms);
 }
 
 /** Adds a room or refreshes what's known about it, as just seen. A hosted room stays hosted. */
@@ -111,15 +123,27 @@ export function mergeRooms(ledger: RoomRecord[], recent: RecentRoom[]): RoomEntr
 
 const KEY = "hyperdraft:recent";
 
-function isRecentRoom(r: unknown): r is RecentRoom {
-  const o = r as RecentRoom | null;
-  return typeof o?.code === "string" && typeof o.seenAt === "number" && typeof o.phase === "string" && Array.isArray(o.players);
+/** A stored entry, with defaults for anything missing or malformed, or null if it's unusable. */
+function readEntry(r: unknown): RecentRoom | null {
+  const o = r as Partial<RecentRoom> | null;
+  if (typeof o?.code !== "string" || typeof o.seenAt !== "number") return null;
+  return {
+    code: o.code,
+    hosted: o.hosted === true,
+    seenAt: o.seenAt,
+    phase: PHASES.includes(o.phase!) ? o.phase! : EMPTY.phase,
+    players: Array.isArray(o.players) ? o.players.filter((p) => typeof p === "string") : [],
+    bots: typeof o.bots === "number" ? o.bots : 0,
+    cubeName: typeof o.cubeName === "string" ? o.cubeName : null,
+    cardCount: typeof o.cardCount === "number" ? o.cardCount : 0,
+    expiresAt: typeof o.expiresAt === "number" ? o.expiresAt : null,
+  };
 }
 
 export function loadRecent(now = Date.now()): RecentRoom[] {
   try {
     const raw = JSON.parse(localStorage.getItem(aliasedKey(KEY)) ?? "[]") as unknown;
-    return Array.isArray(raw) ? pruneRecent(raw.filter(isRecentRoom), now) : [];
+    return Array.isArray(raw) ? pruneRecent(raw.map(readEntry).filter((r) => r !== null), now) : [];
   } catch {
     return [];
   }

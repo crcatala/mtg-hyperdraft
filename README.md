@@ -88,7 +88,7 @@ src/
   rejoins the same seat. From another device or browser, a started game offers the seats nobody is using
   ("I'm Alice"); picking one issues a new seat secret (trust-based, it's a game among friends).
 - **Your rooms** on Home lists the rooms to go back to, tagged **Hosted** or **Joined**: the invite's
-  rooms (from its ledger, so on any device) plus the last 8 rooms this browser hosted or joined, kept in
+  rooms (from its ledger, so on any device) plus the last 8 rooms this browser joined (and 8 it hosted), kept in
   `localStorage` next to the seat secrets. The browser's entries are a snapshot from the last visit (no
   server calls); public rooms drop off at their closing time, others after 30 days unseen or when a join
   finds the room gone. Only an invite's own rooms can be deleted; × on the rest just hides them.
