@@ -85,6 +85,154 @@ describe("tabletop", () => {
     expect(table.players.a.zones.hand).toHaveLength(7);
   });
 
+  describe("looking at the top of the library (scry / surveil)", () => {
+    const lib = (table: ReturnType<typeof setup>["table"]) => table.players.a.zones.library;
+    const looking = (table: ReturnType<typeof setup>["table"]) => tableViewFor(table, "a").peek.a;
+
+    it("snapshots the top X cards instead of showing whatever is on top", () => {
+      const { table, env } = setup();
+      const top = lib(table).slice(0, 3);
+      applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+      expect(table.peek.a).toEqual({ n: 3, ids: top });
+      expect(table.log.at(-1)?.text).toMatch(/Alice looked at the top 3 card\(s\)/);
+    });
+
+    it("each card placed leaves the look, and the next library card never slides in", () => {
+      const { table, env } = setup();
+      const [c1, c2, c3, c4] = lib(table).slice(0, 4);
+      applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c1], to: "graveyard" }, env);
+      expect(table.peek.a.ids).toEqual([c2, c3]);
+      expect(tableViewFor(table, "a").cards[c4].cardId).toBeUndefined();
+      applyTableAction(table, "a", { a: "move", ids: [c3], to: "library", bottom: true }, env);
+      expect(table.peek.a.ids).toEqual([c2]);
+      expect(lib(table).at(-1)).toBe(c3);
+    });
+
+    it("putting a card back on top still takes it out of the look", () => {
+      const { table, env } = setup();
+      const [c1, c2, c3] = lib(table).slice(0, 3);
+      applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c3], to: "library" }, env);
+      expect(table.peek.a.ids).toEqual([c1, c2]);
+      expect(lib(table).slice(0, 3)).toEqual([c3, c1, c2]);
+      // No longer being looked at: hidden again like the rest of the library.
+      expect(tableViewFor(table, "a").cards[c3].cardId).toBeUndefined();
+    });
+
+    it("logs where each card went without naming library cards", () => {
+      const { table, env } = setup();
+      const [c1, c2] = lib(table).slice(0, 2);
+      applyTableAction(table, "a", { a: "peek", n: 2 }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c1], to: "library", bottom: true }, env);
+      expect(table.log.at(-1)?.text).toBe("Alice moved a card to the bottom of their library.");
+      applyTableAction(table, "a", { a: "move", ids: [c2], to: "library" }, env);
+      expect(table.log.at(-1)?.text).toBe("Alice moved a card to the top of their library.");
+    });
+
+    it("still doesn't log other same-zone moves", () => {
+      const { table, env } = setup();
+      const id = table.players.a.zones.hand[0];
+      const before = table.log.length;
+      applyTableAction(table, "a", { a: "move", ids: [id], to: "hand" }, env);
+      expect(table.log.length).toBe(before);
+    });
+
+    it("cards put on top one at a time stack: the last one placed ends up on top", () => {
+      const { table, env } = setup();
+      const [c1, c2, c3, c4] = lib(table).slice(0, 4);
+      applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c1], to: "library" }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c3], to: "library" }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c2], to: "library" }, env);
+      expect(lib(table).slice(0, 4)).toEqual([c2, c3, c1, c4]);
+    });
+
+    it("ends once every card has been placed", () => {
+      const { table, env } = setup();
+      const [c1, c2] = lib(table).slice(0, 2);
+      applyTableAction(table, "a", { a: "peek", n: 2 }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c1], to: "library", bottom: true }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c2], to: "hand" }, env);
+      expect(table.peek.a).toBeUndefined();
+      expect(looking(table)).toBeUndefined();
+    });
+
+    it("closing early leaves the unplaced cards on top in their order", () => {
+      const { table, env } = setup();
+      const [c1, c2, c3] = lib(table).slice(0, 3);
+      applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c2], to: "graveyard" }, env);
+      applyTableAction(table, "a", { a: "peek", n: 0 }, env);
+      expect(table.peek.a).toBeUndefined();
+      expect(lib(table).slice(0, 2)).toEqual([c1, c3]);
+      expect(tableViewFor(table, "a").cards[c1].cardId).toBeUndefined();
+    });
+
+    it("drawing or milling a looked-at card removes it from the look", () => {
+      const { table, env } = setup();
+      const [c1, c2, c3] = lib(table).slice(0, 3);
+      applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+      applyTableAction(table, "a", { a: "draw", n: 1 }, env);
+      applyTableAction(table, "a", { a: "mill", n: 1 }, env);
+      expect(table.peek.a.ids).toEqual([c3]);
+      expect(table.players.a.zones.hand).toContain(c1);
+      expect(table.players.a.zones.graveyard).toContain(c2);
+    });
+
+    it("shuffling or taking a mulligan ends the look", () => {
+      const { table, env } = setup();
+      applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+      applyTableAction(table, "a", { a: "shuffle" }, env);
+      expect(table.peek.a).toBeUndefined();
+      applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+      applyTableAction(table, "a", { a: "mulligan" }, env);
+      expect(table.peek.a).toBeUndefined();
+    });
+
+    it("clamps to the library size", () => {
+      const { table, env } = setup();
+      applyTableAction(table, "a", { a: "peek", n: 500 }, env);
+      expect(table.peek.a.ids).toEqual(lib(table));
+      expect(table.peek.a.search).toBeUndefined();
+    });
+
+    it("only the looking player sees the cards or the look itself", () => {
+      const { table, env } = setup();
+      const top = lib(table).slice(0, 2);
+      applyTableAction(table, "a", { a: "peek", n: 2 }, env);
+      const theirs = tableViewFor(table, "b");
+      expect(theirs.peek).toEqual({});
+      expect(top.every((id) => theirs.cards[id].cardId === undefined)).toBe(true);
+      expect(top.every((id) => tableViewFor(table, "a").cards[id].cardId)).toBe(true);
+    });
+
+    it("a search shows the whole library, live, and placing cards doesn't end it", () => {
+      const { table, env } = setup();
+      applyTableAction(table, "a", { a: "peek", n: 0, search: true }, env);
+      expect(table.peek.a).toMatchObject({ search: true, n: 33 });
+      expect(table.log.at(-1)?.text).toMatch(/Alice is searching their library/);
+      const [c1] = lib(table);
+      applyTableAction(table, "a", { a: "move", ids: [c1], to: "hand" }, env);
+      applyTableAction(table, "a", { a: "move", ids: [c1], to: "library", bottom: true }, env);
+      const view = tableViewFor(table, "a");
+      expect(view.peek.a?.search).toBe(true);
+      expect(lib(table).every((id) => view.cards[id].cardId)).toBe(true);
+    });
+
+    it("treats a look saved by an older version (a bare count) as no look", () => {
+      const { table, env } = setup();
+      (table.peek as Record<string, unknown>).a = 3;
+      const view = tableViewFor(table, "a");
+      expect(view.peek).toEqual({});
+      expect(view.cards[lib(table)[0]].cardId).toBeUndefined();
+      // Moving cards around doesn't trip over it, and a new look replaces it.
+      applyTableAction(table, "a", { a: "draw", n: 1 }, env);
+      applyTableAction(table, "a", { a: "peek", n: 2 }, env);
+      expect(table.peek.a.ids).toHaveLength(2);
+    });
+  });
+
   it("tokens vanish when they leave the battlefield", () => {
     const { table, env } = setup();
     applyTableAction(table, "a", { a: "token", token: { name: "Goblin", power: "1", toughness: "1", colors: ["R"] }, count: 2 }, env);

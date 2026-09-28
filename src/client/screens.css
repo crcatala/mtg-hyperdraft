@@ -1965,6 +1965,29 @@ body.dragging * {
   padding: 4px;
   min-height: 120px;
 }
+.zone-viewer p.zone-tip {
+  margin-top: -6px;
+}
+.zone-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.zone-pos {
+  font-size: 12px;
+}
+.zone-quick {
+  display: flex;
+  gap: 4px;
+}
+.zone-quick .btn.small {
+  padding: 4px 8px;
+}
+.zone-quick .icon {
+  width: 14px;
+  height: 14px;
+}
 .zone-card {
   cursor: pointer;
   transition: transform 0.15s;

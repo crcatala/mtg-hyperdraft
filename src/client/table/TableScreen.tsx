@@ -17,6 +17,7 @@ import { countNewEntries, logKeys } from "./logFeed";
 import { AnchoredPreview } from "../components/AnchoredPreview";
 import { Tooltip } from "../components/Tooltip";
 import { logSegments } from "../../shared/logText";
+import { activePeek } from "../../shared/table";
 import type { IconName } from "../icons";
 import type { CardData, Color, LogEntry, LogKind, LogMark, TableCard, TokenDef, ZoneName } from "../../shared/types";
 import { COLORS, ZONE_LABELS } from "../../shared/types";
@@ -844,15 +845,29 @@ function ZoneViewer() {
   const cards = useStore((s) => s.cards);
   const setPreview = useStore((s) => s.setPreview);
 
+  const libraryOpen = viewer?.zone === "library" && viewer.playerId === me;
+  const peek = libraryOpen && table && me ? activePeek(table, me) : undefined;
+  // "Look at top X" is done once every card has been placed: the server drops the look, so close.
+  // Only after the look has shown up, though: right after asking for it, the view hasn't caught up.
+  const sawPeek = useRef(false);
+  useEffect(() => {
+    if (!libraryOpen) sawPeek.current = false;
+    else if (peek) sawPeek.current = true;
+    else if (sawPeek.current) {
+      sawPeek.current = false;
+      setViewer(null);
+    }
+  }, [libraryOpen, peek, setViewer]);
+
   if (!viewer || !table) return null;
   const tp = table.players[viewer.playerId];
   if (!tp) return null;
   const mine = viewer.playerId === me;
+  const looking = viewer.zone === "library" && !!peek && !peek.search;
+  const searching = viewer.zone === "library" && !!peek?.search;
   let ids = tp.zones[viewer.zone];
-  const peek = viewer.zone === "library" ? table.peek[viewer.playerId] ?? 0 : 0;
-  if (viewer.zone === "library") ids = ids.slice(0, peek);
+  if (viewer.zone === "library") ids = searching ? ids : looking ? peek!.ids : [];
   const ownerName = players.find((p) => p.id === viewer.playerId)?.name ?? "Player";
-  const searching = viewer.zone === "library" && peek >= tp.zones.library.length;
 
   const close = (shuffle = false) => {
     if (viewer.zone === "library" && mine) {
@@ -882,44 +897,70 @@ function ZoneViewer() {
     });
   };
 
-  const title = viewer.zone === "library" ? (searching ? "Searching library" : `Top ${peek} of library`) : `${mine ? "Your" : `${ownerName}'s`} ${ZONE_LABELS[viewer.zone].toLowerCase()}`;
+  const title = searching
+    ? "Searching library"
+    : looking
+      ? `Top ${peek!.n} of your library`
+      : `${mine ? "Your" : `${ownerName}'s`} ${ZONE_LABELS[viewer.zone].toLowerCase()}`;
+  const count = looking ? `${ids.length} of ${peek!.n} left` : `${ids.length}`;
   const shown = viewer.zone === "graveyard" || viewer.zone === "exile" ? ids.slice().reverse() : ids;
+  const hint = looking
+    ? "Click a card for every option. Each card you place leaves this list; whatever is left stays on top of your library, in this order."
+    : `${mine || viewer.zone === "graveyard" || viewer.zone === "exile" ? "Right-click (or click) a card for options. " : ""}${viewer.zone === "graveyard" || viewer.zone === "exile" ? "Most recent first." : viewer.zone === "library" ? "Top of library first." : ""}`;
 
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && close()}>
       <div className="modal panel zone-viewer">
         <div className="row">
           <h2>{title}</h2>
-          <span className="muted">({ids.length})</span>
+          <span className="muted">({count})</span>
           <div className="spacer" />
           {viewer.zone === "library" && mine && (
             <button className="btn small" onClick={() => close(true)}>
               Shuffle & close
             </button>
           )}
-          <button className="btn small" onClick={() => close()}>
-            Close
+          <button className="btn small" onClick={() => close()} title={looking && ids.length > 0 ? "The cards left here stay on top of your library, in this order" : undefined}>
+            {looking ? (ids.length > 0 ? "Done — keep the rest on top" : "Done") : "Close"}
           </button>
         </div>
-        <p className="faint">{mine || viewer.zone === "graveyard" || viewer.zone === "exile" ? "Right-click (or click) a card for options. " : ""}{viewer.zone === "graveyard" || viewer.zone === "exile" ? "Most recent first." : viewer.zone === "library" ? "Top of library first." : ""}</p>
+        <p className="faint">{hint}</p>
+        {looking && ids.length > 1 && <p className="faint zone-tip">Putting cards on top one at a time? The last one you put there ends up on top.</p>}
         <div className="zone-grid scroll">
-          {shown.map((id) => {
+          {shown.map((id, i) => {
             const card = table.cards[id];
             if (!card) return null;
             const data = card.cardId ? cards[card.cardId] : undefined;
             return (
-              <div
-                key={id}
-                className="zone-card"
-                onClick={(e) => menuFor(card, e.clientX, e.clientY)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  menuFor(card, e.clientX, e.clientY);
-                }}
-                onPointerEnter={() => data && setPreview({ cardId: data.id })}
-                onPointerLeave={() => setPreview({})}
-              >
-                <CardView card={data} token={card.token} back={card.hidden} width={140} flippable />
+              <div key={id} className="zone-slot">
+                <div
+                  className="zone-card"
+                  onClick={(e) => menuFor(card, e.clientX, e.clientY)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    menuFor(card, e.clientX, e.clientY);
+                  }}
+                  onPointerEnter={() => data && setPreview({ cardId: data.id })}
+                  onPointerLeave={() => setPreview({})}
+                >
+                  <CardView card={data} token={card.token} back={card.hidden} width={140} flippable />
+                </div>
+                {looking && (
+                  <>
+                    <span className="zone-pos faint">{i === 0 ? "Top card" : `${ordinal(i + 1)} from top`}</span>
+                    <div className="zone-quick">
+                      <button className="btn small" onClick={() => moveTo([id], "library")} title="Put it on top of your library">
+                        Top
+                      </button>
+                      <button className="btn small" onClick={() => moveTo([id], "library", { bottom: true })} title="Put it on the bottom of your library (scry)">
+                        Bottom
+                      </button>
+                      <button className="btn small" onClick={() => moveTo([id], "graveyard")} title="Put it into your graveyard (surveil)">
+                        <Icon name="graveyard" title="Graveyard" />
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })}
@@ -928,6 +969,12 @@ function ZoneViewer() {
       </div>
     </div>
   );
+}
+
+function ordinal(n: number): string {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th";
+  return `${n}${suffix}`;
 }
 
 const TOKEN_PRESETS: TokenDef[] = [
