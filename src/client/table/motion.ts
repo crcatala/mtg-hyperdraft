@@ -84,6 +84,16 @@ export function reducedMotion() {
 
 let flightSeq = 1;
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
+/** Every other pending timeout (token pop-ins, sounds), cleared when leaving the table. */
+const pending = new Set<ReturnType<typeof setTimeout>>();
+
+function later(fn: () => void, ms: number) {
+  const t = setTimeout(() => {
+    pending.delete(t);
+    fn();
+  }, ms);
+  pending.add(t);
+}
 const MAX_HOPS = 40;
 
 /** Starts watching table updates. Returns the unsubscribe function. */
@@ -95,8 +105,9 @@ export function startTableMotion(): () => void {
   });
   return () => {
     unsubscribe();
-    for (const t of timers.values()) clearTimeout(t);
+    for (const t of [...timers.values(), ...pending]) clearTimeout(t);
     timers.clear();
+    pending.clear();
     useMotion.setState({ flights: [], arriving: {}, spawns: {}, tapDelay: {} });
   };
 }
@@ -187,12 +198,12 @@ function animateChange(prev: TableState, next: TableState, me: string) {
       setTimeout(() => finish(f.key), Math.max(0, f.start - performance.now()) + f.duration),
     );
   }
-  for (const [id, at] of Object.entries(spawns)) setTimeout(() => clearSpawn(id), Math.max(0, at - now) + 1500 * slow);
+  for (const [id, at] of Object.entries(spawns)) later(() => clearSpawn(id), Math.max(0, at - now) + 1500 * slow);
 
   // A few soft card sounds, not one per card of a big mill.
   const dealt = flights.filter((f) => !f.swing).slice(0, 4);
-  dealt.forEach((f) => setTimeout(() => sfx.deal(), Math.max(0, f.start - now)));
-  if (changes.shuffled.length) setTimeout(() => sfx.deal(), shuffleAt * slow);
+  dealt.forEach((f) => later(() => sfx.deal(), Math.max(0, f.start - now)));
+  if (changes.shuffled.length) later(() => sfx.deal(), shuffleAt * slow);
 }
 
 function stagger(index: number, count: number) {

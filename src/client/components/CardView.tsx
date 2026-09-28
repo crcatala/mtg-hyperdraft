@@ -62,11 +62,12 @@ export const CardView = memo(function CardView({
   const status = useImage(url);
   // Only fade in images that arrive after mount; cached ones appear instantly.
   const [fadeIn] = useState(() => imageStatus(url) !== "loaded");
-  const [fadedIn, setFadedIn] = useState(false);
+  // Which image has finished fading in (turning a double-faced card over loads another one).
+  const [fadedIn, setFadedIn] = useState<string>();
   // Once the image covers the card, drop the text version underneath: laying out and painting
   // hidden rules text for every card made re-sizing many cards at once (deckbuilder) slow.
   const imageShown = !!url && status === "loaded";
-  const showText = !imageShown || (fadeIn && !fadedIn);
+  const showText = !imageShown || (fadeIn && fadedIn !== url);
   const ref = useRef<HTMLDivElement>(null);
 
   // Turning over: swing the new face in edge-on (skipped on mount and for reduced motion).
@@ -142,7 +143,7 @@ export const CardView = memo(function CardView({
             crossOrigin="anonymous"
             alt={card?.name}
             draggable={false}
-            onAnimationEnd={() => setFadedIn(true)}
+            onAnimationEnd={() => setFadedIn(url)}
           />
         )}
         {shiny && <div className="holo" />}

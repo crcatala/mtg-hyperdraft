@@ -379,6 +379,7 @@ const FLIP_MS = 420;
 /** A new token popping onto the table. */
 const SPAWN_MS = 480;
 const easeOutBack = (t: number) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2;
+const NO_RAYCAST = () => {};
 
 function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableCard; elevation: number; shadowY: number; table: TableState; me: string }) {
   const data = useStore((s) => (card.cardId ? s.cards[card.cardId] : undefined));
@@ -572,6 +573,8 @@ function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableC
             <mesh
               rotation-x={FLAT}
               geometry={CARD_GEO}
+              // Hidden while it flies in: nothing to hover, drag or right-click yet.
+              raycast={arriving ? NO_RAYCAST : THREE.Mesh.prototype.raycast}
               onPointerOver={(e) => {
                 e.stopPropagation();
                 useTableUi.getState().setHovered(card.id);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyTableAction, createTable, tableViewFor, type TableAction, type TableEnv } from "../src/shared/table";
 import { mulberry32 } from "../src/shared/rng";
 import type { DeckState, TableState } from "../src/shared/types";
-import { diffTables } from "../src/client/table/tableDiff";
+import { diffTables, oneCardMoved } from "../src/client/table/tableDiff";
 import { basicIds, makeCube } from "./fixtures";
 
 function setup() {
@@ -36,6 +36,14 @@ describe("table diff", () => {
     other.seats = ["b", "a"];
     expect(diffTables(null, table).hops).toEqual([]);
     expect(diffTables(table, other).hops).toEqual([]);
+  });
+
+  it("treats a new game with the same seats as unrelated", () => {
+    const { table, env } = setup();
+    for (const id of table.players.a.zones.hand.slice(0, 3)) applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield" }, env);
+    const fresh = setup().table;
+    expect(fresh.nextZ).toBeLessThan(table.nextZ);
+    expect(diffTables(table, fresh)).toEqual({ hops: [], shuffled: [], mulligans: [], taps: [] });
   });
 
   it("sees a draw as library → hand", () => {
@@ -83,6 +91,20 @@ describe("table diff", () => {
     expect(out.every((h) => h.to.kind === "pile" && h.to.zone === "library")).toBe(true);
     expect(back.map((h) => h.id)).toEqual(newHand);
     expect(back.every((h) => h.from.kind === "pile" && h.to.kind === "hand")).toBe(true);
+  });
+
+  it("doesn't mistake putting a library card on the top or bottom (scry) for a shuffle", () => {
+    const { table, env } = setup();
+    const lib = table.players.a.zones.library;
+    const toBottom = step(table, env, "a", { a: "move", ids: [lib[0]], to: "library", bottom: true });
+    expect(toBottom.shuffled).toEqual([]);
+    expect(toBottom.hops).toEqual([]);
+    const fifth = table.players.a.zones.library[4];
+    expect(step(table, env, "a", { a: "move", ids: [fifth], to: "library" }).shuffled).toEqual([]);
+    expect(oneCardMoved(["a", "b", "c", "d"], ["b", "c", "d", "a"])).toBe(true);
+    expect(oneCardMoved(["a", "b", "c", "d"], ["a", "d", "b", "c"])).toBe(true);
+    expect(oneCardMoved(["a", "b", "c", "d"], ["b", "a", "d", "c"])).toBe(false);
+    expect(oneCardMoved(["a", "b", "c"], ["a", "b", "c"])).toBe(false);
   });
 
   it("detects a shuffle, and tokens appearing and disappearing", () => {

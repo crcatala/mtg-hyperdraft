@@ -92,9 +92,25 @@ export function diffTables(prev: TableState | null | undefined, next: TableState
     const a = prev.players[pid]?.zones.library ?? [];
     const b = next.players[pid]?.zones.library ?? [];
     if (out.mulligans.includes(pid)) out.shuffled.push(pid);
-    else if (a.length === b.length && a.length > 1 && a.join() !== b.join() && [...a].sort().join() === [...b].sort().join()) out.shuffled.push(pid);
+    else if (a.length === b.length && a.length > 1 && a.join() !== b.join() && !oneCardMoved(a, b) && [...a].sort().join() === [...b].sort().join()) out.shuffled.push(pid);
   }
 
   if (tapped.length > 1) out.taps = tapped.sort((p, q) => p.x - q.x || p.y - q.y).map((c) => c.id);
   return out;
+}
+
+/**
+ * Whether `b` is `a` with a single card taken out and put back elsewhere: a card put on the top or
+ * bottom of its own library (scry, the zone viewer) reorders it without being a shuffle.
+ */
+export function oneCardMoved(a: string[], b: string[]): boolean {
+  let lo = 0;
+  let hi = a.length - 1;
+  while (lo <= hi && a[lo] === b[lo]) lo++;
+  while (hi >= lo && a[hi] === b[hi]) hi--;
+  if (lo >= hi) return false;
+  const span = a.slice(lo, hi + 1);
+  const moved = b.slice(lo, hi + 1).join();
+  // Everything in between shifted by one: the first card went to the end, or the last to the front.
+  return moved === [...span.slice(1), span[0]].join() || moved === [span[span.length - 1], ...span.slice(0, -1)].join();
 }
