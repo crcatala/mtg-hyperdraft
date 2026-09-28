@@ -80,6 +80,28 @@ export const ICONS = {
   pin: [stroke("M12 21.5s7-6.2 7-11.5a7 7 0 0 0-14 0c0 5.3 7 11.5 7 11.5z"), stroke(circle(12, 10, 2.5))],
   /** End turn: skip forward. */
   skip: [soft("M5 5.5v13l9-6.5z"), stroke("M18.5 5.5v13")],
+  /** Draw: a card with an arrow pulling it toward you. */
+  draw: [stroke(roundRect(3.5, 2.5, 11, 15, 2)), stroke("M19 7v13.5"), stroke("M16 17.5l3 3 3-3")],
+  /** Untap all: two chasing arrows. */
+  untap: [stroke("M19.5 10.5A7.8 7.8 0 0 0 5.6 7.4"), stroke("M4.5 3.5v4.4h4.4"), stroke("M4.5 13.5a7.8 7.8 0 0 0 13.9 3.1"), stroke("M19.5 20.5v-4.4h-4.4")],
+  /** Tap: a card turned sideways, with the turning arrow. */
+  tap: [stroke(roundRect(2.5, 9.5, 14, 10, 1.8)), stroke("M12 3.5a8 8 0 0 1 8 7.5"), stroke("M17.6 9.2l2.4 2.3 2.2-2.5")],
+  shuffle: [
+    stroke("M3 7h3.2c5.3 0 6.3 10 11.6 10H21"),
+    stroke("M3 17h3.2c1.9 0 3.1-1.3 4.1-3"),
+    stroke("M13.7 10c1-1.7 2.2-3 4.1-3H21"),
+    stroke("M18.5 4.5L21 7l-2.5 2.5"),
+    stroke("M18.5 14.5L21 17l-2.5 2.5"),
+  ],
+  heart: [stroke("M12 20s-8-4.9-8-10.5A4.5 4.5 0 0 1 12 6.9a4.5 4.5 0 0 1 8 2.6C20 15.1 12 20 12 20z")],
+  /** Counter: a round die-like token with a plus. */
+  counter: [stroke(circle(12, 12, 8.5)), stroke("M12 8v8"), stroke("M8 12h8")],
+
+  // --- camera ---
+  eye: [stroke("M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"), stroke(circle(12, 12, 3)), solid(circle(12, 12, 1.2))],
+  /** Overview: the round table from above, one seat on each side. */
+  overview: [stroke(circle(12, 12, 5.5)), stroke("M9.5 2.8h5"), stroke("M9.5 21.2h5"), stroke("M2.8 9.5v5"), stroke("M21.2 9.5v5")],
+  help: [stroke(circle(12, 12, 9.5)), stroke("M9.2 9.4a2.9 2.9 0 1 1 4 2.7c-.8.4-1.2 1-1.2 1.8v.6"), solid(circle(12, 17.4, 1.2))],
 
   // --- players ---
   bot: [

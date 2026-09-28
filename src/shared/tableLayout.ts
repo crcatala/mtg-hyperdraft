@@ -86,3 +86,9 @@ export function defaultBattlefieldSpot(seat: number, seatCount: number, n: numbe
 export function tableRadius(seatCount: number): number {
   return seatRadius(seatCount) + MAT_D / 2 + 3;
 }
+
+/** Seats in the order the camera switcher lists them: yours first, then around the table. */
+export function seatsFromMe(seats: string[], me: string): string[] {
+  const at = seats.indexOf(me);
+  return at < 0 ? seats.slice() : [...seats.slice(at), ...seats.slice(0, at)];
+}

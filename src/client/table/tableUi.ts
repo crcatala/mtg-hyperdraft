@@ -7,6 +7,7 @@ import { useStore, type MenuItem } from "../store";
 import { hasBackFace, nextFace } from "../cardStyle";
 import { sfx } from "../sfx";
 import { pilePosition } from "../../shared/tableLayout";
+export { seatsFromMe } from "../../shared/tableLayout";
 import { guardForAll, type GuardContext } from "./guards";
 
 export interface LocalDrag {
@@ -46,6 +47,13 @@ export interface AskState {
   onCancel?: () => void;
 }
 
+export interface LogZoom {
+  /** Which card link it was opened from (to fly back to it). */
+  key: string;
+  cardId: string;
+  face: number;
+}
+
 export interface ZoneViewerState {
   playerId: string;
   zone: Exclude<ZoneName, "battlefield">;
@@ -58,7 +66,12 @@ interface TableUi {
   viewer: ZoneViewerState | null;
   tokenDialog: boolean;
   help: boolean;
+  /** Camera looking down on the whole table from above. */
   overview: boolean;
+  /** Whose seat the camera sits behind (null: your own). */
+  pov: string | null;
+  /** A card named in the game log, open in the zoom carousel. */
+  logZoom: LogZoom | null;
   logOpen: boolean;
   ask: AskState | null;
   /** Hand card under the pointer (keyboard shortcuts act on it). */
@@ -87,6 +100,8 @@ export const useTableUi = create<TableUi>((set) => ({
   tokenDialog: false,
   help: false,
   overview: false,
+  pov: null,
+  logZoom: null,
   logOpen: true,
   ask: null,
   handHover: null,
@@ -137,6 +152,11 @@ export function table(): TableState | null {
 
 export function me(): string {
   return useStore.getState().view?.you ?? "";
+}
+
+/** Moves the camera behind a player's seat (yours when null), leaving the overhead view. */
+export function viewFrom(playerId: string | null) {
+  useTableUi.getState().set({ pov: playerId === me() ? null : playerId, overview: false });
 }
 
 /** The cards a keyboard shortcut applies to: hovered card, else the selection. */
@@ -283,7 +303,8 @@ export function battlefieldMenu(card: TableCard, x: number, y: number) {
     { label: "Top of library", onSelect: () => moveTo(ids, "library") },
     { label: "Bottom of library", onSelect: () => moveTo(ids, "library", { bottom: true }) },
     { separator: true, label: "" },
-    ...(!many ? [{ label: "Create token copy", onSelect: () => act({ a: "clone", id: card.id }) }] : []),
+    // A face-down card can't be copied (the copy would reveal it).
+    ...(!many && !card.faceDown ? [{ label: "Create token copy", onSelect: () => act({ a: "clone", id: card.id }) }] : []),
     { label: "Ping this card", icon: "pin", hint: "Tab", onSelect: () => pingAt(card.x, card.y) },
   ];
   useStore.getState().openMenu({ x, y, title: many ? `${ids.length} cards` : cardLabel(card), items });

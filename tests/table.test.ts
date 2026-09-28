@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyTableAction, createTable, tableViewFor, type TableEnv } from "../src/shared/table";
+import { applyTableAction, createTable, TableError, tableViewFor, type TableEnv } from "../src/shared/table";
+import { seatsFromMe } from "../src/shared/tableLayout";
 import { mulberry32 } from "../src/shared/rng";
 import type { DeckState } from "../src/shared/types";
 import { basicIds, makeCube } from "./fixtures";
@@ -117,6 +118,93 @@ describe("tabletop", () => {
     expect(table.log.at(-1)?.text).toBe("Bob's poison: -2 → 0 (by Alice).");
   });
 
+  it("marks players, cards, actions and results in log lines", () => {
+    const { table, env } = setup();
+    const spans = (e = table.log.at(-1)!) => (e.marks ?? []).map(([s, end, kind, ...rest]) => [e.text.slice(s, end), kind, ...rest]);
+    const id = table.players.b.zones.hand[0];
+    const cardId = table.cards[id].cardId!;
+    const name = env.cards[cardId].name;
+    applyTableAction(table, "b", { a: "move", ids: [id], to: "battlefield", x: 0, y: 0 }, env);
+    applyTableAction(table, "a", { a: "tap", ids: [id] }, env);
+    expect(table.log.at(-1)?.kind).toBe("tap");
+    expect(spans()).toEqual([
+      ["Alice", "p", "a"],
+      ["tapped", "v"],
+      ["Bob", "p", "b"],
+      [name, "c", cardId],
+    ]);
+    applyTableAction(table, "a", { a: "life", playerId: "b", delta: -3 }, env);
+    expect(table.log.at(-1)?.kind).toBe("life");
+    expect(spans()).toEqual([
+      ["Bob", "p", "b"],
+      ["life", "v"],
+      ["-3", "n", "bad"],
+      ["17", "n"],
+      ["Alice", "p", "a"],
+    ]);
+    applyTableAction(table, "a", { a: "poison", playerId: "b", delta: 1 }, env);
+    expect(spans()[2]).toEqual(["+1", "n", "bad"]);
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "graveyard" }, env);
+    expect(table.log.at(-1)?.kind).toBe("graveyard");
+    expect(spans()).toContainEqual(["graveyard", "z"]);
+    applyTableAction(table, "a", { a: "nextTurn" }, env);
+    expect(table.log.at(-1)?.kind).toBe("turn");
+    // Tokens made up on the spot have no card to link to, but are still marked as cards.
+    applyTableAction(table, "a", { a: "token", token: { name: "Goblin", colors: ["R"] }, count: 2 }, env);
+    expect(spans()).toContainEqual(["Goblin", "c"]);
+    // The whole log survives the trip to clients unchanged (no gaps in the tuples turn into null).
+    expect(JSON.parse(JSON.stringify(table.log))).toEqual(table.log);
+  });
+
+  it("never marks a hidden card with its identity", () => {
+    const { table, env } = setup();
+    const [a, b] = table.players.a.zones.hand;
+    applyTableAction(table, "a", { a: "move", ids: [a], to: "battlefield", faceDown: true }, env);
+    applyTableAction(table, "a", { a: "move", ids: [b], to: "library" }, env);
+    applyTableAction(table, "a", { a: "move", ids: [a], to: "hand" }, env);
+    for (const e of table.log.slice(-3)) {
+      expect(e.marks?.some((m) => m[2] === "c")).toBe(false);
+      expect(JSON.stringify(e)).not.toContain(table.cards[a].cardId!);
+      expect(JSON.stringify(e)).not.toContain(table.cards[b].cardId!);
+    }
+  });
+
+  it("marks the face a double-faced card showed", () => {
+    const { table, env } = setup();
+    const id = table.players.a.zones.hand[0];
+    const data = env.cards[table.cards[id].cardId!];
+    env.cards[data.id] = {
+      ...data,
+      faces: [
+        { name: "Day Side", manaCost: "", typeLine: "Creature", oracleText: "", colors: ["G"], images: { normal: "day.jpg" } },
+        { name: "Night Side", manaCost: "", typeLine: "Creature", oracleText: "", colors: ["G"], images: { normal: "night.jpg" } },
+      ],
+    };
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield", face: 1 }, env);
+    const e = table.log.at(-1)!;
+    const mark = e.marks!.find((m) => m[2] === "c")!;
+    expect(e.text.slice(mark[0], mark[1])).toBe("Night Side");
+    expect(mark.slice(3)).toEqual([data.id, 1]);
+    // A token copy of the back face links to the back face too, whenever the log names it.
+    applyTableAction(table, "a", { a: "clone", id }, env);
+    const copy = Object.values(table.cards).find((c) => c.token && c.cardId === data.id)!;
+    applyTableAction(table, "a", { a: "tap", ids: [copy.id] }, env);
+    const tapped = table.log.at(-1)!;
+    const tokenMark = tapped.marks!.find((m) => m[2] === "c")!;
+    expect(tapped.text.slice(tokenMark[0], tokenMark[1])).toBe("Night Side");
+    expect(tokenMark.slice(3)).toEqual([data.id, 1]);
+  });
+
+  it("refuses to copy a face-down card (the copy would reveal it)", () => {
+    const { table, env } = setup();
+    const id = table.players.b.zones.hand[0];
+    applyTableAction(table, "b", { a: "move", ids: [id], to: "battlefield", faceDown: true }, env);
+    const before = Object.keys(table.cards).length;
+    expect(() => applyTableAction(table, "a", { a: "clone", id }, env)).toThrow(TableError);
+    expect(() => applyTableAction(table, "b", { a: "clone", id }, env)).toThrow(TableError);
+    expect(Object.keys(table.cards)).toHaveLength(before);
+  });
+
   it("names the owner when someone acts on another player's card", () => {
     const { table, env } = setup();
     const id = table.players.b.zones.hand[0];
@@ -167,5 +255,20 @@ describe("tabletop", () => {
     // Leaving the battlefield turns it back to the front.
     applyTableAction(table, "a", { a: "move", ids: [back], to: "hand" }, env);
     expect(table.cards[back].face).toBe(0);
+  });
+});
+
+describe("seat order from a player's point of view", () => {
+  it("starts at your seat and wraps around the table", () => {
+    expect(seatsFromMe(["a", "b", "c", "d"], "a")).toEqual(["a", "b", "c", "d"]);
+    expect(seatsFromMe(["a", "b", "c", "d"], "c")).toEqual(["c", "d", "a", "b"]);
+    expect(seatsFromMe(["a", "b", "c", "d"], "d")).toEqual(["d", "a", "b", "c"]);
+  });
+
+  it("keeps table order for someone who isn't seated", () => {
+    const seats = ["a", "b"];
+    const out = seatsFromMe(seats, "zz");
+    expect(out).toEqual(["a", "b"]);
+    expect(out).not.toBe(seats);
   });
 });

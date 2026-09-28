@@ -94,8 +94,9 @@ hand), click a hand card to select it and again to zoom in (← → browses your
 drag or a menu pick), double-click to tap / draw, right-click for menus (counters, face down, scry, search, mill,
 mulligan…), <kbd>T</kbd>/<kbd>Space</kbd> tap, <kbd>F</kbd> face down, <kbd>G</kbd>/<kbd>X</kbd>/<kbd>H</kbd>
 graveyard/exile/hand, <kbd>D</kbd> draw, <kbd>U</kbd> untap all, <kbd>N</kbd> end turn, arrows/<kbd>Q</kbd>
-<kbd>E</kbd>/wheel for the camera, <kbd>V</kbd> overhead view, <kbd>Tab</kbd> ping the spot under the pointer
-(everyone sees and hears it, like Tabletop Simulator).
+<kbd>E</kbd>/wheel for the camera, <kbd>1</kbd>–<kbd>4</kbd> view from any player's seat (1 is yours),
+<kbd>V</kbd> overhead view, <kbd>Tab</kbd> ping the spot under the pointer (everyone sees and hears it, like
+Tabletop Simulator). Card names in the game log are links: hover for a preview, click to zoom in.
 
 **Double-faced cards** show both faces in hover previews and have a ⟲ button to turn them over everywhere
 (draft, picks, deckbuilder, zoom view — <kbd>F</kbd> there — and your hand, where <kbd>R</kbd> works too). A card

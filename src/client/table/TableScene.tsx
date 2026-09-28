@@ -42,6 +42,9 @@ function Scene() {
   const me = useStore((s) => s.view?.you)!;
   const n = table.seats.length;
   const mySeat = Math.max(0, table.seats.indexOf(me));
+  // The camera can sit behind anyone's seat; labels turn to face it.
+  const pov = useTableUi((s) => s.pov);
+  const povSeat = pov && table.seats.includes(pov) ? table.seats.indexOf(pov) : mySeat;
 
   const battlefield = useMemo(() => {
     const list = Object.values(table.cards).filter((c) => c.zone === "battlefield");
@@ -59,10 +62,10 @@ function Scene() {
       <directionalLight position={[12, 40, 18]} intensity={1.4} />
       <hemisphereLight args={["#b9a6ff", "#1a1020", 0.5]} />
       <ScreenApi />
-      <CameraRig seat={mySeat} seatCount={n} />
+      <CameraRig seat={povSeat} seatCount={n} />
       <TableSurface seatCount={n} />
       {table.seats.map((pid, seat) => (
-        <SeatArea key={pid} table={table} playerId={pid} seat={seat} seatCount={n} isMe={pid === me} viewerAngle={seatAngle(mySeat, n)} />
+        <SeatArea key={pid} table={table} playerId={pid} seat={seat} seatCount={n} isMe={pid === me} viewerAngle={seatAngle(povSeat, n)} />
       ))}
       {battlefield.map((card, i) => (
         <BattlefieldCard key={card.id} card={card} elevation={0.03 + i * 0.004} shadowY={shadowY} table={table} me={me} />

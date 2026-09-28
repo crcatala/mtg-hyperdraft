@@ -7,13 +7,17 @@ import { PreviewPane } from "../components/Preview";
 import { NameEditor } from "../components/TopBar";
 import { Icon } from "../components/Icon";
 import { TableCanvas, seatHue } from "./TableScene";
-import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, targetIds, toggleTap, turnHandCard, useTableUi } from "./tableUi";
+import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom } from "./tableUi";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { beginDrag, tableApi } from "./drag";
 import { handLayout } from "./handLayout";
 import { relativeTime, RELATIVE_TIME_REFRESH_MS } from "../relativeTime";
 import { countNewEntries, logKeys } from "./logFeed";
-import type { Color, LogEntry, TableCard, TokenDef, ZoneName } from "../../shared/types";
+import { AnchoredPreview } from "../components/AnchoredPreview";
+import { Tooltip } from "../components/Tooltip";
+import { logSegments } from "../../shared/logText";
+import type { IconName } from "../icons";
+import type { CardData, Color, LogEntry, LogKind, LogMark, TableCard, TokenDef, ZoneName } from "../../shared/types";
 import { COLORS, ZONE_LABELS } from "../../shared/types";
 
 export function TableScreen() {
@@ -23,8 +27,9 @@ export function TableScreen() {
       <TableCanvas />
       <PlayersHud />
       <TurnBar />
-      <ActionBar />
+      <TableDock />
       <LogPanel />
+      <LogZoom />
       <Hand />
       <HandDragGhost />
       <HandZoom />
@@ -56,8 +61,8 @@ function useTableShortcuts() {
       if (el.closest("input, textarea, select")) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const ui = useTableUi.getState();
-      // Dialogs and the zoom carousel own the keyboard while open.
-      if (ui.ask || ui.handZoom) return;
+      // Dialogs and the zoom carousels own the keyboard while open.
+      if (ui.ask || ui.handZoom || ui.logZoom) return;
       const k = e.key.toLowerCase();
       const ids = targetIds();
       switch (k) {
@@ -108,6 +113,17 @@ function useTableShortcuts() {
         case "v":
           ui.set({ overview: !ui.overview });
           break;
+        case "1":
+        case "2":
+        case "3":
+        case "4": {
+          // View from a seat, numbered as the camera switcher lists them (you're 1).
+          const view = useStore.getState().view;
+          const pid = view?.table && seatsFromMe(view.table.seats, view.you)[Number(k) - 1];
+          if (!pid) return;
+          viewFrom(pid);
+          break;
+        }
         case "?":
           ui.set({ help: !ui.help });
           break;
@@ -252,51 +268,131 @@ function TurnBar() {
   );
 }
 
+// --- dock: table actions + camera ---------------------------------------------------------
+
+function TableDock() {
+  return (
+    <div className="table-dock">
+      <ActionBar />
+      <CameraSwitcher />
+    </div>
+  );
+}
+
+/** A toolbar tile: icon over a short label, with the full description and shortcut in a tooltip. */
+function DockButton({ icon, label, tip, keys, on, onClick }: { icon: IconName; label: string; tip: string; keys?: string; on?: boolean; onClick: () => void }) {
+  return (
+    <Tooltip
+      placement="bottom"
+      content={
+        <span className="dock-tip">
+          {tip} {keys && <kbd>{keys}</kbd>}
+        </span>
+      }
+    >
+      <button className={`dock-btn${on ? " on" : ""}`} onClick={onClick} aria-label={tip} aria-pressed={on}>
+        <Icon name={icon} />
+        <span className="dock-label">{label}</span>
+      </button>
+    </Tooltip>
+  );
+}
+
 function ActionBar() {
-  const overview = useTableUi((s) => s.overview);
   const set = useTableUi((s) => s.set);
   const [dice, setDice] = useState(false);
+  const diceRef = useRef<HTMLDivElement>(null);
+  // Clicking anywhere else closes the dice menu.
+  useEffect(() => {
+    if (!dice) return;
+    const onDown = (e: PointerEvent) => {
+      if (!diceRef.current?.contains(e.target as Node)) setDice(false);
+    };
+    // Esc closes it too (capture phase, so the table doesn't also clear its selection).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setDice(false);
+    };
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+    };
+  }, [dice]);
   return (
-    <div className="action-bar panel">
-      <button className="btn small" onClick={() => act({ a: "draw", n: 1 })} title="Draw a card (D)">
-        Draw
-      </button>
-      <button className="btn small" onClick={() => act({ a: "untapAll" })} title="Untap all your permanents (U)">
-        Untap all
-      </button>
-      <button className="btn small" onClick={() => act({ a: "shuffle" })} title="Shuffle your library">
-        Shuffle
-      </button>
-      <button className="btn small" onClick={() => set({ tokenDialog: true })} title="Create a token">
-        <Icon name="plus" /> Token
-      </button>
-      <div className="dice-wrap">
-        <button className="btn small" onClick={() => setDice((d) => !d)}>
-          <Icon name="dice" /> Dice
-        </button>
+    <div className="dock-actions panel" role="toolbar" aria-label="Table actions">
+      <DockButton icon="draw" label="Draw" tip="Draw a card" keys="D" onClick={() => act({ a: "draw", n: 1 })} />
+      <DockButton icon="untap" label="Untap" tip="Untap all your permanents" keys="U" onClick={() => act({ a: "untapAll" })} />
+      <DockButton icon="shuffle" label="Shuffle" tip="Shuffle your library" onClick={() => act({ a: "shuffle" })} />
+      <DockButton icon="sparkle" label="Token" tip="Create a token" onClick={() => set({ tokenDialog: true })} />
+      <div className="dice-wrap" ref={diceRef}>
+        <DockButton icon="dice" label="Roll" tip="Flip a coin or roll a die" on={dice} onClick={() => setDice((d) => !d)} />
         {dice && (
           <div className="dice-menu panel">
             {[2, 6, 20].map((s) => (
               <button
                 key={s}
-                className="btn small"
+                className="dice-opt"
                 onClick={() => {
                   act({ a: "roll", sides: s });
                   setDice(false);
                 }}
               >
-                {s === 2 ? "Coin" : `d${s}`}
+                <b>{s === 2 ? "Coin" : `d${s}`}</b>
+                <span className="faint">{s === 2 ? "heads / tails" : `1–${s}`}</span>
               </button>
             ))}
           </div>
         )}
       </div>
-      <button className={`btn small${overview ? " on" : ""}`} onClick={() => set({ overview: !overview })} title="Toggle overhead view (V)">
-        {overview ? "My view" : "Overview"}
-      </button>
-      <button className="btn small ghost" onClick={() => set({ help: true })} title="Controls (?)">
-        ?
-      </button>
+      <span className="dock-sep" aria-hidden />
+      <DockButton icon="help" label="Help" tip="Table controls" keys="?" onClick={() => set({ help: true })} />
+    </div>
+  );
+}
+
+/** Where the camera sits: behind any player's seat, or high above the whole table. */
+function CameraSwitcher() {
+  const table = useStore((s) => s.view!.table!);
+  const players = useStore((s) => s.view!.players);
+  const me = useStore((s) => s.view!.you);
+  const overview = useTableUi((s) => s.overview);
+  const pov = useTableUi((s) => s.pov);
+  const set = useTableUi((s) => s.set);
+  const order = seatsFromMe(table.seats, me);
+  const current = pov && table.seats.includes(pov) ? pov : me;
+  return (
+    <div className="camera-switch panel" role="group" aria-label="Camera">
+      <span className="camera-label">
+        <Icon name="eye" /> View
+      </span>
+      {order.map((pid, i) => {
+        const mine = pid === me;
+        const name = players.find((p) => p.id === pid)?.name ?? "Player";
+        const active = !overview && current === pid;
+        return (
+          <Tooltip key={pid} placement="bottom" content={<span className="dock-tip">{mine ? "Your seat" : `${name}'s seat`} {<kbd>{i + 1}</kbd>}</span>}>
+            <button
+              aria-pressed={active}
+              aria-label={mine ? "View from your seat" : `View from ${name}'s seat`}
+              className={`camera-opt${active ? " active" : ""}`}
+              style={{ "--hue": seatHue(table.seats.indexOf(pid)) } as React.CSSProperties}
+              onClick={() => viewFrom(pid)}
+            >
+              <span className="seat-dot" />
+              <span className="camera-name">{mine ? "You" : name}</span>
+            </button>
+          </Tooltip>
+        );
+      })}
+      <Tooltip placement="bottom" content={<span className="dock-tip">Look down on the whole table <kbd>V</kbd></span>}>
+        <button aria-pressed={overview} aria-label="Overhead view of the whole table" className={`camera-opt overview${overview ? " active" : ""}`} onClick={() => set({ overview: true })}>
+          <Icon name="overview" />
+          <span className="camera-name">Overview</span>
+        </button>
+      </Tooltip>
     </div>
   );
 }
@@ -320,6 +416,9 @@ function useServerNow(ms: number, active: boolean) {
  */
 function LogPanel() {
   const log = useStore((s) => s.view!.table!.log);
+  const seats = useStore((s) => s.view!.table!.seats);
+  const cards = useStore((s) => s.cards);
+  const [hover, setHover] = useState<LogHover | null>(null);
   const open = useTableUi((s) => s.logOpen);
   const set = useTableUi((s) => s.set);
   const ref = useRef<HTMLDivElement>(null);
@@ -339,12 +438,18 @@ function LogPanel() {
   const newest = useRef<LogEntry | null>(null);
   const [unseen, setUnseen] = useState(0);
 
-  // Reopening the panel starts at the latest entry.
+  // Reopening the panel starts at the latest entry (and with no preview left over from before).
   useEffect(() => {
     stick.current = true;
     gliding.current = false;
     setUnseen(0);
+    setHover(null);
   }, [open]);
+
+  // A hovered line trimmed off the top of the log never gets its pointerleave: drop its preview.
+  useEffect(() => {
+    if (hover && !ref.current?.querySelector(`[data-log-card="${CSS.escape(hover.key)}"]`)) setHover(null);
+  });
 
   // Count entries that arrive while the reader is scrolled up.
   useLayoutEffect(() => {
@@ -370,6 +475,8 @@ function LogPanel() {
   const onScroll = () => {
     const el = ref.current;
     if (!el) return;
+    // The preview would stay behind while its link scrolls away.
+    setHover(null);
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 6;
     if (atBottom) {
       stick.current = true;
@@ -411,15 +518,11 @@ function LogPanel() {
           onPointerDown={() => (gliding.current = false)}
         >
           {log.map((l, i) => (
-            <div key={keys[i]} data-key={keys[i]} className="log-line">
-              <span className="log-text">{l.text}</span>
-              <time className="log-time" dateTime={new Date(l.at).toISOString()} title={new Date(l.at).toLocaleString()}>
-                {relativeTime(now - l.at)}
-              </time>
-            </div>
+            <LogLine key={keys[i]} entry={l} lineKey={keys[i]} seats={seats} cards={cards} now={now} onHoverCard={setHover} />
           ))}
         </div>
       )}
+      {open && hover && <AnchoredPreview card={hover.card} face={hover.face} anchor={hover.rect} width={230} prefer="right" />}
       {open && unseen > 0 && (
         <button className="log-new" onClick={toLatest}>
           <Icon name="arrow-down" /> {unseen} new event{unseen === 1 ? "" : "s"}
@@ -427,6 +530,159 @@ function LogPanel() {
       )}
     </div>
   );
+}
+
+const LOG_ICONS: Record<LogKind, IconName> = {
+  start: "sparkles",
+  battlefield: "play",
+  hand: "hand",
+  graveyard: "graveyard",
+  exile: "exile",
+  library: "library",
+  sideboard: "copy",
+  tap: "tap",
+  untap: "untap",
+  flip: "flip",
+  transform: "flip",
+  draw: "draw",
+  shuffle: "shuffle",
+  mill: "graveyard",
+  peek: "search",
+  life: "heart",
+  poison: "skull",
+  counter: "counter",
+  token: "sparkle",
+  mulligan: "hand",
+  turn: "skip",
+  roll: "dice",
+  reveal: "eye",
+};
+
+/** A card link under the pointer, previewed beside the log. */
+interface LogHover {
+  /** The link's data-log-card key. */
+  key: string;
+  card: CardData;
+  face: number;
+  rect: DOMRect;
+}
+
+/** Zone names as the log spells them, for colouring ("the battlefield" → battlefield). */
+const zoneClass = (text: string) => text.replace(/^the /, "").toLowerCase();
+
+/**
+ * One log line: an icon for what happened, then the sentence with players in their seat colour,
+ * the action in bold and card names as links (hover to preview, click to zoom in). Turn changes
+ * read as dividers.
+ */
+function LogLine({
+  entry,
+  lineKey,
+  seats,
+  cards,
+  now,
+  onHoverCard,
+}: {
+  entry: LogEntry;
+  lineKey: string;
+  seats: string[];
+  cards: Record<string, CardData>;
+  now: number;
+  onHoverCard: (h: LogHover | null) => void;
+}) {
+  const kind = entry.kind;
+  const divider = kind === "turn";
+  const actorSeat = seats.indexOf(entry.playerId);
+  const render = (text: string, mark: LogMark | undefined, i: number) => {
+    if (!mark) return text;
+    switch (mark[2]) {
+      case "p": {
+        const seat = seats.indexOf(mark[3]);
+        return (
+          <span key={i} className={`log-player${seat < 0 ? " gone" : ""}`} style={seat < 0 ? undefined : ({ "--hue": seatHue(seat) } as React.CSSProperties)}>
+            {text}
+          </span>
+        );
+      }
+      case "c": {
+        const data = mark[3] ? cards[mark[3]] : undefined;
+        if (!data) return <span key={i} className="log-card plain">{text}</span>;
+        const face = mark[4] ?? 0;
+        const linkKey = `${lineKey}~${i}`;
+        return (
+          <button
+            key={i}
+            type="button"
+            className="log-card"
+            data-log-card={linkKey}
+            onPointerEnter={(e) => {
+              if (e.pointerType !== "mouse") return;
+              // Beside the log panel (not the link, which would cover the log), level with the link.
+              const link = e.currentTarget.getBoundingClientRect();
+              const panel = e.currentTarget.closest(".log-panel")?.getBoundingClientRect() ?? link;
+              onHoverCard({ key: linkKey, card: data, face, rect: new DOMRect(panel.left, link.top, panel.width, link.height) });
+            }}
+            onPointerLeave={() => onHoverCard(null)}
+            onClick={() => {
+              onHoverCard(null);
+              useTableUi.getState().set({ logZoom: { key: linkKey, cardId: data.id, face } });
+            }}
+          >
+            {text}
+          </button>
+        );
+      }
+      case "v":
+        return (
+          <b key={i} className="log-verb">
+            {text}
+          </b>
+        );
+      case "z":
+        return (
+          <span key={i} className={`log-zone z-${zoneClass(text)}`}>
+            {text}
+          </span>
+        );
+      case "n":
+        return (
+          <span key={i} className={`log-num${mark[3] ? ` ${mark[3]}` : ""}`}>
+            {text}
+          </span>
+        );
+    }
+  };
+  return (
+    <div
+      data-key={lineKey}
+      className={`log-line${kind ? ` kind-${kind}` : ""}${divider ? " divider" : ""}`}
+      style={actorSeat < 0 ? undefined : ({ "--hue": seatHue(actorSeat) } as React.CSSProperties)}
+    >
+      {kind && !divider && (
+        <span className="log-icon" aria-hidden>
+          <Icon name={LOG_ICONS[kind] ?? "diamond"} />
+        </span>
+      )}
+      <span className="log-text">
+        {divider && kind && <Icon name={LOG_ICONS[kind]} className="log-divider-icon" />}
+        <span>{logSegments(entry.text, entry.marks).map((seg, i) => render(seg.text, seg.mark, i))}</span>
+      </span>
+      <time className="log-time" dateTime={new Date(entry.at).toISOString()} title={new Date(entry.at).toLocaleString()}>
+        {relativeTime(now - entry.at)}
+      </time>
+    </div>
+  );
+}
+
+/** Zoomed view of a card named in the log (the same carousel as your hand, with just that card). */
+function LogZoom() {
+  const zoom = useTableUi((s) => s.logZoom);
+  const card = useStore((s) => (zoom ? s.cards[zoom.cardId] : undefined));
+  const items = useMemo<CarouselItem[]>(() => (zoom && card ? [{ key: zoom.key, card, face: zoom.face }] : []), [zoom, card]);
+  const originFor = useCallback((key: string) => document.querySelector(`[data-log-card="${CSS.escape(key)}"]`)?.getBoundingClientRect() ?? null, []);
+  const close = useCallback(() => useTableUi.getState().set({ logZoom: null }), []);
+  if (!zoom || !card) return null;
+  return <CardCarousel key={zoom.key} items={items} startKey={zoom.key} title="Game log" originFor={originFor} onClose={close} />;
 }
 
 // --- hand -----------------------------------------------------------------------------------
@@ -834,7 +1090,8 @@ const SHORTCUTS: [string, string][] = [
   ["U", "Untap all your permanents"],
   ["N", "End turn"],
   ["Arrows · Q/E · wheel", "Pan · rotate · zoom the camera (or drag empty table / middle mouse)"],
-  ["V · Home", "Overhead view · reset camera"],
+  ["1–4 · V", "View from a seat (1 is yours) · look down on the whole table"],
+  ["Home", "Reset the camera"],
   ["` (backtick)", "Debug console"],
 ];
 
