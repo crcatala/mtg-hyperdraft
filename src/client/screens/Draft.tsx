@@ -143,8 +143,10 @@ export function Draft() {
       if (picks.length !== need.picks || burns.length !== need.burns) return;
       setLeaving(true);
       sfx.pick();
+      // The next pack replaces this one, so wait for the picked cards to land first.
+      const flight = flyToPicks(picks);
       const packId = pack.id;
-      setTimeout(() => send({ t: "pick", packId, picks, burns }), 360);
+      setTimeout(() => send({ t: "pick", packId, picks, burns }), Math.max(360, flight));
       // If the server rejects the pick (stale pack), let the player try again.
       setTimeout(() => setLeaving(false), 2500);
     },
@@ -354,6 +356,44 @@ export function Draft() {
       )}
     </div>
   );
+}
+
+/**
+ * Picked cards fly into the picks list, shrinking onto the spot where their row is about to appear
+ * (instead of off towards a fixed corner).
+ */
+function flyToPicks(picks: string[]): number {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return 0;
+  const list = document.querySelector<HTMLElement>(".picks-list");
+  if (!list) return 0;
+  const box = list.getBoundingClientRect();
+  const last = list.lastElementChild?.getBoundingClientRect();
+  const rowH = last?.height || 26;
+  const slow = useStore.getState().debug.slowMotion ? 6 : 1;
+  const duration = 400 * slow;
+  const stagger = 60 * slow;
+  picks.forEach((iid, i) => {
+    const el = document.querySelector<HTMLElement>(`.fan-slot[data-iid="${CSS.escape(iid)}"]`);
+    if (!el) return;
+    const from = el.getBoundingClientRect();
+    // Where the new row lands: under the last one, but never below the visible part of the list.
+    const y = Math.min((last ? last.bottom : box.top) + rowH * (i + 0.5), box.bottom - rowH / 2);
+    const x = box.left + Math.min(90, box.width / 3);
+    const scale = Math.max(0.12, (rowH * 2.2) / from.height);
+    const dx = x - (from.left + from.width / 2);
+    const dy = y - (from.top + from.height / 2);
+    const start = getComputedStyle(el).transform;
+    el.animate(
+      [
+        { transform: start === "none" ? "none" : start, opacity: 1 },
+        { transform: `translate(${dx * 0.35}px, ${dy * 0.35 - 40}px) rotate(-4deg) scale(${0.85})`, opacity: 1, offset: 0.35 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(6deg) scale(${scale})`, opacity: 0.85, offset: 0.9 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(6deg) scale(${scale * 0.8})`, opacity: 0 },
+      ],
+      { duration, delay: i * stagger, easing: "cubic-bezier(0.45, 0, 0.2, 1)", fill: "forwards" },
+    );
+  });
+  return duration + (picks.length - 1) * stagger;
 }
 
 function sortPack(ids: string[], instances: Record<string, CardInstance>, cards: CardMap): string[] {
@@ -596,6 +636,12 @@ function PicksList({ picks, instances, cards, onOpen }: { picks: string[]; insta
   }, [picks, instances, cards]);
   const [hover, setHover] = useState<{ iid: string; rect: DOMRect } | null>(null);
   const listRef = useRef<HTMLOListElement>(null);
+  // Rows for cards just picked light up as the flying card lands on them.
+  const seen = useRef(picks.length);
+  const freshFrom = picks.length > seen.current && picks.length - seen.current <= 4 ? seen.current : picks.length;
+  useEffect(() => {
+    seen.current = picks.length;
+  }, [picks.length]);
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [picks.length]);
@@ -625,7 +671,7 @@ function PicksList({ picks, instances, cards, onOpen }: { picks: string[]; insta
             <li
               key={iid}
               data-iid={iid}
-              className={`pick-row r-${card.rarity}`}
+              className={`pick-row r-${card.rarity}${i >= freshFrom ? " just-picked" : ""}`}
               onPointerEnter={(e) => setHover({ iid, rect: e.currentTarget.getBoundingClientRect() })}
               onPointerLeave={() => setHover(null)}
               onClick={() => {

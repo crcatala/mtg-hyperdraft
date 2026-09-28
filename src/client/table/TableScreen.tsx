@@ -11,6 +11,7 @@ import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, p
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { beginDrag, tableApi } from "./drag";
 import { handLayout } from "./handLayout";
+import { reducedMotion, startTableMotion, useMotion } from "./motion";
 import { relativeTime, RELATIVE_TIME_REFRESH_MS } from "../relativeTime";
 import { countNewEntries, logKeys } from "./logFeed";
 import type { Color, LogEntry, TableCard, TokenDef, ZoneName } from "../../shared/types";
@@ -18,6 +19,7 @@ import { COLORS, ZONE_LABELS } from "../../shared/types";
 
 export function TableScreen() {
   useTableShortcuts();
+  useEffect(() => startTableMotion(), []);
   return (
     <div className="screen table-screen">
       <TableCanvas />
@@ -452,6 +454,7 @@ function Hand() {
   const drag = useTableUi((s) => s.drag);
   const handFaces = useTableUi((s) => s.handFaces);
   const handSelected = useTableUi((s) => s.handSelected);
+  const arriving = useMotion((s) => s.arriving);
   const table = view.table!;
   const hand = table.players[view.you]?.zones.hand ?? [];
   const n = hand.length;
@@ -459,6 +462,28 @@ function Hand() {
   // Leave a little room for the card lifted on hover (it scales up past its neighbours).
   const layout = handLayout(n, useWidth(zone, 900) - 40);
   const cardH = Math.round((layout.width * 88) / 63);
+
+  // Cards joining or leaving: the rest slide over to their new spots instead of jumping there.
+  // Positions are known from the layout, so there's nothing to measure.
+  const placed = useRef({ key: "", x: new Map<string, number>() });
+  const handKey = hand.join();
+  useLayoutEffect(() => {
+    const next = new Map<string, number>();
+    const offset = -layout.fanWidth / 2;
+    hand.forEach((id, i) => next.set(id, offset + i * layout.spread));
+    const { key, x: before } = placed.current;
+    placed.current = { key: handKey, x: next };
+    // Only when cards come or go (not while the window is being resized).
+    if (key === handKey || before.size === 0 || reducedMotion()) return;
+    for (const [id, x] of next) {
+      const was = before.get(id);
+      if (was === undefined || Math.abs(was - x) < 1) continue;
+      zone.current
+        ?.querySelector<HTMLElement>(`.hand-card[data-hid="${CSS.escape(id)}"]`)
+        ?.animate([{ transform: `translateX(${was - x}px)` }, { transform: "none" }], { duration: 320, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handKey, layout.spread, layout.fanWidth]);
   // Each card's hit box stays where the card rests; only its visual lifts on hover. So sliding along
   // the hand hovers one card after another instead of getting stuck on the lifted one.
   return (
@@ -474,7 +499,7 @@ function Hand() {
             <div
               key={id}
               data-hid={id}
-              className={`hand-card${dragging ? " dragging" : ""}${selected ? " is-selected" : ""}`}
+              className={`hand-card${dragging ? " dragging" : ""}${selected ? " is-selected" : ""}${arriving[id] ? " arriving" : ""}`}
               style={{ left: i * layout.spread, width: layout.width, "--rot": `${layout.rot(i)}deg`, "--arc": `${layout.arc(i)}px`, "--z": i + 1 } as React.CSSProperties}
               onPointerEnter={() => {
                 useTableUi.getState().set({ handHover: id });
