@@ -59,8 +59,8 @@ export function Lobby() {
             <div>
               <h2>Public room · open until {clockTime(view.expiresAt)}</h2>
               <p className="muted">
-                Hosted from the free public pool: it closes at {clockTime(view.expiresAt)}, or once nobody's been here for {durationLabel(PUBLIC_LIMITS.idleMs)},
-                and nothing in it is kept. Anyone with the link can join.
+                Hosted from the free public pool: it closes early once nobody's been here for {durationLabel(PUBLIC_LIMITS.idleMs)}, and nothing in it is
+                kept. Anyone with the link can join.
               </p>
             </div>
           </section>
