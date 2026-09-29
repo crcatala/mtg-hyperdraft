@@ -210,7 +210,7 @@ describe("tabletop", () => {
       expect(table.peek.a.search).toBeUndefined();
     });
 
-    it("only the looking player sees the cards or the look itself", () => {
+    it("only the looking player sees the cards; everyone sees that they're looking", () => {
       const { table, env } = setup();
       const top = lib(table).slice(0, 2);
       applyTableAction(table, "a", { a: "peek", n: 2 }, env);
@@ -218,6 +218,22 @@ describe("tabletop", () => {
       expect(theirs.peek).toEqual({});
       expect(top.every((id) => theirs.cards[id].cardId === undefined)).toBe(true);
       expect(top.every((id) => tableViewFor(table, "a").cards[id].cardId)).toBe(true);
+      expect(theirs.looks).toEqual({ a: { kind: "top", n: 2, left: 2 } });
+      expect(tableViewFor(table, "a").looks).toEqual({ a: { kind: "top", n: 2, left: 2 } });
+      applyTableAction(table, "a", { a: "move", ids: [top[0]], to: "library", bottom: true }, env);
+      expect(tableViewFor(table, "b").looks).toEqual({ a: { kind: "top", n: 2, left: 1 } });
+      applyTableAction(table, "a", { a: "peek", n: 0 }, env);
+      expect(tableViewFor(table, "b").looks).toEqual({});
+    });
+
+    it("everyone sees a search in progress, never the library", () => {
+      const { table, env } = setup();
+      applyTableAction(table, "a", { a: "peek", n: 0, search: true }, env);
+      const theirs = tableViewFor(table, "b");
+      expect(theirs.looks).toEqual({ a: { kind: "search" } });
+      expect(lib(table).every((id) => theirs.cards[id].cardId === undefined)).toBe(true);
+      applyTableAction(table, "a", { a: "shuffle" }, env);
+      expect(tableViewFor(table, "b").looks).toEqual({});
     });
 
     it("a search shows the whole library, live, and placing cards doesn't end it", () => {

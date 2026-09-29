@@ -427,6 +427,11 @@ export function pingTagTexture(name: string, hue: number): { texture: THREE.Text
   return pillTexture(`ping:${hue}:${name}`, name, { bg: `hsla(${hue}, 45%, 14%, 0.94)`, border: `hsl(${hue}, 85%, 66%)`, fg: `hsl(${hue}, 90%, 88%)` });
 }
 
+/** Tag floating over a library someone is looking through, in their colour. */
+export function lookTagTexture(text: string, hue: number, icon: IconName): { texture: THREE.Texture; aspect: number } {
+  return pillTexture(`look:${hue}:${icon}:${text}`, text, { bg: `hsla(${hue}, 45%, 14%, 0.94)`, border: `hsl(${hue}, 85%, 66%)`, fg: `hsl(${hue}, 90%, 88%)` }, icon);
+}
+
 function pillTexture(key: string, text: string, st: { bg: string; border: string; fg: string }, icon?: IconName): { texture: THREE.Texture; aspect: number } {
   const hit = labelCache.get(key);
   if (hit) return hit;

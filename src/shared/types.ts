@@ -320,6 +320,12 @@ export interface LibraryPeek {
   search?: boolean;
 }
 
+/**
+ * Someone's look at their library as everyone sees it: that it's happening (a real table would see
+ * them holding their library), and for "look at top X" how far along it is, never which cards.
+ */
+export type PublicLook = { kind: "search" } | { kind: "top"; n: number; left: number };
+
 export interface TableState {
   seats: string[];
   players: Record<string, TablePlayer>;
@@ -329,6 +335,8 @@ export interface TableState {
   log: LogEntry[];
   /** What each player is currently looking at in their own library (scry, surveil, search). */
   peek: Record<string, LibraryPeek>;
+  /** Per-player views only: every player's look in progress, as the whole table sees it. */
+  looks?: Record<string, PublicLook>;
   openingHandSize: number;
 }
 

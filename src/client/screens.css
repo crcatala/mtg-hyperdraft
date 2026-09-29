@@ -2837,3 +2837,21 @@ body.dragging * {
 .hud-player.offline .hud-name > span:first-child {
   opacity: 0.45;
 }
+
+/* Someone looking through their library: pulses in their colour (the pile on the table glows too). */
+.pill.look {
+  background: hsla(var(--hue), 70%, 60%, 0.14);
+  border-color: hsla(var(--hue), 85%, 66%, 0.6);
+  color: hsl(var(--hue), 90%, 86%);
+  animation: look-pulse 1.6s ease-in-out infinite;
+}
+@keyframes look-pulse {
+  50% {
+    box-shadow: 0 0 12px hsla(var(--hue), 85%, 60%, 0.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pill.look {
+    animation: none;
+  }
+}
