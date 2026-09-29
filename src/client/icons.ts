@@ -147,6 +147,7 @@ export const ICONS = {
   /** Delete for good (a plain × only takes something off a list). */
   trash: [stroke("M4 6.5h16"), stroke("M9.5 6.5V4h5v2.5"), stroke("M6.2 6.5l.9 13.5h9.8l.9-13.5"), stroke("M10 10.5v6"), stroke("M14 10.5v6")],
   "chevron-down": [stroke("M6 9l6 6 6-6")],
+  "chevron-up": [stroke("M6 15l6-6 6 6")],
   "chevron-right": [stroke("M9 6l6 6-6 6")],
   "chevron-left": [stroke("M15 6l-6 6 6 6")],
   "arrow-down": [stroke("M12 4.5v15"), stroke("M6 13.5l6 6 6-6")],

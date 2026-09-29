@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { cardHelpTerms, keywordsForFace, rulesLookupUrl, typeTerms } from "../src/client/cardHelp";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cardHelpTerms, keywordsForFace, loadRulesHelpOpen, rulesLookupUrl, saveRulesHelpOpen, takeRulesHelpHint, typeTerms } from "../src/client/cardHelp";
 import { cachedRulings, clearRulingsCache, fetchRulings, hasRulingsLookup } from "../src/client/rulings";
 import { makeCard } from "./fixtures";
 
@@ -85,5 +85,42 @@ describe("rulings", () => {
     fail = false;
     expect(await fetchRulings(beast, fetchFn)).toEqual([]);
     expect(cachedRulings(beast)).toEqual([]);
+  });
+});
+
+describe("rules help preferences", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function memoryStorage() {
+    const m = new Map<string, string>();
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) };
+  }
+
+  it("is shown by default and remembers being hidden", () => {
+    vi.stubGlobal("localStorage", memoryStorage());
+    expect(loadRulesHelpOpen()).toBe(true);
+    saveRulesHelpOpen(false);
+    expect(loadRulesHelpOpen()).toBe(false);
+    saveRulesHelpOpen(true);
+    expect(loadRulesHelpOpen()).toBe(true);
+  });
+
+  it("stays shown when storage is unavailable", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("denied");
+      },
+      setItem: () => {
+        throw new Error("denied");
+      },
+    });
+    expect(() => saveRulesHelpOpen(false)).not.toThrow();
+    expect(loadRulesHelpOpen()).toBe(true);
+  });
+
+  it("offers the where-did-it-go hint only once", () => {
+    vi.stubGlobal("localStorage", memoryStorage());
+    expect(takeRulesHelpHint()).toBe(true);
+    expect(takeRulesHelpHint()).toBe(false);
   });
 });

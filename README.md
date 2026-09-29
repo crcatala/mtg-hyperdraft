@@ -132,7 +132,8 @@ turned over in your hand enters the battlefield on that face.
 **Rules help:** the zoom view lists the card's mechanics (Scryfall's keywords: Flying, Scry, Landfall…)
 and rules-relevant types as links to the community [MTG Wiki](https://mtg.wiki), opening in a new tab. A
 **View detailed rulings** button fetches the card's official rulings from Scryfall, only when clicked, and
-keeps them for the session. Hidden cards show none of this.
+keeps them for the session. Hidden cards show none of this. The ⌃ button hides the panel (remembered in
+`localStorage`); a book button next to the card name brings it back.
 
 ## Deploying to Cloudflare (Workers + Durable Objects)
 

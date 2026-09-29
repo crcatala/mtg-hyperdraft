@@ -68,3 +68,38 @@ export function cardHelpTerms(card: CardData, face = 0): CardHelpTerms {
   if (layout) types.push(layout);
   return { mechanics, types };
 }
+
+// The panel can be tucked away; that choice, and whether we've pointed out where it went, stick
+// across visits. Storage can be unavailable (private mode), so both fall back quietly.
+const OPEN_KEY = "hyperdraft:rulesHelp";
+const HINT_KEY = "hyperdraft:rulesHelpHintSeen";
+
+export function loadRulesHelpOpen(): boolean {
+  try {
+    return localStorage.getItem(OPEN_KEY) !== "hidden";
+  } catch {
+    return true;
+  }
+}
+
+export function saveRulesHelpOpen(open: boolean): void {
+  try {
+    localStorage.setItem(OPEN_KEY, open ? "shown" : "hidden");
+  } catch {
+    // Not remembered; it still works for this visit.
+  }
+}
+
+/** True the first time only: whether to show the "it's up here now" hint after hiding the panel. */
+let hintShown = false;
+export function takeRulesHelpHint(): boolean {
+  if (hintShown) return false;
+  hintShown = true;
+  try {
+    if (localStorage.getItem(HINT_KEY) === "1") return false;
+    localStorage.setItem(HINT_KEY, "1");
+  } catch {
+    // Can't remember it, so it may show again next visit; better than never showing it.
+  }
+  return true;
+}

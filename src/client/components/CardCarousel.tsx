@@ -5,10 +5,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { CardData } from "../../shared/types";
-import { CardHelp } from "./CardHelp";
+import { CardHelp, RulesHelpHint } from "./CardHelp";
 import { CardView } from "./CardView";
 import { Icon } from "./Icon";
 import { faceOf, hasBackFace, nextFace } from "../cardStyle";
+import { loadRulesHelpOpen, saveRulesHelpOpen, takeRulesHelpHint } from "../cardHelp";
 
 export interface CarouselItem {
   key: string;
@@ -71,6 +72,21 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
   const [faces, setFaces] = useState<Record<string, number>>({});
   const dfc = hasBackFace(item?.card);
   const face = item ? faces[item.key] ?? item.face ?? 0 : 0;
+  // Rules help can be hidden (remembered across visits); a button by the card name brings it back.
+  const [helpOpen, setHelpOpen] = useState(loadRulesHelpOpen);
+  const [hint, setHint] = useState(false);
+  const [helpBtn, setHelpBtn] = useState<HTMLButtonElement | null>(null);
+  const showHelp = (open: boolean) => {
+    setHelpOpen(open);
+    saveRulesHelpOpen(open);
+    setHint(!open && takeRulesHelpHint());
+  };
+  const endHint = useCallback(() => setHint(false), []);
+  // Browsing onto a hidden card removes the button; the tip goes with it.
+  const hasHelpBtn = !helpOpen && !!item?.card;
+  useEffect(() => {
+    if (!hasHelpBtn) setHint(false);
+  }, [hasHelpBtn]);
   const turnOver = useCallback(() => {
     if (!item || !hasBackFace(item.card)) return;
     const next = nextFace(item.card, face);
@@ -160,6 +176,11 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
               {index + 1} / {items.length}
             </span>
           )}
+          {!helpOpen && item.card && (
+            <button ref={setHelpBtn} className={`carousel-help-btn${hint ? " hinting" : ""}`} onClick={() => showHelp(true)} aria-label="Show rules help" title="Show rules help">
+              <Icon name="book" />
+            </button>
+          )}
         </div>
         <button className="carousel-close" onClick={close} aria-label="Close (Esc)" title="Close (Esc)">
           <Icon name="x" />
@@ -189,14 +210,17 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
             <CardView card={item.card} foil={item.foil} face={face} width={width} imageSize="large" tilt flippable onFlip={turnOver} />
           </TiltDrag>
         </div>
-        {/* Hidden cards have no data, so they get no help (it would give them away). An empty slot
-            keeps the card from jumping sideways when browsing past them. */}
-        {item.card ? (
-          <CardHelp key={item.key} card={item.card} face={face} style={side ? { maxHeight: Math.round((width * 88) / 63) } : undefined} />
-        ) : (
-          side && <div className="card-help-slot" />
-        )}
+        {/* Hidden cards have no data, so they get no help (it would give them away). The slot stays
+            so the card doesn't jump sideways when browsing past them, and it animates open and shut
+            so the card glides to its new spot when the help is shown or hidden. */}
+        <div className={`card-help-slot${helpOpen ? "" : " hidden"}`} inert={!helpOpen}>
+          {item.card && (
+            <CardHelp key={item.key} card={item.card} face={face} style={side ? { maxHeight: Math.round((width * 88) / 63) } : undefined} onHide={() => showHelp(false)} />
+          )}
+        </div>
       </div>
+
+      {hint && helpBtn && <RulesHelpHint anchor={helpBtn} onDone={endHint} />}
 
       <div className="carousel-hint faint">
         {items.length > 1 && (
