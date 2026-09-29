@@ -1,12 +1,13 @@
-// Rules help beside the zoomed card: its mechanics and types as MTG Wiki links, and the card's
-// official rulings, fetched from Scryfall only when the player asks for them.
+// Rules help beside the zoomed card: its mechanics and types, explained in place from the MTG Wiki
+// (see TermPopover), and the card's official rulings, fetched from Scryfall only when asked for.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { CardData } from "../../shared/types";
-import { cardHelpTerms, rulesLookupUrl } from "../cardHelp";
+import { cardHelpTerms } from "../cardHelp";
 import { cachedRulings, fetchRulings, hasRulingsLookup, type Ruling } from "../rulings";
 import { Icon } from "./Icon";
 import { SymbolText } from "./Mana";
+import { TermChip } from "./TermPopover";
 
 function formatDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -22,10 +23,7 @@ function TermLinks({ title, terms }: { title: string; terms: string[] }) {
       <ul className="card-help-terms">
         {terms.map((t) => (
           <li key={t}>
-            <a href={rulesLookupUrl(t)} target="_blank" rel="noopener noreferrer" title={`Look up ${t} on the MTG Wiki (new tab)`}>
-              {t}
-              <Icon name="external" />
-            </a>
+            <TermChip term={t} />
           </li>
         ))}
       </ul>
@@ -96,7 +94,7 @@ export function CardHelp({ card, face, style, onHide }: { card: CardData; face: 
       <div className="card-help-body">
         <TermLinks title="Mechanics" terms={mechanics} />
         <TermLinks title="Types" terms={types} />
-        {(mechanics.length > 0 || types.length > 0) && <p className="card-help-note faint">Links open the community MTG Wiki in a new tab.</p>}
+        {(mechanics.length > 0 || types.length > 0) && <p className="card-help-note faint">Hover or tap a term for a quick explanation from the community MTG Wiki.</p>}
         {hasRulingsLookup(card) && <Rulings key={card.oracleId} card={card} />}
       </div>
     </aside>
