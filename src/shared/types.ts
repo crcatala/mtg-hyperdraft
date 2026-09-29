@@ -259,6 +259,12 @@ export interface TablePlayer {
   life: number;
   poison: number;
   zones: Record<Exclude<ZoneName, "battlefield">, string[]>;
+  /**
+   * How many times their library was shuffled / they took a mulligan. Clients animate these from
+   * the counters: hidden cards get new ids when shuffled, so the ids themselves can't show it.
+   */
+  shuffles?: number;
+  mulligans?: number;
 }
 
 /** What a log line is about; the client picks its icon and accent from it. Moves use the destination zone. */
@@ -338,6 +344,13 @@ export interface TableState {
   /** Per-player views only: every player's look in progress, as the whole table sees it. */
   looks?: Record<string, PublicLook>;
   openingHandSize: number;
+  /**
+   * Server only (never in a view): the id each player sees for every card hidden from them, by real
+   * id. A card keeps its stand-in while it stays hidden; a shuffle, or a card leaving a hand
+   * unseen, draws new ones, so hidden cards can't be followed by id. A card that was public when it
+   * went out of sight keeps its real id as its stand-in (everyone saw where it went).
+   */
+  standIns?: Record<string, Record<string, string>>;
 }
 
 // ---------------------------------------------------------------------------------------------

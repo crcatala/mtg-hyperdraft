@@ -195,6 +195,53 @@ describe("room flow", () => {
   });
 });
 
+describe("stand-in ids at the table", () => {
+  function twoPlayerGame() {
+    const { room, deps } = newRoom();
+    const a = room.join({ name: "Alice" });
+    const b = room.join({ name: "Bob" });
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "debug", cmd: "startGame" });
+    return { room, deps, a: a.playerId, b: b.playerId };
+  }
+
+  it("takes actions on someone's face-down card by the stand-in the actor sees", () => {
+    const { room, a, b } = twoPlayerGame();
+    const id = room.state.table!.players[a].zones.hand[0];
+    send(room, a, { t: "table", action: { a: "move", ids: [id], to: "battlefield", x: 0, y: 0, faceDown: true } });
+    const standIn = Object.values(room.viewFor(b).table!.cards).find((c) => c.zone === "battlefield")!.id;
+    expect(standIn).not.toBe(id);
+    expect(send(room, b, { t: "table", action: { a: "tap", ids: [standIn] } }).changed).toBe(true);
+    expect(room.state.table!.cards[id].tapped).toBe(true);
+    // Its real id means nothing to Bob.
+    expect(send(room, b, { t: "table", action: { a: "tap", ids: [id] } }).outbound).toEqual([{ to: "self", msg: { t: "error", message: "That card is gone." } }]);
+    expect(room.state.table!.cards[id].tapped).toBe(true);
+  });
+
+  it("relays drags under each player's own id, and hand cards under none", () => {
+    const { room, a, b } = twoPlayerGame();
+    const [down, handCard] = room.state.table!.players[a].zones.hand;
+    send(room, a, { t: "table", action: { a: "move", ids: [down], to: "battlefield", x: 0, y: 0, faceDown: true } });
+    const bobsId = Object.values(room.viewFor(b).table!.cards).find((c) => c.zone === "battlefield")!.id;
+    expect(send(room, a, { t: "drag", id: down, x: 1, y: 2 }).outbound).toEqual([{ to: "player", playerId: b, msg: { t: "drag", by: a, id: bobsId, x: 1, y: 2 } }]);
+    expect(send(room, a, { t: "drag", id: handCard, x: 1, y: 2 }).outbound).toEqual([{ to: "player", playerId: b, msg: { t: "drag", by: a, id: `hand:${a}`, x: 1, y: 2 } }]);
+    // Nothing for ids the sender doesn't know, or cards that can't be dragged.
+    expect(send(room, b, { t: "drag", id: handCard, x: 1, y: 2 }).outbound).toEqual([]);
+    const top = room.viewFor(a).table!.players[a].zones.library[0];
+    expect(send(room, a, { t: "drag", id: top, x: 1, y: 2 }).outbound).toEqual([]);
+  });
+
+  it("gives a game saved before stand-ins existed fresh ones when it's loaded", () => {
+    const { room, deps, a, b } = twoPlayerGame();
+    const saved = structuredClone(room.state);
+    delete saved.table!.standIns;
+    const loaded = new Room(saved, room.cards, deps);
+    const hand = loaded.viewFor(b).table!.players[a].zones.hand;
+    expect(hand).toHaveLength(7);
+    for (const id of hand) expect(saved.table!.cards[id]).toBeUndefined();
+  });
+});
+
 describe("rejoining a started game", () => {
   function startedRoom() {
     const { room, deps } = newRoom();

@@ -82,6 +82,8 @@ export function createTable(
       life: config.startingLife,
       poison: 0,
       zones: { library: [], hand: [], graveyard: [], exile: [], sideboard: [] },
+      shuffles: 0,
+      mulligans: 0,
     };
     table.players[pid] = player;
     const add = (cardId: string, zone: HiddenZone, foil?: boolean) => {
@@ -101,8 +103,10 @@ export function createTable(
       moveCard(table, table.cards[player.zones.library[0]], "hand", env);
     }
   });
-  // Key order is sent to every player too: order by the random id, not decklist-then-basics.
+  // Views sort by the ids each player sees; the stored order says nothing either (random id, not
+  // decklist-then-basics).
   table.cards = Object.fromEntries(Object.entries(table.cards).sort(([a], [b]) => (a < b ? -1 : 1)));
+  syncStandIns(table, env.rng);
   log(table, seats[0], "start", logText`The game begins — everyone drew ${num(config.openingHandSize)}. Good luck!`, env);
   return table;
 }
@@ -117,6 +121,111 @@ function opaqueCardId(table: TableState, rng: Rng): string {
   do id = `k${randomCode(rng, 10)}`;
   while (table.cards[id]);
   return id;
+}
+
+// --- Stand-in ids -----------------------------------------------------------------------------
+// A real id seen once (a card revealed, milled, bounced) would let anyone follow that card through
+// hidden zones, even through a shuffle. So each player sees hidden cards under stand-in ids that
+// look just like real ones: kept while the card stays out of sight (face-down cards, draws and
+// scrying stay trackable, as at a real table), redrawn whenever a real table would lose track of it.
+
+/**
+ * Which cards `viewer` may see: not other players' hands and sideboards, not face-down cards they
+ * neither own nor control, and not libraries (bar the cards of their own look).
+ */
+function sightOf(table: TableState, viewer: string): (card: TableCard) => boolean {
+  const own = activePeek(table, viewer);
+  const peekIds = new Set(own?.search ? table.players[viewer]?.zones.library : own?.ids);
+  return (card) =>
+    card.zone === "graveyard" ||
+    card.zone === "exile" ||
+    (card.zone === "battlefield" && (!card.faceDown || card.controller === viewer || card.owner === viewer)) ||
+    ((card.zone === "hand" || card.zone === "sideboard") && card.owner === viewer) ||
+    (card.zone === "library" && peekIds.has(card.id));
+}
+
+/** A random stand-in: never a real card id, and never one already standing in for another card. */
+function newStandIn(table: TableState, rng: Rng): string {
+  const maps = Object.values(table.standIns ?? {});
+  let id: string;
+  do id = opaqueCardId(table, rng);
+  while (maps.some((m) => Object.values(m).includes(id)));
+  return id;
+}
+
+/** New stand-ins for these cards, for every player (or everyone but `except`). */
+function redrawStandIns(table: TableState, ids: string[], rng: Rng, except?: string) {
+  const all = (table.standIns ??= {});
+  for (const viewer of table.seats) {
+    if (viewer === except) continue;
+    const mine = (all[viewer] ??= {});
+    for (const id of ids) mine[id] = newStandIn(table, rng);
+  }
+}
+
+/**
+ * Brings every player's stand-ins in line with what they can see now: none for cards they see, and
+ * one for every card they don't. A card that just went out of sight was public a moment ago, so it
+ * keeps its real id (the client can follow it to where it went) until something redraws it. A
+ * table without stand-ins yet (a new game, or one saved before them) gets random ones throughout.
+ */
+export function syncStandIns(table: TableState, rng: Rng) {
+  const fresh = !table.standIns;
+  const all = (table.standIns ??= {});
+  for (const viewer of table.seats) {
+    const sees = sightOf(table, viewer);
+    const mine = (all[viewer] ??= {});
+    for (const id of Object.keys(mine)) if (!table.cards[id]) delete mine[id];
+    for (const card of Object.values(table.cards)) {
+      if (sees(card)) delete mine[card.id];
+      else mine[card.id] ??= fresh ? newStandIn(table, rng) : card.id;
+    }
+  }
+}
+
+/** The id relayed drags of a card from this player's hand go by (not the card's: see Room's "drag"). */
+export function handDragId(owner: string): string {
+  return `hand:${owner}`;
+}
+
+/** The id `viewer` knows a card by. */
+export function shownId(table: TableState, viewer: string, id: string): string {
+  return table.standIns?.[viewer]?.[id] ?? id;
+}
+
+/**
+ * Maps ids as `viewer` knows them back to real ones. Anything else is refused the same way,
+ * including the real id of a card hidden from them (it may have been public once).
+ */
+export function realIdsFor(table: TableState, viewer: string): (shown: string) => string {
+  const mine = table.standIns?.[viewer] ?? {};
+  const back = new Map(Object.entries(mine).map(([real, standIn]) => [standIn, real]));
+  return (shown) => {
+    const real = back.get(shown) ?? (!Object.hasOwn(mine, shown) && Object.hasOwn(table.cards, shown) ? shown : undefined);
+    if (real === undefined) throw new TableError("That card is gone.");
+    return real;
+  };
+}
+
+/** An action as a player sent it (with the ids they see), with real card ids. */
+export function resolveTableAction(table: TableState, viewer: string, action: TableAction): TableAction {
+  const real = realIdsFor(table, viewer);
+  switch (action.a) {
+    case "move":
+    case "tap":
+    case "flip":
+    case "reveal":
+      return { ...action, ids: action.ids.map(real) };
+    case "setPos":
+    case "turnFace":
+    case "counter":
+    case "clone":
+      return { ...action, id: real(action.id) };
+    case "place":
+      return { ...action, cards: action.cards.map((c) => ({ ...c, id: real(c.id) })) };
+    default:
+      return action;
+  }
 }
 
 function blankCard(id: string, owner: string, zone: ZoneName, cardId?: string, foil?: boolean): TableCard {
@@ -244,10 +353,37 @@ function moveCard(
     else if (to === "library") zone.unshift(card.id);
     else zone.push(card.id);
   }
+  // Out of a hand or sideboard without being shown: the others can't tell which of those cards it
+  // was, so it and the rest of that zone get new stand-ins (else a card they saw go into the hand
+  // could be followed onto the library or face down onto the battlefield).
+  const shown = isPublicZone(to) && !(to === "battlefield" && card.faceDown);
+  if ((from === "hand" || from === "sideboard") && to !== from && !shown) {
+    redrawStandIns(table, [card.id, ...table.players[card.owner].zones[from]], env.rng, card.owner);
+  }
 }
 
-/** Applies a player's action. Throws TableError for invalid ones. */
+/** Shuffling breaks every link to the library's cards, for everyone (its owner included). */
+function shuffleLibrary(table: TableState, playerId: string, env: TableEnv) {
+  const p = table.players[playerId];
+  p.zones.library = shuffle(p.zones.library, env.rng);
+  p.shuffles = (p.shuffles ?? 0) + 1;
+  delete table.peek[playerId];
+  redrawStandIns(table, p.zones.library, env.rng);
+}
+
+/**
+ * Applies a player's action (with real card ids: see resolveTableAction). Throws TableError for
+ * invalid ones.
+ */
 export function applyTableAction(table: TableState, playerId: string, action: TableAction, env: TableEnv): void {
+  try {
+    applyAction(table, playerId, action, env);
+  } finally {
+    syncStandIns(table, env.rng);
+  }
+}
+
+function applyAction(table: TableState, playerId: string, action: TableAction, env: TableEnv): void {
   const me = table.players[playerId];
   if (!me) throw new TableError("You're not seated at this table.");
   const who = player(playerId, env.names[playerId] ?? "Someone");
@@ -355,8 +491,7 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
       return;
     }
     case "shuffle": {
-      me.zones.library = shuffle(me.zones.library, env.rng);
-      delete table.peek[playerId];
+      shuffleLibrary(table, playerId, env);
       log(table, playerId, "shuffle", logText`${who} ${verb("shuffled")} their ${zone("library")}.`, env);
       return;
     }
@@ -446,8 +581,8 @@ export function applyTableAction(table: TableState, playerId: string, action: Ta
     }
     case "mulligan": {
       for (const id of me.zones.hand.slice()) moveCard(table, table.cards[id], "library", env);
-      me.zones.library = shuffle(me.zones.library, env.rng);
-      delete table.peek[playerId];
+      shuffleLibrary(table, playerId, env);
+      me.mulligans = (me.mulligans ?? 0) + 1;
       const n = table.openingHandSize;
       for (let i = 0; i < n && me.zones.library.length > 0; i++) moveCard(table, table.cards[me.zones.library[0]], "hand", env);
       log(table, playerId, "mulligan", logText`${who} ${verb("took a mulligan")} (shuffled their hand away and drew ${num(n)}). Put cards on the bottom as needed.`, env);
@@ -481,20 +616,31 @@ function clampCount(n: number) {
 
 // --- Views ------------------------------------------------------------------------------------
 
-/** What one player may see: other players' hands, all libraries (except peeks) and face-down cards are hidden. */
+/**
+ * What one player may see (see sightOf). Hidden cards come under the viewer's stand-in ids, with
+ * nothing left that could tell them apart: no card, token or foil, and no position left over from
+ * an earlier trip to the battlefield.
+ */
 export function tableViewFor(table: TableState, viewer: string): TableState {
   const own = activePeek(table, viewer);
-  const peekIds = new Set(own?.search ? table.players[viewer]?.zones.library : own?.ids);
+  const sees = sightOf(table, viewer);
+  const shown = (id: string) => shownId(table, viewer, id);
 
-  const cards: Record<string, TableCard> = {};
+  const list: TableCard[] = [];
   for (const card of Object.values(table.cards)) {
-    const visible =
-      card.zone === "graveyard" ||
-      card.zone === "exile" ||
-      (card.zone === "battlefield" && (!card.faceDown || card.controller === viewer || card.owner === viewer)) ||
-      ((card.zone === "hand" || card.zone === "sideboard") && card.owner === viewer) ||
-      (card.zone === "library" && peekIds.has(card.id));
-    cards[card.id] = visible ? card : { ...card, cardId: undefined, token: undefined, face: 0, foil: undefined, hidden: true };
+    if (sees(card)) list.push(card);
+    else {
+      const offTable = card.zone !== "battlefield" ? { x: 0, y: 0, z: 0 } : {};
+      list.push({ ...card, id: shown(card.id), cardId: undefined, token: undefined, face: 0, foil: undefined, hidden: true, ...offTable });
+    }
+  }
+  // Key order reaches the client too: by the ids the viewer sees, not the real ones.
+  list.sort((a, b) => (a.id < b.id ? -1 : 1));
+  const cards = Object.fromEntries(list.map((c) => [c.id, c]));
+  const players: Record<string, TablePlayer> = {};
+  for (const [pid, p] of Object.entries(table.players)) {
+    const zones = Object.fromEntries(Object.entries(p.zones).map(([zone, ids]) => [zone, ids.map(shown)])) as TablePlayer["zones"];
+    players[pid] = { ...p, zones };
   }
   // Only your own look's cards are anyone's business, but everyone sees that a look is happening.
   const looks: Record<string, PublicLook> = {};
@@ -502,5 +648,6 @@ export function tableViewFor(table: TableState, viewer: string): TableState {
     const peek = activePeek(table, pid);
     if (peek) looks[pid] = peek.search ? { kind: "search" } : { kind: "top", n: peek.n, left: peek.ids.length };
   }
-  return { ...table, cards, peek: own ? { [viewer]: own } : {}, looks };
+  const { standIns: _, ...rest } = table;
+  return { ...rest, cards, players, peek: own ? { [viewer]: own } : {}, looks };
 }

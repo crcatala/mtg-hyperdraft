@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyTableAction, createTable, tableViewFor, type TableAction, type TableEnv } from "../src/shared/table";
+import { applyTableAction, createTable, shownId, tableViewFor, type TableAction, type TableEnv } from "../src/shared/table";
 import { mulberry32 } from "../src/shared/rng";
 import type { DeckState, TableState } from "../src/shared/types";
-import { diffTables, oneCardMoved } from "../src/client/table/tableDiff";
+import { diffTables, type Spot } from "../src/client/table/tableDiff";
 import { basicIds, makeCube } from "./fixtures";
 
 function setup() {
@@ -43,7 +43,7 @@ describe("table diff", () => {
     for (const id of table.players.a.zones.hand.slice(0, 3)) applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield" }, env);
     const fresh = setup().table;
     expect(fresh.nextZ).toBeLessThan(table.nextZ);
-    expect(diffTables(table, fresh)).toEqual({ hops: [], shuffled: [], mulligans: [], taps: [] });
+    expect(diffTables(table, fresh)).toEqual({ hops: [], shuffled: [], mulligans: [], taps: [], renamed: {} });
   });
 
   it("sees a draw as library → hand", () => {
@@ -101,10 +101,6 @@ describe("table diff", () => {
     expect(toBottom.hops).toEqual([]);
     const fifth = table.players.a.zones.library[4];
     expect(step(table, env, "a", { a: "move", ids: [fifth], to: "library" }).shuffled).toEqual([]);
-    expect(oneCardMoved(["a", "b", "c", "d"], ["b", "c", "d", "a"])).toBe(true);
-    expect(oneCardMoved(["a", "b", "c", "d"], ["a", "d", "b", "c"])).toBe(true);
-    expect(oneCardMoved(["a", "b", "c", "d"], ["b", "a", "d", "c"])).toBe(false);
-    expect(oneCardMoved(["a", "b", "c"], ["a", "b", "c"])).toBe(false);
   });
 
   it("detects a shuffle, and tokens appearing and disappearing", () => {
@@ -116,5 +112,85 @@ describe("table diff", () => {
     const token = made.hops[0].id;
     const gone = step(table, env, "a", { a: "move", ids: [token], to: "graveyard" });
     expect(gone.hops[0]).toMatchObject({ id: token, from: { kind: "battlefield" }, to: { kind: "none" } });
+  });
+
+  describe("from the other side of the table (Bob watching Alice)", () => {
+    const watch = (table: TableState, env: TableEnv, action: TableAction) => step(table, env, "a", action, "b");
+    const lib: Spot = { kind: "pile", owner: "a", zone: "library" };
+    const hand: Spot = { kind: "hand", owner: "a" };
+
+    it("sees a draw as library → hand", () => {
+      const { table, env } = setup();
+      const top = tableViewFor(table, "b").players.a.zones.library[0];
+      const d = watch(table, env, { a: "draw", n: 1 });
+      expect(d.hops).toEqual([expect.objectContaining({ id: top, fromId: top, from: lib, to: hand })]);
+      expect(d.shuffled).toEqual([]);
+    });
+
+    it("follows a card played from the hand to its real id, from the stand-in it had", () => {
+      const { table, env } = setup();
+      const id = table.players.a.zones.hand[2];
+      const standIn = shownId(table, "b", id);
+      const d = watch(table, env, { a: "move", ids: [id], to: "battlefield", x: 0, y: 0 });
+      expect(d.hops).toEqual([expect.objectContaining({ id, fromId: standIn, from: hand, to: { kind: "battlefield" } })]);
+      expect(d.hops[0].prev?.hidden).toBe(true);
+      expect(d.hops[0].next?.cardId).toBeDefined();
+    });
+
+    it("sees milled cards turn up in the graveyard in order", () => {
+      const { table, env } = setup();
+      const top = tableViewFor(table, "b").players.a.zones.library.slice(0, 2);
+      const d = watch(table, env, { a: "mill", n: 2 });
+      expect(d.hops.map((h) => [h.fromId, h.id])).toEqual(top.map((id, i) => [id, table.players.a.zones.graveyard[i]]));
+      expect(d.hops.every((h) => h.to.kind === "pile" && h.to.zone === "graveyard")).toBe(true);
+    });
+
+    it("doesn't mistake scrying to the top or bottom for a shuffle", () => {
+      const { table, env } = setup();
+      applyTableAction(table, "a", { a: "peek", n: 2 }, env);
+      const [c1, c2] = table.players.a.zones.library;
+      expect(watch(table, env, { a: "move", ids: [c1], to: "library", bottom: true })).toMatchObject({ hops: [], shuffled: [] });
+      expect(watch(table, env, { a: "move", ids: [c2], to: "library" })).toMatchObject({ hops: [], shuffled: [] });
+    });
+
+    it("sees a shuffle by its counter, with every library card renamed rather than moved", () => {
+      const { table, env } = setup();
+      const d = watch(table, env, { a: "shuffle" });
+      expect(d.shuffled).toEqual(["a"]);
+      expect(d.hops).toEqual([]);
+      expect(Object.keys(d.renamed)).toHaveLength(33);
+    });
+
+    it("sees a mulligan as the old hand out, then a new hand in", () => {
+      const { table, env } = setup();
+      const oldHand = tableViewFor(table, "b").players.a.zones.hand;
+      const d = watch(table, env, { a: "mulligan" });
+      const newHand = tableViewFor(table, "b").players.a.zones.hand;
+      expect(d.mulligans).toEqual(["a"]);
+      expect(d.shuffled).toEqual(["a"]);
+      expect(d.hops.filter((h) => h.phase === 0).map((h) => [h.id, h.from, h.to])).toEqual(oldHand.map((id) => [id, hand, lib]));
+      expect(d.hops.filter((h) => h.phase === 1).map((h) => [h.id, h.from, h.to])).toEqual(newHand.map((id) => [id, lib, hand]));
+    });
+
+    it("sees a card go from the hand face down, then turn up in place", () => {
+      const { table, env } = setup();
+      const id = table.players.a.zones.hand[0];
+      const down = watch(table, env, { a: "move", ids: [id], to: "battlefield", x: 0, y: 0, faceDown: true });
+      // The whole hand got new stand-ins; only one card actually went anywhere.
+      expect(down.hops).toEqual([expect.objectContaining({ id: shownId(table, "b", id), from: hand, to: { kind: "battlefield" } })]);
+      expect(Object.keys(down.renamed)).toHaveLength(6);
+      const standIn = shownId(table, "b", id);
+      const up = watch(table, env, { a: "flip", ids: [id] });
+      expect(up.hops).toEqual([]);
+      expect(up.renamed).toEqual({ [standIn]: id });
+    });
+
+    it("sees a card put from the hand on top of the library", () => {
+      const { table, env } = setup();
+      const id = table.players.a.zones.hand[3];
+      const d = watch(table, env, { a: "move", ids: [id], to: "library" });
+      expect(d.hops).toEqual([expect.objectContaining({ id: tableViewFor(table, "b").players.a.zones.library[0], from: hand, to: lib })]);
+      expect(d.shuffled).toEqual([]);
+    });
   });
 });

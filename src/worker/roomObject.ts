@@ -11,6 +11,7 @@ import { FloodControl } from "../shared/rateLimit";
 import { durationLabel, PUBLIC_LIMITS } from "../shared/publicRooms";
 import type { CardData, CardMap, RoomState } from "../shared/types";
 import { importCube } from "../shared/importCube";
+import { cryptoRng } from "../shared/rng";
 
 interface Attachment {
   playerId: string;
@@ -73,7 +74,7 @@ export class RoomDurableObject extends DurableObject<Env> {
         const stored = await ctx.storage.get<CardData[]>(Array.from({ length: chunks }, (_, i) => `cards:${i}`));
         for (const list of stored.values()) for (const c of list) cards[c.id] = c;
       }
-      this.room = new Room(state, cards, { now: () => Date.now(), rng: Math.random });
+      this.room = new Room(state, cards, { now: () => Date.now(), rng: cryptoRng });
 
       // Sockets can drop without close events (deploys, restarts). Trust the sockets we still hold.
       const here = new Set(this.liveSockets().map((ws) => (ws.deserializeAttachment() as Attachment).playerId));
@@ -90,7 +91,7 @@ export class RoomDurableObject extends DurableObject<Env> {
   /** Creates the room. Returns false if this code is already in use. */
   async init(code: string, owner: RoomOwner): Promise<boolean> {
     if (this.room) return false;
-    this.room = new Room(createRoomState(code, Date.now(), owner), {}, { now: () => Date.now(), rng: Math.random });
+    this.room = new Room(createRoomState(code, Date.now(), owner), {}, { now: () => Date.now(), rng: cryptoRng });
     await this.saveState();
     // Public rooms close on their own: until someone joins, that's the idle deadline.
     await this.scheduleAlarm();
@@ -202,6 +203,7 @@ export class RoomDurableObject extends DurableObject<Env> {
     const result = room.handle(att.playerId, parsed.data);
     for (const out of result.outbound) {
       if (out.to === "self") this.sendTo(ws, out.msg);
+      else if (out.to === "player") this.sendToPlayer(out.playerId, out.msg);
       else this.sendToOthers(att.playerId, out.msg);
     }
     if (result.changed) {
@@ -448,6 +450,18 @@ export class RoomDurableObject extends DurableObject<Env> {
     const text = JSON.stringify(msg);
     for (const ws of this.ctx.getWebSockets()) {
       if ((ws.deserializeAttachment() as Attachment | null)?.playerId === playerId) continue;
+      try {
+        ws.send(text);
+      } catch {
+        /* closing */
+      }
+    }
+  }
+
+  private sendToPlayer(playerId: string, msg: ServerMessage) {
+    const text = JSON.stringify(msg);
+    for (const ws of this.ctx.getWebSockets()) {
+      if ((ws.deserializeAttachment() as Attachment | null)?.playerId !== playerId) continue;
       try {
         ws.send(text);
       } catch {
