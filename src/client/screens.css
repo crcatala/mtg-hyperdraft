@@ -2340,6 +2340,131 @@ body.dragging * {
   font-size: 12.5px;
   pointer-events: none;
 }
+.carousel-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.carousel.side-help .carousel-stage {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 40px;
+}
+/* Narrow screens: the help sits under the card and the whole viewer scrolls. */
+.carousel:not(.side-help) {
+  overflow-y: auto;
+  place-items: safe center;
+}
+.carousel:not(.side-help) .carousel-stage {
+  padding: 72px 16px 24px;
+}
+.carousel:not(.side-help) .carousel-hint {
+  display: none;
+}
+
+/* ---------- rules help beside the zoomed card ---------- */
+
+.card-help,
+.card-help-slot {
+  flex: none;
+  width: 300px;
+}
+.card-help {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  animation: card-help-in 0.3s ease-out 0.12s both;
+}
+.carousel:not(.side-help) .card-help {
+  width: min(480px, 100%);
+}
+@keyframes card-help-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.card-help-section h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.card-help-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card-help-terms a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid rgba(143, 107, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(143, 107, 255, 0.12);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.card-help-terms a:hover,
+.card-help-terms a:focus-visible {
+  background: rgba(143, 107, 255, 0.28);
+  border-color: var(--violet-2);
+}
+.card-help-terms .icon {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.card-help-note {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+}
+.card-help > .card-help-note {
+  margin-top: -8px;
+}
+.card-rulings-btn {
+  width: 100%;
+}
+.card-rulings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card-rulings li {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.card-rulings li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.card-rulings p {
+  margin: 0 0 3px;
+}
+.card-rulings span {
+  font-size: 11px;
+}
 
 /* ---------- deckbuilder: selection + hint ---------- */
 

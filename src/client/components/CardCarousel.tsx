@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { CardData } from "../../shared/types";
+import { CardHelp } from "./CardHelp";
 import { CardView } from "./CardView";
 import { Icon } from "./Icon";
 import { faceOf, hasBackFace, nextFace } from "../cardStyle";
@@ -38,15 +39,25 @@ function flipTransform(from: DOMRect, to: DOMRect): string {
   return `translate(${dx}px, ${dy}px) scale(${from.width / to.width})`;
 }
 
-function useZoomWidth() {
-  const calc = () => Math.floor(Math.min(((window.innerHeight - 170) * 63) / 88, window.innerWidth - 260, 640));
-  const [w, setW] = useState(calc);
+/** Below this width the rules help sits under the card instead of beside it. */
+const SIDE_PANEL_MIN_WIDTH = 900;
+const PANEL_SPACE = 340; // Side panel width plus the gap to the card.
+
+function zoomLayout() {
+  const side = window.innerWidth >= SIDE_PANEL_MIN_WIDTH;
+  const byHeight = ((window.innerHeight - (side ? 170 : 230)) * 63) / 88;
+  const byWidth = window.innerWidth - (side ? 260 + PANEL_SPACE : 260);
+  return { width: Math.max(220, Math.floor(Math.min(byHeight, byWidth, 640))), side };
+}
+
+function useZoomLayout() {
+  const [layout, setLayout] = useState(zoomLayout);
   useEffect(() => {
-    const onResize = () => setW(calc());
+    const onResize = () => setLayout(zoomLayout());
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  return Math.max(220, w);
+  return layout;
 }
 
 export function CardCarousel({ items, startKey, title, originFor, badge, onFaceChange, onClose }: Props) {
@@ -54,7 +65,7 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
   const [dir, setDir] = useState<"next" | "prev" | "open">("open");
   const [closing, setClosing] = useState(false);
   const flyRef = useRef<HTMLDivElement>(null);
-  const width = useZoomWidth();
+  const { width, side } = useZoomLayout();
   const item = items[Math.min(index, items.length - 1)];
   // Which face each card is showing, remembered while browsing back and forth.
   const [faces, setFaces] = useState<Record<string, number>>({});
@@ -134,7 +145,7 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
 
   return createPortal(
     <div
-      className={`carousel${closing ? " closing" : ""}`}
+      className={`carousel${side ? " side-help" : ""}${closing ? " closing" : ""}`}
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) close();
       }}
@@ -166,11 +177,25 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
         </>
       )}
 
-      <div className="carousel-fly" ref={flyRef} style={{ width }}>
-        {badge && <div className="carousel-badge">{badge(item.key)}</div>}
-        <TiltDrag key={item.key} className={`carousel-enter-${dir}`}>
-          <CardView card={item.card} foil={item.foil} face={face} width={width} imageSize="large" tilt flippable onFlip={turnOver} />
-        </TiltDrag>
+      <div
+        className="carousel-stage"
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) close();
+        }}
+      >
+        <div className="carousel-fly" ref={flyRef} style={{ width }}>
+          {badge && <div className="carousel-badge">{badge(item.key)}</div>}
+          <TiltDrag key={item.key} className={`carousel-enter-${dir}`}>
+            <CardView card={item.card} foil={item.foil} face={face} width={width} imageSize="large" tilt flippable onFlip={turnOver} />
+          </TiltDrag>
+        </div>
+        {/* Hidden cards have no data, so they get no help (it would give them away). An empty slot
+            keeps the card from jumping sideways when browsing past them. */}
+        {item.card ? (
+          <CardHelp key={item.key} card={item.card} face={face} style={side ? { maxHeight: Math.round((width * 88) / 63) } : undefined} />
+        ) : (
+          side && <div className="card-help-slot" />
+        )}
       </div>
 
       <div className="carousel-hint faint">
