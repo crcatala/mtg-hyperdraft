@@ -8,8 +8,15 @@
 import type { TableAction } from "../../shared/table";
 import type { TableCard, TableState } from "../../shared/types";
 
+export type GuardPart =
+  | { text: string; kind?: undefined }
+  | { text: string; kind: "player"; playerId: string }
+  | { text: string; kind: "card"; cardId?: string; face?: number };
+
 export interface Guard {
   question: string;
+  /** Styled pieces embedded in the question, matching the game-log player and card treatments. */
+  parts?: GuardPart[];
   /** Label of the confirming button. */
   confirm: string;
 }
@@ -46,19 +53,23 @@ function touchedIds(action: TableAction): string[] {
   }
 }
 
-function offTurn(action: TableAction, whose: string): Guard | null {
-  const lead = `It's ${whose}'s turn`;
+function offTurn(action: TableAction, whose: string, playerId: string): Guard | null {
+  const start: GuardPart[] = [{ text: "It's " }, { text: whose, kind: "player", playerId }, { text: "'s turn" }];
+  const build = (ending: string, confirm: string): Guard => {
+    const parts: GuardPart[] = [...start, { text: ending }];
+    return { question: parts.map((part) => part.text).join(""), parts, confirm };
+  };
   switch (action.a) {
     case "draw":
-      return { question: `${lead}. Draw ${action.n === 1 ? "a card" : `${action.n} cards`} anyway?`, confirm: "Draw" };
+      return build(`. Draw ${action.n === 1 ? "a card" : `${action.n} cards`} anyway?`, "Draw");
     case "untapAll":
-      return { question: `${lead}. Untap all your permanents anyway?`, confirm: "Untap all" };
+      return build(". Untap all your permanents anyway?", "Untap all");
     case "shuffle":
-      return { question: `${lead}. Shuffle your library anyway?`, confirm: "Shuffle" };
+      return build(". Shuffle your library anyway?", "Shuffle");
     case "mill":
-      return { question: `${lead}. Mill ${action.n === 1 ? "a card" : `${action.n} cards`} anyway?`, confirm: "Mill" };
+      return build(`. Mill ${action.n === 1 ? "a card" : `${action.n} cards`} anyway?`, "Mill");
     case "nextTurn":
-      return { question: `${lead}, not yours. End it anyway?`, confirm: "End their turn" };
+      return build(", not yours. End it anyway?", "End their turn");
     default:
       return null;
   }
@@ -100,7 +111,7 @@ export function guardFor(action: TableAction, ctx: GuardContext): Guard | null {
 
   const turnOwner = table.turn.playerId;
   if (turnOwner !== me && table.players[turnOwner]) {
-    const guard = offTurn(action, ctx.nameOf(turnOwner));
+    const guard = offTurn(action, ctx.nameOf(turnOwner), turnOwner);
     if (guard) return guard;
   }
 
@@ -112,12 +123,28 @@ function cardGuard(action: TableAction, ids: string[], ctx: GuardContext): Guard
   const cards = ids.map((id) => table.cards[id]).filter((c): c is TableCard => !!c);
   const foreign = cards.filter((c) => holder(c) !== me);
   if (foreign.length === 0) return null;
-  const owners = [...new Set(foreign.map(holder))].map(ctx.nameOf);
-  const ownerText = owners.length === 1 ? owners[0] : `${owners.slice(0, -1).join(", ")} and ${owners.at(-1)}`;
+  const owners = [...new Set(foreign.map(holder))];
   const single = cards.length === 1;
-  const subject = single ? `${ctx.cardLabel(foreign[0])} belongs to ${ownerText}.` : `${foreign.length} of these ${cards.length} cards belong to ${ownerText}.`;
   const { phrase, confirm } = doing(action, single ? "it" : "them");
-  return { question: `${subject} ${phrase[0].toUpperCase()}${phrase.slice(1)} anyway?`, confirm };
+  const actionText = ` ${phrase[0].toUpperCase()}${phrase.slice(1)} anyway?`;
+  const ownerParts: GuardPart[] = owners.flatMap((id, i) => [
+    ...(i === 0 ? [] : [{ text: i === owners.length - 1 ? " and " : ", " }]),
+    { text: ctx.nameOf(id), kind: "player" as const, playerId: id },
+  ]);
+  const subjectParts: GuardPart[] = single
+    ? [
+        { text: ctx.cardLabel(foreign[0]), kind: "card", cardId: foreign[0].hidden ? undefined : foreign[0].cardId, face: foreign[0].face },
+        { text: " belongs to " },
+        ...ownerParts,
+        { text: "." },
+      ]
+    : [
+        { text: `${foreign.length} of these ${cards.length} cards belong to ` },
+        ...ownerParts,
+        { text: "." },
+      ];
+  const parts = [...subjectParts, { text: actionText }];
+  return { question: parts.map((part) => part.text).join(""), parts, confirm };
 }
 
 /** One guard for several actions sent together (so they share one prompt). */

@@ -679,7 +679,7 @@ function LogLine({
   );
 }
 
-/** Zoomed view of a card named in the log (the same carousel as your hand, with just that card). */
+/** Zoomed view of a card named in the log or a confirmation (the same carousel as your hand). */
 function LogZoom() {
   const zoom = useTableUi((s) => s.logZoom);
   const card = useStore((s) => (zoom ? s.cards[zoom.cardId] : undefined));
@@ -687,7 +687,7 @@ function LogZoom() {
   const originFor = useCallback((key: string) => document.querySelector(`[data-log-card="${CSS.escape(key)}"]`)?.getBoundingClientRect() ?? null, []);
   const close = useCallback(() => useTableUi.getState().set({ logZoom: null }), []);
   if (!zoom || !card) return null;
-  return <CardCarousel key={zoom.key} items={items} startKey={zoom.key} title="Game log" originFor={originFor} onClose={close} />;
+  return <CardCarousel key={zoom.key} items={items} startKey={zoom.key} title={zoom.title ?? "Game log"} originFor={originFor} onClose={close} />;
 }
 
 // --- hand -----------------------------------------------------------------------------------
@@ -1094,8 +1094,21 @@ function TokenDialog() {
 function AskDialog() {
   const ask = useTableUi((s) => s.ask);
   const set = useTableUi((s) => s.set);
+  const cards = useStore((s) => s.cards);
+  const seats = useStore((s) => s.view?.table?.seats ?? []);
+  const logZoom = useTableUi((s) => s.logZoom);
   const [value, setValue] = useState("");
-  useEffect(() => setValue(ask?.initial ?? ""), [ask]);
+  const [hover, setHover] = useState<{ card: CardData; face: number; rect: DOMRect } | null>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const previousLogZoom = useRef(logZoom);
+  useEffect(() => {
+    if (previousLogZoom.current && !logZoom && ask?.kind === "confirm") confirmButton.current?.focus();
+    previousLogZoom.current = logZoom;
+  }, [logZoom, ask]);
+  useEffect(() => {
+    setValue(ask?.initial ?? "");
+    setHover(null);
+  }, [ask]);
   // Confirmations have no input to catch Esc, so listen on the window.
   useEffect(() => {
     if (ask?.kind !== "confirm") return;
@@ -1120,7 +1133,48 @@ function AskDialog() {
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && cancel()}>
       <div className="modal panel ask-dialog" role={ask.kind === "confirm" ? "alertdialog" : "dialog"} aria-modal="true" aria-label={ask.question}>
-        <p className="ask-q">{ask.question}</p>
+        <p className="ask-q">
+          {ask.parts
+            ? ask.parts.map((part, i) => {
+                if (part.kind === "player") {
+                  const seat = seats.indexOf(part.playerId);
+                  return (
+                    <span key={i} className={`log-player${seat < 0 ? " gone" : ""}`} style={seat < 0 ? undefined : ({ "--hue": seatHue(seat) } as React.CSSProperties)}>
+                      {part.text}
+                    </span>
+                  );
+                }
+                if (part.kind === "card") {
+                  const card = part.cardId ? cards[part.cardId] : undefined;
+                  if (!card || !part.cardId) return <span key={i} className="log-card plain">{part.text}</span>;
+                  const face = part.face ?? 0;
+                  const linkKey = `ask-card-${i}-${part.cardId}`;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      className="log-card"
+                      data-log-card={linkKey}
+                      onPointerEnter={(e) => {
+                        if (e.pointerType !== "mouse") return;
+                        const dialog = e.currentTarget.closest(".ask-dialog");
+                        setHover({ card, face, rect: dialog?.getBoundingClientRect() ?? e.currentTarget.getBoundingClientRect() });
+                      }}
+                      onPointerLeave={() => setHover(null)}
+                      onClick={() => {
+                        setHover(null);
+                        useTableUi.getState().set({ logZoom: { key: linkKey, cardId: card.id, face, title: "Confirmation" } });
+                      }}
+                    >
+                      {part.text}
+                    </button>
+                  );
+                }
+                return part.text;
+              })
+            : ask.question}
+        </p>
+        {hover && <AnchoredPreview card={hover.card} face={hover.face} anchor={hover.rect} width={230} prefer="right" className="ask-card-preview" />}
         {ask.kind !== "confirm" && (
           <input
             className="input"
@@ -1139,7 +1193,7 @@ function AskDialog() {
           <button className="btn" onClick={cancel}>
             Cancel
           </button>
-          <button className="btn primary" autoFocus={ask.kind === "confirm"} onClick={submit}>
+          <button ref={confirmButton} className="btn primary" autoFocus={ask.kind === "confirm"} onClick={submit}>
             {ask.confirmLabel ?? "OK"}
           </button>
         </div>

@@ -17,6 +17,7 @@ export function AnchoredPreview({
   width = 250,
   prefer = "left",
   footer,
+  className,
 }: {
   card: CardData;
   foil?: boolean;
@@ -26,6 +27,7 @@ export function AnchoredPreview({
   /** Side of the anchor to use when there's room (lists on the right edge prefer the left). */
   prefer?: Side;
   footer?: ReactNode;
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; side: Side } | null>(null);
@@ -44,7 +46,7 @@ export function AnchoredPreview({
   return createPortal(
     <div
       ref={ref}
-      className={`anchored-preview${pos ? ` side-${pos.side}` : ""}`}
+      className={`anchored-preview${className ? ` ${className}` : ""}${pos ? ` side-${pos.side}` : ""}`}
       style={pos ? { left: pos.left, top: pos.top } : { left: -9999, top: -9999, visibility: "hidden" }}
     >
       <FacePair card={card} face={face} foil={foil} width={width} otherSide={otherSide} />
