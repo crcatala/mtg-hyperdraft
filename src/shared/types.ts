@@ -45,6 +45,8 @@ export interface CardData {
   cmc: number;
   typeLine: string;
   oracleText: string;
+  /** Scryfall's keyword abilities, keyword actions and ability words (Flying, Scry, Landfall...). */
+  keywords?: string[];
   power?: string;
   toughness?: string;
   loyalty?: string;

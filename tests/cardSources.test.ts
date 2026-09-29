@@ -72,6 +72,12 @@ describe("toCardData", () => {
     expect(card.faces?.[1].images?.normal).toBe("back.jpg");
     expect(card.manaCost).toBe("{U}");
   });
+
+  it("keeps Scryfall keywords, and leaves them off cards without any", () => {
+    expect(toCardData({ ...DB[0], keywords: ["Flying", "Landfall"] }).keywords).toEqual(["Flying", "Landfall"]);
+    expect(toCardData({ ...DB[0], keywords: [] }).keywords).toBeUndefined();
+    expect(toCardData(DB[0]).keywords).toBeUndefined();
+  });
 });
 
 describe("fetchCubeCobra", () => {

@@ -190,6 +190,7 @@ export interface ScryfallCard extends ScryfallFace {
   set: string;
   collector_number: string;
   artist?: string;
+  keywords?: string[];
   card_faces?: ScryfallFace[];
   all_parts?: { id: string; name: string; component: string }[];
 }
@@ -230,6 +231,7 @@ export function toCardData(raw: ScryfallCard): CardData {
     cmc: raw.cmc ?? 0,
     typeLine: raw.type_line ?? front?.typeLine ?? "",
     oracleText: raw.oracle_text ?? faces?.map((f) => f.oracleText).join("\n—\n") ?? "",
+    keywords: raw.keywords?.length ? raw.keywords : undefined,
     power: raw.power ?? front?.power,
     toughness: raw.toughness ?? front?.toughness,
     loyalty: raw.loyalty ?? front?.loyalty,
