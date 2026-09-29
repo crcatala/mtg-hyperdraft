@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { applyTableAction, createTable, TableError, tableViewFor, type TableEnv } from "../src/shared/table";
 import { seatsFromMe } from "../src/shared/tableLayout";
 import { mulberry32 } from "../src/shared/rng";
-import type { DeckState } from "../src/shared/types";
+import type { CardInstance, DeckState } from "../src/shared/types";
 import { basicIds, makeCube } from "./fixtures";
 
 function setup() {
@@ -432,6 +432,84 @@ describe("tabletop", () => {
     // Leaving the battlefield turns it back to the front.
     applyTableAction(table, "a", { a: "move", ids: [back], to: "hand" }, env);
     expect(table.cards[back].face).toBe(0);
+  });
+});
+
+describe("table card ids", () => {
+  const ID = /^k[A-Z2-9]{10}$/;
+
+  /** Two drafted decks with draft-style instance ids ("c…"), a foil, a sideboard, and basics. */
+  function draftedTable() {
+    let n = 0;
+    const env: TableEnv = { cards: makeCube(100), rng: mulberry32(7), now: 0, nextId: (p) => `${p}${(n++).toString(36)}`, names: { a: "Alice", b: "Bob" } };
+    const instances: Record<string, CardInstance> = {};
+    let next = 1;
+    const deck = (first: number): DeckState => {
+      const iids = Array.from({ length: 30 }, (_, i) => {
+        const iid = `c${(next++).toString(36)}`;
+        instances[iid] = { iid, cardId: `card-${first + i}`, ...(i === 0 ? { foil: true } : {}) };
+        return iid;
+      });
+      return { main: iids.slice(0, 23), side: iids.slice(23), basics: { W: 9, U: 8, B: 0, R: 0, G: 0, C: 0 }, ready: true };
+    };
+    const decks = { a: deck(0), b: deck(30) };
+    const table = createTable(["a", "b"], decks, instances, basicIds, { startingLife: 20, openingHandSize: 7 }, env);
+    return { table, env, instances, decks };
+  }
+
+  it("never reuses a draft instance id", () => {
+    const { table, instances } = draftedTable();
+    const ids = Object.keys(table.cards);
+    expect(ids).toHaveLength(2 * (30 + 17));
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) expect(instances[id]).toBeUndefined();
+  });
+
+  it("gives basic lands the same kind of id as every other card", () => {
+    const { table } = draftedTable();
+    const cards = Object.values(table.cards);
+    const basics = cards.filter((c) => c.cardId?.startsWith("basic-"));
+    expect(basics).toHaveLength(2 * 17);
+    for (const c of cards) expect(c.id).toMatch(ID);
+  });
+
+  it("orders the card map by id, not by decklist with basics last", () => {
+    const { table } = draftedTable();
+    const ids = Object.keys(table.cards);
+    expect(ids).toEqual(ids.slice().sort());
+    const basicAt = ids.map((id, i) => (table.cards[id].cardId?.startsWith("basic-") ? i : -1)).filter((i) => i >= 0);
+    expect(Math.min(...basicAt)).toBeLessThan(ids.length / 2);
+  });
+
+  it("keeps each drafted card's foil on its table card", () => {
+    const { table, instances, decks } = draftedTable();
+    const foils = Object.values(table.cards).filter((c) => c.foil);
+    expect(foils.map((c) => c.cardId).sort()).toEqual([instances[decks.a.main[0]].cardId, instances[decks.b.main[0]].cardId].sort());
+  });
+
+  it("shows another player's hidden cards as identical blanks", () => {
+    const { table, env, instances } = draftedTable();
+    // One of Alice's cards goes onto the battlefield face down.
+    const faceDown = table.players.a.zones.hand[0];
+    applyTableAction(table, "a", { a: "move", ids: [faceDown], to: "battlefield", x: 1, y: 2, faceDown: true }, env);
+
+    const view: typeof table = JSON.parse(JSON.stringify(tableViewFor(table, "b")));
+    const theirs = Object.values(view.cards).filter((c) => c.owner === "a");
+    expect(theirs).toHaveLength(47);
+    for (const c of theirs) {
+      expect(c.id).toMatch(ID);
+      const { id, x, y, z, faceDown: down, zone, ...rest } = c;
+      expect(rest).toEqual({ owner: "a", controller: "a", tapped: false, face: 0, counters: {}, hidden: true });
+      if (id !== faceDown) expect({ x, y, z, faceDown: down }).toEqual({ x: 0, y: 0, z: 0, faceDown: false });
+      expect(zone).toBe(id === faceDown ? "battlefield" : table.cards[id].zone);
+    }
+    // Nothing in Bob's view names Alice's draft ids or cards.
+    const json = JSON.stringify(view);
+    for (const [iid, inst] of Object.entries(instances)) {
+      if (Number.parseInt(inst.cardId.slice(5)) >= 30) continue; // Bob's own
+      expect(json).not.toContain(`"${iid}"`);
+      expect(json).not.toContain(`"${inst.cardId}"`);
+    }
   });
 });
 

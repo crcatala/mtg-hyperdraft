@@ -114,6 +114,33 @@ describe("room flow", () => {
     expect(Object.values(table.cards).filter((c) => c.owner === a.playerId && c.zone !== "sideboard")).toHaveLength(40);
   });
 
+  it("gives table cards fresh ids that no drafter saw and that hide basics from opponents", () => {
+    const { room } = newRoom();
+    const a = room.join({ name: "Alice" });
+    const b = room.join({ name: "Bob" });
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "debug", cmd: "startGame" });
+    expect(room.state.phase).toBe("playing");
+
+    const draftIds = Object.keys(room.state.instances);
+    expect(draftIds.length).toBeGreaterThan(0);
+    const table = room.state.table!;
+    for (const id of Object.keys(table.cards)) {
+      expect(room.state.instances[id]).toBeUndefined();
+      expect(id).toMatch(/^k[A-Z2-9]{10}$/);
+    }
+    expect(Object.values(table.cards).some((c) => c.cardId?.startsWith("basic-"))).toBe(true);
+
+    // Bob's view names none of the draft ids, and Alice's hidden cards are all alike.
+    const view = room.viewFor(b.playerId);
+    const json = JSON.stringify(view.table);
+    for (const iid of draftIds) expect(json).not.toContain(`"${iid}"`);
+    const hers = Object.values(view.table!.cards).filter((c) => c.owner === a.playerId);
+    expect(hers.length).toBeGreaterThan(40);
+    expect(new Set(hers.map(({ id: _, zone: __, ...rest }) => JSON.stringify(rest))).size).toBe(1);
+    expect(hers.every((c) => c.hidden && c.cardId === undefined && !c.foil)).toBe(true);
+  });
+
   it("hides the host secret and other packs from views", () => {
     const { room } = newRoom();
     const a = room.join({});

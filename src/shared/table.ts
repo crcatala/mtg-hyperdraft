@@ -18,7 +18,7 @@ import type {
   BasicLand,
 } from "./types";
 import { ZONE_LABELS } from "./types";
-import { shuffle, type Rng } from "./rng";
+import { randomCode, shuffle, type Rng } from "./rng";
 import { defaultBattlefieldSpot } from "./tableLayout";
 import { isLand } from "./autopick";
 import { card as cardText, joinLog, logText, num, player, verb, zone, type LogPiece, type LogText } from "./logText";
@@ -84,24 +84,39 @@ export function createTable(
       zones: { library: [], hand: [], graveyard: [], exile: [], sideboard: [] },
     };
     table.players[pid] = player;
-    const add = (iid: string, cardId: string, zone: HiddenZone, foil?: boolean) => {
-      table.cards[iid] = blankCard(iid, pid, zone, cardId, foil);
-      player.zones[zone].push(iid);
+    const add = (cardId: string, zone: HiddenZone, foil?: boolean) => {
+      const id = opaqueCardId(table, env.rng);
+      table.cards[id] = blankCard(id, pid, zone, cardId, foil);
+      player.zones[zone].push(id);
     };
-    for (const iid of deck?.main ?? []) add(iid, instances[iid].cardId, "library", instances[iid].foil);
-    for (const iid of deck?.side ?? []) add(iid, instances[iid].cardId, "sideboard", instances[iid].foil);
+    for (const iid of deck?.main ?? []) add(instances[iid].cardId, "library", instances[iid].foil);
+    for (const iid of deck?.side ?? []) add(instances[iid].cardId, "sideboard", instances[iid].foil);
     for (const [land, n] of Object.entries(deck?.basics ?? {}) as [BasicLand, number][]) {
       const cardId = basicIds[land];
       if (!cardId) continue;
-      for (let i = 0; i < n; i++) add(env.nextId("b"), cardId, "library");
+      for (let i = 0; i < n; i++) add(cardId, "library");
     }
     player.zones.library = shuffle(player.zones.library, env.rng);
     for (let i = 0; i < config.openingHandSize && player.zones.library.length > 0; i++) {
       moveCard(table, table.cards[player.zones.library[0]], "hand", env);
     }
   });
+  // Key order is sent to every player too: order by the random id, not decklist-then-basics.
+  table.cards = Object.fromEntries(Object.entries(table.cards).sort(([a], [b]) => (a < b ? -1 : 1)));
   log(table, seats[0], "start", logText`The game begins — everyone drew ${num(config.openingHandSize)}. Good luck!`, env);
   return table;
+}
+
+/**
+ * A fresh random id for a deck card. Draft instance ids were shown to other drafters with their
+ * cards, and anything derived from the card, the decklist or the library order would give hidden
+ * cards away too, so table ids are random and all look alike. (Tokens keep their "t" ids: they're public.)
+ */
+function opaqueCardId(table: TableState, rng: Rng): string {
+  let id: string;
+  do id = `k${randomCode(rng, 10)}`;
+  while (table.cards[id]);
+  return id;
 }
 
 function blankCard(id: string, owner: string, zone: ZoneName, cardId?: string, foil?: boolean): TableCard {
@@ -479,7 +494,7 @@ export function tableViewFor(table: TableState, viewer: string): TableState {
       (card.zone === "battlefield" && (!card.faceDown || card.controller === viewer || card.owner === viewer)) ||
       ((card.zone === "hand" || card.zone === "sideboard") && card.owner === viewer) ||
       (card.zone === "library" && peekIds.has(card.id));
-    cards[card.id] = visible ? card : { ...card, cardId: undefined, token: undefined, face: 0, hidden: true };
+    cards[card.id] = visible ? card : { ...card, cardId: undefined, token: undefined, face: 0, foil: undefined, hidden: true };
   }
   // Only your own look's cards are anyone's business, but everyone sees that a look is happening.
   const looks: Record<string, PublicLook> = {};
