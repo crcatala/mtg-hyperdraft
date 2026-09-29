@@ -8,7 +8,7 @@ import { hasBackFace, nextFace } from "../cardStyle";
 import { sfx } from "../sfx";
 import { pilePosition } from "../../shared/tableLayout";
 export { seatsFromMe } from "../../shared/tableLayout";
-import { guardForAll, type GuardContext } from "./guards";
+import { guardForAll, type GuardContext, type GuardPart } from "./guards";
 
 export interface LocalDrag {
   ids: string[];
@@ -38,6 +38,8 @@ export const PING_MS = 5000;
 
 export interface AskState {
   question: string;
+  /** Styled player/card names in confirmation questions. */
+  parts?: GuardPart[];
   kind: "number" | "text" | "confirm";
   initial?: string;
   /** Label of the OK button (confirmations name the action: "Tap", "Draw"…). */
@@ -52,6 +54,8 @@ export interface LogZoom {
   key: string;
   cardId: string;
   face: number;
+  /** Where the zoom was opened from; defaults to the game log. */
+  title?: string;
 }
 
 export interface ZoneViewerState {
@@ -70,7 +74,7 @@ interface TableUi {
   overview: boolean;
   /** Whose seat the camera sits behind (null: your own). */
   pov: string | null;
-  /** A card named in the game log, open in the zoom carousel. */
+  /** A card named in the game log or a confirmation prompt, open in the zoom carousel. */
   logZoom: LogZoom | null;
   logOpen: boolean;
   ask: AskState | null;
@@ -134,7 +138,7 @@ export function actAll(actions: TableAction[], opts: ActOptions = {}) {
   const t = table();
   const guard = t ? guardForAll(actions, guardContext(t)) : null;
   if (!guard) return send();
-  useTableUi.getState().set({ ask: { question: guard.question, kind: "confirm", confirmLabel: guard.confirm, onSubmit: send, onCancel: opts.onCancel } });
+  useTableUi.getState().set({ ask: { question: guard.question, parts: guard.parts, kind: "confirm", confirmLabel: guard.confirm, onSubmit: send, onCancel: opts.onCancel } });
 }
 
 export function act(action: TableAction, opts: ActOptions = {}) {

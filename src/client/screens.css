@@ -2165,6 +2165,9 @@ body.dragging * {
   align-items: flex-start;
   gap: 8px;
 }
+.anchored-preview.ask-card-preview {
+  z-index: 840;
+}
 /* Keep the main face against the anchor when the preview sits on its left. */
 .anchored-preview.side-left {
   align-items: flex-end;

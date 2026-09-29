@@ -9,8 +9,8 @@ function card(id: string, owner: string, zone: TableCard["zone"] = "battlefield"
 function ctx(turn = "a", cards: TableCard[] = []): GuardContext {
   const player = (seat: number) => ({ seat, life: 20, poison: 0, zones: { hand: [], library: [], graveyard: [], exile: [], sideboard: [] } });
   const table = {
-    seats: ["a", "b", "c"],
-    players: { a: player(0), b: player(1), c: player(2) },
+    seats: ["a", "b", "c", "d"],
+    players: { a: player(0), b: player(1), c: player(2), d: player(3) },
     cards: Object.fromEntries(cards.map((c) => [c.id, c])),
     turn: { playerId: turn, number: 1 },
     nextZ: 0,
@@ -18,16 +18,20 @@ function ctx(turn = "a", cards: TableCard[] = []): GuardContext {
     peek: {},
     openingHandSize: 7,
   } as unknown as TableState;
-  const names: Record<string, string> = { a: "Alice", b: "Bob", c: "Cleo" };
+  const names: Record<string, string> = { a: "Alice", b: "Bob", c: "Cleo", d: "Dave" };
   return { table, me: "a", nameOf: (id) => names[id], cardLabel: (c) => `Card ${c.id}` };
 }
 
 describe("off-turn guards", () => {
   it("asks before turn-structure actions on someone else's turn", () => {
     const off = ctx("b");
-    expect(guardFor({ a: "draw", n: 1 }, off)).toEqual({ question: "It's Bob's turn. Draw a card anyway?", confirm: "Draw" });
+    const draw = guardFor({ a: "draw", n: 1 }, off);
+    expect(draw).toMatchObject({ question: "It's Bob's turn. Draw a card anyway?", confirm: "Draw" });
+    expect(draw?.parts).toContainEqual({ text: "Bob", kind: "player", playerId: "b" });
     expect(guardFor({ a: "draw", n: 3 }, off)?.question).toBe("It's Bob's turn. Draw 3 cards anyway?");
-    expect(guardFor({ a: "nextTurn" }, off)).toEqual({ question: "It's Bob's turn, not yours. End it anyway?", confirm: "End their turn" });
+    const endTurn = guardFor({ a: "nextTurn" }, off);
+    expect(endTurn).toMatchObject({ question: "It's Bob's turn, not yours. End it anyway?", confirm: "End their turn" });
+    expect(endTurn?.parts).toContainEqual({ text: "Bob", kind: "player", playerId: "b" });
     for (const a of [{ a: "untapAll" }, { a: "shuffle" }, { a: "mill", n: 2 }] as const) expect(guardFor(a, off)).not.toBeNull();
   });
 
@@ -54,12 +58,24 @@ describe("other players' cards", () => {
 
   it("asks before touching a card someone else controls", () => {
     const c = ctx("a", cards);
-    expect(guardFor({ a: "tap", ids: ["bob1"], tapped: true }, c)).toEqual({ question: "Card bob1 belongs to Bob. Tap it anyway?", confirm: "Tap" });
+    const tap = guardFor({ a: "tap", ids: ["bob1"], tapped: true }, c);
+    expect(tap).toMatchObject({ question: "Card bob1 belongs to Bob. Tap it anyway?", confirm: "Tap" });
+    expect(tap?.parts).toContainEqual({ text: "Bob", kind: "player", playerId: "b" });
+    expect(tap?.parts?.[0]).toMatchObject({ text: "Card bob1", kind: "card" });
     expect(guardFor({ a: "tap", ids: ["bob1"], tapped: false }, c)?.confirm).toBe("Untap");
     expect(guardFor({ a: "flip", ids: ["bob1"] }, c)?.question).toBe("Card bob1 belongs to Bob. Turn it over anyway?");
     expect(guardFor({ a: "counter", id: "bob1", kind: "+1/+1", delta: -1 }, c)?.question).toBe("Card bob1 belongs to Bob. Remove a +1/+1 counter from it anyway?");
     expect(guardFor({ a: "move", ids: ["bob1"], to: "exile" }, c)?.question).toBe("Card bob1 belongs to Bob. Exile it anyway?");
     expect(guardFor({ a: "setPos", id: "bob1", x: 1, y: 1 }, c)?.confirm).toBe("Move");
+  });
+
+  it("includes visible card data for hover previews without exposing hidden identities", () => {
+    const visible = { ...card("bob1", "b"), cardId: "scryfall-card", face: 1 };
+    const prompt = guardFor({ a: "tap", ids: ["bob1"] }, ctx("a", [visible]));
+    expect(prompt?.parts?.[0]).toMatchObject({ kind: "card", cardId: "scryfall-card", face: 1 });
+
+    const hidden = { ...visible, hidden: true };
+    expect(guardFor({ a: "tap", ids: ["bob1"] }, ctx("a", [hidden]))?.parts?.[0]).toMatchObject({ kind: "card", cardId: undefined });
   });
 
   it("goes by controller on the battlefield and owner elsewhere", () => {
@@ -73,7 +89,19 @@ describe("other players' cards", () => {
 
   it("counts foreign cards in a mixed selection and names every owner", () => {
     const c = ctx("a", cards);
-    expect(guardFor({ a: "tap", ids: ["mine", "bob1", "cleo"] }, c)?.question).toBe("2 of these 3 cards belong to Bob and Cleo. Tap them anyway?");
+    const prompt = guardFor({ a: "tap", ids: ["mine", "bob1", "cleo"] }, c);
+    expect(prompt?.question).toBe("2 of these 3 cards belong to Bob and Cleo. Tap them anyway?");
+    expect(prompt?.parts).toContainEqual({ text: "Bob", kind: "player", playerId: "b" });
+    expect(prompt?.parts).toContainEqual({ text: "Cleo", kind: "player", playerId: "c" });
+  });
+
+  it("formats three distinct owners with a comma and final conjunction", () => {
+    const prompt = guardFor({ a: "tap", ids: ["bob1", "cleo", "dave"] }, ctx("a", [...cards, card("dave", "d")]));
+    expect(prompt?.question).toBe("3 of these 3 cards belong to Bob, Cleo and Dave. Tap them anyway?");
+    expect(prompt?.parts?.map((part) => part.text).join("")).toBe(prompt?.question);
+    expect(prompt?.parts).toContainEqual({ text: "Bob", kind: "player", playerId: "b" });
+    expect(prompt?.parts).toContainEqual({ text: "Cleo", kind: "player", playerId: "c" });
+    expect(prompt?.parts).toContainEqual({ text: "Dave", kind: "player", playerId: "d" });
   });
 
   it("judges a dropped group of cards as one move", () => {
