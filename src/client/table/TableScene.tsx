@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store";
+import { handDragId } from "../../shared/table";
 import type { PublicLook, TableCard, TableState } from "../../shared/types";
 import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
 import { backTexture, feltTexture, glowTexture, labelTexture, lookTagTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, type LabelVariant } from "./textures";
@@ -55,6 +56,7 @@ function Scene() {
   }, [table.cards]);
   // Drag shadows lie just above the highest resting card, so stacks never hide the landing spot.
   const shadowY = 0.03 + battlefield.length * 0.004 + 0.012;
+  const keys = useMotion((s) => s.keys);
 
   return (
     <>
@@ -70,7 +72,7 @@ function Scene() {
         <SeatArea key={pid} table={table} playerId={pid} seat={seat} seatCount={n} isMe={pid === me} viewerAngle={seatAngle(povSeat, n)} />
       ))}
       {battlefield.map((card, i) => (
-        <BattlefieldCard key={card.id} card={card} elevation={0.03 + i * 0.004} shadowY={shadowY} table={table} me={me} />
+        <BattlefieldCard key={keys[card.id] ?? card.id} card={card} elevation={0.03 + i * 0.004} shadowY={shadowY} table={table} me={me} />
       ))}
       <DropTarget mySeat={mySeat} seatCount={n} shadowY={shadowY} />
       <RemoteHandDrags table={table} shadowY={shadowY} />
@@ -564,7 +566,9 @@ function BattlefieldCard({ card, elevation, shadowY, table, me }: { card: TableC
     }
     if (!group.current || reducedMotion()) return;
     tapAnim.current = { start: performance.now() + (useMotion.getState().tapDelay[card.id] ?? 0), fromRot: group.current.rotation.y };
-  }, [card.tapped, card.id]);
+    // Not on an id change (a face-down card turned face up keeps its scene object: see useMotion's keys).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.tapped]);
 
   // Turned face down / up or transformed: flip over, showing the old face until it's edge-on.
   const faceKey = showBack ? "back" : `face${card.face}`;
@@ -792,11 +796,12 @@ const REMOTE_DRAG_MS = 600;
 
 /**
  * Cards other players are pulling out of their hands, shown face down under their pointer until
- * they're played (then the battlefield card takes over) or put back.
+ * they're played (then the battlefield card takes over) or put back. These drags come under
+ * handDragId, not a card id: which card of the hand it is isn't anyone else's business.
  */
 function RemoteHandDrags({ table, shadowY }: { table: TableState; shadowY: number }) {
   const drags = useStore((s) => s.drags);
-  const ids = Object.keys(drags).filter((id) => table.cards[id]?.zone === "hand");
+  const ids = Object.keys(drags).filter((id) => id === handDragId(drags[id].by));
   return (
     <>
       {ids.map((id) => (

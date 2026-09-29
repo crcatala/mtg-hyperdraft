@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyTableAction, createTable, TableError, tableViewFor, type TableEnv } from "../src/shared/table";
+import { applyTableAction, createTable, realIdsFor, resolveTableAction, shownId, TableError, tableViewFor, type TableEnv } from "../src/shared/table";
 import { seatsFromMe } from "../src/shared/tableLayout";
 import { mulberry32 } from "../src/shared/rng";
-import type { CardInstance, DeckState } from "../src/shared/types";
+import type { CardInstance, DeckState, TableState } from "../src/shared/types";
 import { basicIds, makeCube } from "./fixtures";
 
 function setup() {
@@ -21,6 +21,11 @@ function setup() {
   return { table, env };
 }
 
+/** A card as `viewer` sees it: under the stand-in id they know it by, when it's hidden from them. */
+function seen(table: TableState, viewer: string, id: string) {
+  return tableViewFor(table, viewer).cards[shownId(table, viewer, id)];
+}
+
 describe("tabletop", () => {
   it("builds libraries with basics and draws opening hands", () => {
     const { table } = setup();
@@ -31,14 +36,13 @@ describe("tabletop", () => {
 
   it("hides other players' hands and all libraries", () => {
     const { table } = setup();
-    const view = tableViewFor(table, "a");
     const myHand = table.players.a.zones.hand[0];
     const theirHand = table.players.b.zones.hand[0];
     const myLib = table.players.a.zones.library[0];
-    expect(view.cards[myHand].cardId).toBeDefined();
-    expect(view.cards[theirHand].cardId).toBeUndefined();
-    expect(view.cards[theirHand].hidden).toBe(true);
-    expect(view.cards[myLib].cardId).toBeUndefined();
+    expect(seen(table, "a", myHand).cardId).toBeDefined();
+    expect(seen(table, "a", theirHand).cardId).toBeUndefined();
+    expect(seen(table, "a", theirHand).hidden).toBe(true);
+    expect(seen(table, "a", myLib).cardId).toBeUndefined();
   });
 
   it("plays, taps, and returns cards; leaving the battlefield resets state", () => {
@@ -72,8 +76,8 @@ describe("tabletop", () => {
     const { table, env } = setup();
     const id = table.players.a.zones.hand[0];
     applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield", faceDown: true }, env);
-    expect(tableViewFor(table, "b").cards[id].cardId).toBeUndefined();
-    expect(tableViewFor(table, "a").cards[id].cardId).toBeDefined();
+    expect(seen(table, "b", id).cardId).toBeUndefined();
+    expect(seen(table, "a", id).cardId).toBeDefined();
     expect(table.log.at(-1)?.text).not.toMatch(/Card \d/);
   });
 
@@ -91,9 +95,8 @@ describe("tabletop", () => {
     expect(table.players.a.zones.graveyard).toHaveLength(3);
     applyTableAction(table, "a", { a: "peek", n: 3 }, env);
     const top = table.players.a.zones.library.slice(0, 3);
-    const view = tableViewFor(table, "a");
-    expect(top.every((id) => view.cards[id].cardId)).toBe(true);
-    expect(tableViewFor(table, "b").cards[top[0]].cardId).toBeUndefined();
+    expect(top.every((id) => seen(table, "a", id).cardId)).toBe(true);
+    expect(seen(table, "b", top[0]).cardId).toBeUndefined();
     applyTableAction(table, "a", { a: "mulligan" }, env);
     expect(table.players.a.zones.hand).toHaveLength(7);
   });
@@ -116,7 +119,7 @@ describe("tabletop", () => {
       applyTableAction(table, "a", { a: "peek", n: 3 }, env);
       applyTableAction(table, "a", { a: "move", ids: [c1], to: "graveyard" }, env);
       expect(table.peek.a.ids).toEqual([c2, c3]);
-      expect(tableViewFor(table, "a").cards[c4].cardId).toBeUndefined();
+      expect(seen(table, "a", c4).cardId).toBeUndefined();
       applyTableAction(table, "a", { a: "move", ids: [c3], to: "library", bottom: true }, env);
       expect(table.peek.a.ids).toEqual([c2]);
       expect(lib(table).at(-1)).toBe(c3);
@@ -130,7 +133,7 @@ describe("tabletop", () => {
       expect(table.peek.a.ids).toEqual([c1, c2]);
       expect(lib(table).slice(0, 3)).toEqual([c3, c1, c2]);
       // No longer being looked at: hidden again like the rest of the library.
-      expect(tableViewFor(table, "a").cards[c3].cardId).toBeUndefined();
+      expect(seen(table, "a", c3).cardId).toBeUndefined();
     });
 
     it("logs where each card went without naming library cards", () => {
@@ -179,7 +182,7 @@ describe("tabletop", () => {
       applyTableAction(table, "a", { a: "peek", n: 0 }, env);
       expect(table.peek.a).toBeUndefined();
       expect(lib(table).slice(0, 2)).toEqual([c1, c3]);
-      expect(tableViewFor(table, "a").cards[c1].cardId).toBeUndefined();
+      expect(seen(table, "a", c1).cardId).toBeUndefined();
     });
 
     it("drawing or milling a looked-at card removes it from the look", () => {
@@ -216,8 +219,8 @@ describe("tabletop", () => {
       applyTableAction(table, "a", { a: "peek", n: 2 }, env);
       const theirs = tableViewFor(table, "b");
       expect(theirs.peek).toEqual({});
-      expect(top.every((id) => theirs.cards[id].cardId === undefined)).toBe(true);
-      expect(top.every((id) => tableViewFor(table, "a").cards[id].cardId)).toBe(true);
+      expect(top.every((id) => seen(table, "b", id).cardId === undefined)).toBe(true);
+      expect(top.every((id) => seen(table, "a", id).cardId)).toBe(true);
       expect(theirs.looks).toEqual({ a: { kind: "top", n: 2, left: 2 } });
       expect(tableViewFor(table, "a").looks).toEqual({ a: { kind: "top", n: 2, left: 2 } });
       applyTableAction(table, "a", { a: "move", ids: [top[0]], to: "library", bottom: true }, env);
@@ -231,7 +234,7 @@ describe("tabletop", () => {
       applyTableAction(table, "a", { a: "peek", n: 0, search: true }, env);
       const theirs = tableViewFor(table, "b");
       expect(theirs.looks).toEqual({ a: { kind: "search" } });
-      expect(lib(table).every((id) => theirs.cards[id].cardId === undefined)).toBe(true);
+      expect(lib(table).every((id) => seen(table, "b", id).cardId === undefined)).toBe(true);
       applyTableAction(table, "a", { a: "shuffle" }, env);
       expect(tableViewFor(table, "b").looks).toEqual({});
     });
@@ -254,7 +257,7 @@ describe("tabletop", () => {
       (table.peek as Record<string, unknown>).a = 3;
       const view = tableViewFor(table, "a");
       expect(view.peek).toEqual({});
-      expect(view.cards[lib(table)[0]].cardId).toBeUndefined();
+      expect(seen(table, "a", lib(table)[0]).cardId).toBeUndefined();
       // Moving cards around doesn't trip over it, and a new look replaces it.
       applyTableAction(table, "a", { a: "draw", n: 1 }, env);
       applyTableAction(table, "a", { a: "peek", n: 2 }, env);
@@ -496,12 +499,13 @@ describe("table card ids", () => {
     const view: typeof table = JSON.parse(JSON.stringify(tableViewFor(table, "b")));
     const theirs = Object.values(view.cards).filter((c) => c.owner === "a");
     expect(theirs).toHaveLength(47);
+    const realId = realIdsFor(table, "b");
     for (const c of theirs) {
       expect(c.id).toMatch(ID);
       const { id, x, y, z, faceDown: down, zone, ...rest } = c;
       expect(rest).toEqual({ owner: "a", controller: "a", tapped: false, face: 0, counters: {}, hidden: true });
-      if (id !== faceDown) expect({ x, y, z, faceDown: down }).toEqual({ x: 0, y: 0, z: 0, faceDown: false });
-      expect(zone).toBe(id === faceDown ? "battlefield" : table.cards[id].zone);
+      if (realId(id) !== faceDown) expect({ x, y, z, faceDown: down }).toEqual({ x: 0, y: 0, z: 0, faceDown: false });
+      expect(zone).toBe(table.cards[realId(id)].zone);
     }
     // Nothing in Bob's view names Alice's draft ids or cards.
     const json = JSON.stringify(view);
@@ -510,6 +514,238 @@ describe("table card ids", () => {
       expect(json).not.toContain(`"${iid}"`);
       expect(json).not.toContain(`"${inst.cardId}"`);
     }
+  });
+});
+
+describe("stand-in ids for hidden cards", () => {
+  /** Every id in `viewer`'s view: card keys and zone lists. */
+  function idsIn(view: TableState): Set<string> {
+    return new Set([...Object.keys(view.cards), ...Object.values(view.players).flatMap((p) => Object.values(p.zones).flat())]);
+  }
+  const lib = (table: TableState, pid = "a") => table.players[pid].zones.library;
+
+  it("owners see their own cards by their real ids", () => {
+    const { table, env } = setup();
+    const [down, ...hand] = table.players.a.zones.hand;
+    applyTableAction(table, "a", { a: "move", ids: [down], to: "battlefield", faceDown: true }, env);
+    const view = tableViewFor(table, "a");
+    for (const id of [down, ...hand]) expect(view.cards[id]?.cardId).toBe(table.cards[id].cardId);
+    expect(view.players.a.zones.hand).toEqual(hand);
+    // Face-up cards are everyone's: real ids all round.
+    applyTableAction(table, "a", { a: "move", ids: [hand[0]], to: "battlefield" }, env);
+    expect(tableViewFor(table, "b").cards[hand[0]]?.cardId).toBe(table.cards[hand[0]].cardId);
+  });
+
+  it("shows hidden cards under stand-ins that give nothing away", () => {
+    const { table } = setup();
+    const view = tableViewFor(table, "b");
+    const real = new Set([...lib(table), ...table.players.a.zones.hand]);
+    for (const id of [...view.players.a.zones.library, ...view.players.a.zones.hand]) {
+      expect(real.has(id)).toBe(false);
+      expect(id).toMatch(/^k[A-Z2-9]{10}$/);
+    }
+    // Keys in the order of the ids the viewer sees, not the real ones.
+    const keys = Object.keys(view.cards);
+    expect(keys).toEqual(keys.slice().sort());
+    // No viewer's view carries the stand-in table itself.
+    expect(view.standIns).toBeUndefined();
+    expect(tableViewFor(table, "a").standIns).toBeUndefined();
+  });
+
+  it("gives every library card a new stand-in when it's shuffled, for everyone", () => {
+    const { table, env } = setup();
+    const before = { a: idsIn(tableViewFor(table, "a")), b: idsIn(tableViewFor(table, "b")) };
+    applyTableAction(table, "a", { a: "shuffle" }, env);
+    for (const viewer of ["a", "b"] as const) {
+      const after = tableViewFor(table, viewer).players.a.zones.library;
+      expect(after).toHaveLength(33);
+      expect(after.filter((id) => before[viewer].has(id))).toEqual([]);
+    }
+    expect(table.players.a.shuffles).toBe(1);
+  });
+
+  it("keeps stand-ins while hidden cards stay put, or move where everyone sees", () => {
+    const { table, env } = setup();
+    const before = tableViewFor(table, "b").players.a.zones;
+    applyTableAction(table, "a", { a: "draw", n: 1 }, env);
+    applyTableAction(table, "a", { a: "move", ids: [lib(table)[0]], to: "library", bottom: true }, env);
+    const after = tableViewFor(table, "b").players.a.zones;
+    // The drawn card is the same card to Bob, just in the hand now; the scried one went to the bottom.
+    expect(after.hand).toEqual([...before.hand, before.library[0]]);
+    expect(after.library).toEqual([...before.library.slice(2), before.library[1]]);
+  });
+
+  it("can't follow a revealed card through a shuffle", () => {
+    const { table, env } = setup();
+    const top = lib(table)[0];
+    applyTableAction(table, "a", { a: "reveal", ids: [top] }, env);
+    const shown = tableViewFor(table, "b").players.a.zones.library[0];
+    applyTableAction(table, "a", { a: "shuffle" }, env);
+    const view = tableViewFor(table, "b");
+    expect(idsIn(view).has(shown)).toBe(false);
+    expect(idsIn(view).has(top)).toBe(false);
+  });
+
+  it("can't follow a graveyard shuffled into the library", () => {
+    const { table, env } = setup();
+    applyTableAction(table, "a", { a: "mill", n: 4 }, env);
+    const milled = table.players.a.zones.graveyard.slice();
+    applyTableAction(table, "a", { a: "move", ids: milled, to: "library" }, env);
+    // Everyone saw them go on top: they keep their ids until the shuffle.
+    expect(tableViewFor(table, "b").players.a.zones.library.slice(0, 4)).toEqual(milled.slice().reverse());
+    applyTableAction(table, "a", { a: "shuffle" }, env);
+    for (const viewer of ["a", "b"]) {
+      const view = tableViewFor(table, viewer);
+      for (const id of milled) expect(idsIn(view).has(id)).toBe(false);
+    }
+  });
+
+  it("can't follow a card seen going into a hand once a card leaves that hand unseen", () => {
+    const { table, env } = setup();
+    const id = table.players.a.zones.hand[0];
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield" }, env);
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "hand" }, env);
+    // Bounced: Bob saw it go back, so he still knows it's in there, and nothing is left from its time
+    // on the battlefield.
+    expect(tableViewFor(table, "b").players.a.zones.hand).toContain(id);
+    expect(seen(table, "b", id)).toMatchObject({ x: 0, y: 0, z: 0, hidden: true });
+    // Reordering the hand gives nothing away...
+    applyTableAction(table, "a", { a: "move", ids: [table.players.a.zones.hand[0]], to: "hand" }, env);
+    const before = new Set(tableViewFor(table, "b").players.a.zones.hand);
+    expect(before.has(id)).toBe(true);
+    // ...but once a card goes from the hand face down, Bob can't tell which, and the rest are new too.
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield", faceDown: true }, env);
+    const view = tableViewFor(table, "b");
+    expect(idsIn(view).has(id)).toBe(false);
+    expect([...view.players.a.zones.hand, shownId(table, "b", id)].filter((x) => before.has(x))).toEqual([]);
+    // Alice still sees it as it is.
+    expect(tableViewFor(table, "a").cards[id].cardId).toBe(table.cards[id].cardId);
+  });
+
+  it("puts a hand card on the library unseen, for the others; its owner still knows it", () => {
+    const { table, env } = setup();
+    const id = table.players.a.zones.hand[0];
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "library" }, env);
+    expect(tableViewFor(table, "a").players.a.zones.library[0]).toBe(id);
+    expect(tableViewFor(table, "b").players.a.zones.library[0]).not.toBe(id);
+  });
+
+  it("lets a face-down card's stand-in be acted on, and it keeps it until it's turned up", () => {
+    const { table, env } = setup();
+    const id = table.players.a.zones.hand[0];
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield", x: 1, y: 1, faceDown: true }, env);
+    const standIn = shownId(table, "b", id);
+    expect(standIn).not.toBe(id);
+    const asBob = (action: Parameters<typeof resolveTableAction>[2]) => applyTableAction(table, "b", resolveTableAction(table, "b", action), env);
+    asBob({ a: "tap", ids: [standIn] });
+    asBob({ a: "counter", id: standIn, kind: "+1/+1", delta: 1 });
+    asBob({ a: "setPos", id: standIn, x: 4, y: 5 });
+    expect(table.cards[id]).toMatchObject({ tapped: true, counters: { "+1/+1": 1 }, x: 4, y: 5, faceDown: true });
+    expect(shownId(table, "b", id)).toBe(standIn);
+    asBob({ a: "flip", ids: [standIn] });
+    expect(table.cards[id].faceDown).toBe(false);
+    expect(tableViewFor(table, "b").cards[id].cardId).toBe(table.cards[id].cardId);
+  });
+
+  it("refuses ids a player doesn't know a card by", () => {
+    const { table } = setup();
+    const theirs = table.players.a.zones.hand[0];
+    const myLibrary = lib(table, "b")[0];
+    for (const id of [theirs, myLibrary, "nope", "constructor", "__proto__"]) {
+      expect(() => resolveTableAction(table, "b", { a: "tap", ids: [id] })).toThrow(TableError);
+    }
+    // Their own library works through the stand-in they see.
+    const top = tableViewFor(table, "b").players.b.zones.library[0];
+    expect(resolveTableAction(table, "b", { a: "reveal", ids: [top] })).toEqual({ a: "reveal", ids: [myLibrary] });
+    // And the real ids of cards they can see pass straight through.
+    const mine = table.players.b.zones.hand[0];
+    expect(resolveTableAction(table, "b", { a: "move", ids: [mine], to: "graveyard" })).toEqual({ a: "move", ids: [mine], to: "graveyard" });
+  });
+
+  it("won't put counters on hidden cards or transform them (it would mark or name them)", () => {
+    const { table, env } = setup();
+    const [hand, down] = table.players.a.zones.hand;
+    for (const id of [hand, down]) {
+      const data = env.cards[table.cards[id].cardId!];
+      env.cards[data.id] = {
+        ...data,
+        faces: [
+          { name: "Day Side", manaCost: "", typeLine: "Creature", oracleText: "", colors: ["G"], images: { normal: "day.jpg" } },
+          { name: "Night Side", manaCost: "", typeLine: "Creature", oracleText: "", colors: ["G"], images: { normal: "night.jpg" } },
+        ],
+      };
+    }
+    applyTableAction(table, "a", { a: "move", ids: [down], to: "battlefield", faceDown: true }, env);
+    const asPlayer = (pid: string, action: Parameters<typeof resolveTableAction>[2]) => () => applyTableAction(table, pid, resolveTableAction(table, pid, action), env);
+    const logged = table.log.length;
+    const bobSees = (id: string) => shownId(table, "b", id);
+    for (const id of [hand, lib(table)[0]]) {
+      expect(asPlayer("b", { a: "counter", id: bobSees(id), kind: "+1/+1", delta: 1 })).toThrow(TableError);
+      expect(asPlayer("b", { a: "turnFace", id: bobSees(id) })).toThrow(TableError);
+    }
+    // Not even on your own library (you can't see it either), nor a face-down card you can't see.
+    expect(asPlayer("a", { a: "counter", id: shownId(table, "a", lib(table)[0]), kind: "+1/+1", delta: 1 })).toThrow(TableError);
+    expect(asPlayer("b", { a: "turnFace", id: bobSees(down) })).toThrow("You can't transform a face-down card you can't see.");
+    expect(table.log).toHaveLength(logged);
+    expect(Object.values(table.cards).every((c) => Object.keys(c.counters).length === 0)).toBe(true);
+    // Face-down cards still take counters (as at a real table), and their owner can still turn them.
+    asPlayer("b", { a: "counter", id: bobSees(down), kind: "+1/+1", delta: 1 })();
+    asPlayer("a", { a: "turnFace", id: down })();
+    expect(table.cards[down]).toMatchObject({ face: 1, counters: { "+1/+1": 1 } });
+    for (const e of table.log.slice(logged)) expect(e.text).not.toMatch(/Side|Card \d/);
+  });
+
+  it("can't follow a card through a shuffle by its counters", () => {
+    const { table, env } = setup();
+    const id = table.players.a.zones.hand[0];
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield" }, env);
+    applyTableAction(table, "a", { a: "counter", id, kind: "stun", delta: 2 }, env);
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "library" }, env);
+    // A game saved with counters on a hidden card doesn't show them either.
+    table.cards[lib(table)[5]].counters = { oil: 1 };
+    applyTableAction(table, "a", { a: "shuffle" }, env);
+    for (const viewer of ["a", "b"]) {
+      const view = tableViewFor(table, viewer);
+      for (const shown of view.players.a.zones.library) expect(view.cards[shown].counters).toEqual({});
+    }
+  });
+
+  it("can't tell which card a search or a look at the top took", () => {
+    const { table, env } = setup();
+    const id = table.players.a.zones.hand[0];
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield" }, env);
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "library", bottom: true }, env);
+    // Bob saw it go to the bottom...
+    expect(tableViewFor(table, "b").players.a.zones.library.at(-1)).toBe(id);
+    let before = idsIn(tableViewFor(table, "b"));
+    applyTableAction(table, "a", { a: "peek", n: 0, search: true }, env);
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "hand" }, env);
+    // ...but not which card the search found: the library and the found card are all new to him.
+    let view = tableViewFor(table, "b");
+    expect([...view.players.a.zones.library, shownId(table, "b", id)].filter((x) => before.has(x))).toEqual([]);
+    expect(tableViewFor(table, "a").cards[id].cardId).toBe(table.cards[id].cardId);
+    // The same for a card taken from a look at the top few...
+    applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+    before = idsIn(tableViewFor(table, "b"));
+    applyTableAction(table, "a", { a: "move", ids: [lib(table)[1]], to: "hand" }, env);
+    view = tableViewFor(table, "b");
+    expect(view.players.a.zones.library.filter((x) => before.has(x))).toEqual([]);
+    // ...though putting one on the bottom is done in plain sight.
+    before = idsIn(tableViewFor(table, "b"));
+    const shownTop = tableViewFor(table, "b").players.a.zones.library[0];
+    applyTableAction(table, "a", { a: "move", ids: [lib(table)[0]], to: "library", bottom: true }, env);
+    view = tableViewFor(table, "b");
+    expect(view.players.a.zones.library.at(-1)).toBe(shownTop);
+    expect(view.players.a.zones.library.every((x) => before.has(x))).toBe(true);
+  });
+
+  it("redraws everything on a mulligan", () => {
+    const { table, env } = setup();
+    const before = idsIn(tableViewFor(table, "b"));
+    applyTableAction(table, "a", { a: "mulligan" }, env);
+    const view = tableViewFor(table, "b");
+    expect([...view.players.a.zones.hand, ...view.players.a.zones.library].filter((id) => before.has(id))).toEqual([]);
+    expect(table.players.a).toMatchObject({ mulligans: 1, shuffles: 1 });
   });
 });
 

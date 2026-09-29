@@ -30,3 +30,9 @@ export function randomCode(rng: Rng, length = 6): string {
   for (let i = 0; i < length; i++) out += CODE_ALPHABET[Math.floor(rng() * CODE_ALPHABET.length)];
   return out;
 }
+
+/**
+ * Unpredictable randomness for the live server: shuffles and hidden cards' stand-in ids must not be
+ * guessable from what players see (Math.random's state can be worked out from its outputs).
+ */
+export const cryptoRng: Rng = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;

@@ -6,7 +6,7 @@ import type { CardData, CardInstance, CardMap, DeckState, LobbyConfig, Player, R
 import { DEFAULT_CONFIG, MAX_HUMANS, MAX_SEATS } from "./types";
 import { advance, autoPick, createDraft, DraftError, makePick, nextDeadline, pauseClock, resumeClock, seatOf, turnCounts, validatePool, type DraftEnv } from "./draft";
 import { autoBuild, deckSize, newDeck } from "./deck";
-import { applyTableAction, createTable, TableError, tableViewFor, type TableEnv } from "./table";
+import { applyTableAction, createTable, handDragId, realIdsFor, resolveTableAction, shownId, syncStandIns, TableError, tableViewFor, type TableEnv } from "./table";
 import { randomCode, type Rng } from "./rng";
 import type { RoomSummary } from "./invites";
 import { PUBLIC_LIMITS } from "./publicRooms";
@@ -30,7 +30,7 @@ export interface HandleResult {
   /** Room state changed: persist and broadcast fresh views. */
   changed: boolean;
   /** Messages that don't touch persistent state (drag previews, errors). */
-  outbound: { to: "others" | "self"; msg: ServerMessage }[];
+  outbound: ({ to: "others" | "self"; msg: ServerMessage } | { to: "player"; playerId: string; msg: ServerMessage })[];
   /** Host asked to import a cube; the DO does the network part and calls applyImport. */
   importSource?: string;
 }
@@ -91,7 +91,10 @@ export class Room {
     public state: RoomState,
     public cards: CardMap,
     private deps: RoomDeps,
-  ) {}
+  ) {
+    // Games saved before stand-in ids existed get them now.
+    if (state.table) syncStandIns(state.table, deps.rng);
+  }
 
   // --- helpers --------------------------------------------------------------------------------
 
@@ -383,14 +386,29 @@ export class Room {
 
       case "table": {
         this.requirePhase("playing");
-        applyTableAction(this.state.table!, playerId, msg.action, this.tableEnv());
+        const table = this.state.table!;
+        applyTableAction(table, playerId, resolveTableAction(table, playerId, msg.action), this.tableEnv());
         result.changed = true;
         return;
       }
 
       case "drag": {
-        if (this.state.phase !== "playing") return;
-        result.outbound.push({ to: "others", msg: { t: "drag", by: playerId, id: msg.id, x: msg.x, y: msg.y } });
+        const table = this.state.table;
+        if (this.state.phase !== "playing" || !table) return;
+        let card;
+        try {
+          card = table.cards[realIdsFor(table, playerId)(msg.id)];
+        } catch {
+          return;
+        }
+        // Each player gets the id they know the card by. A card pulled out of a hand (only ever the
+        // sender's own) goes out without one: which card of the hand it is would give it away.
+        if (card.zone !== "battlefield" && (card.zone !== "hand" || card.owner !== playerId)) return;
+        for (const pid of table.seats) {
+          if (pid === playerId) continue;
+          const id = card.zone === "hand" ? handDragId(card.owner) : shownId(table, pid, card.id);
+          result.outbound.push({ to: "player", playerId: pid, msg: { t: "drag", by: playerId, id, x: msg.x, y: msg.y } });
+        }
         return;
       }
 

@@ -8,7 +8,8 @@ import type { TableCard, TableState, TokenDef } from "../../shared/types";
 import { CARD_W, MAT_D, localToTable, pilePosition, seatAngle } from "../../shared/tableLayout";
 import { useStore } from "../store";
 import { sfx } from "../sfx";
-import { diffTables, type Hop, type Spot } from "./tableDiff";
+import { diffTables, type Hop, type Spot, type TableChanges } from "./tableDiff";
+import { handDragId } from "../../shared/table";
 
 /** Where a flight starts or ends. */
 export type Anchor =
@@ -55,9 +56,14 @@ interface MotionState {
   spawns: Record<string, number>;
   /** Stagger (ms) for cards tapped or untapped together, so "untap all" ripples across the table. */
   tapDelay: Record<string, number>;
+  /**
+   * Scene keys of battlefield cards whose id changed in place (a face-down card turned face up gets
+   * its real id), so they stay the same object and flip over instead of popping in anew.
+   */
+  keys: Record<string, string>;
 }
 
-export const useMotion = create<MotionState>(() => ({ flights: [], arriving: {}, spawns: {}, tapDelay: {} }));
+export const useMotion = create<MotionState>(() => ({ flights: [], arriving: {}, spawns: {}, tapDelay: {}, keys: {} }));
 
 /** Height of a card being dragged over the table (battlefield cards and cards from hand alike). */
 export const DRAG_LIFT = 1.6;
@@ -108,12 +114,35 @@ export function startTableMotion(): () => void {
     for (const t of [...timers.values(), ...pending]) clearTimeout(t);
     timers.clear();
     pending.clear();
-    useMotion.setState({ flights: [], arriving: {}, spawns: {}, tapDelay: {} });
+    useMotion.setState({ flights: [], arriving: {}, spawns: {}, tapDelay: {}, keys: {} });
   };
 }
 
 function animateChange(prev: TableState, next: TableState, me: string) {
   const changes = diffTables(prev, next);
+  followRenames(changes, next);
+  playChanges(changes, prev, next, me);
+  // A card someone was pulling out of their hand has gone wherever it went: stop drawing it under
+  // their pointer (their hand drags don't say which card it was, so nothing else ends them).
+  const done = new Set<string>();
+  for (const h of changes.hops) if (h.from.kind === "hand") done.add(handDragId(h.from.owner));
+  const drags = useStore.getState().drags;
+  if ([...done].some((id) => drags[id])) useStore.setState({ drags: Object.fromEntries(Object.entries(drags).filter(([id]) => !done.has(id))) });
+}
+
+function followRenames(changes: TableChanges, next: TableState) {
+  const old = useMotion.getState().keys;
+  const keys: Record<string, string> = {};
+  for (const [id, key] of Object.entries(old)) if (next.cards[id]) keys[id] = key;
+  for (const [from, to] of Object.entries(changes.renamed)) {
+    if (next.cards[to]?.zone !== "battlefield") continue;
+    keys[to] = old[from] ?? from;
+    delete keys[from];
+  }
+  if (Object.keys(keys).length || Object.keys(old).length) useMotion.setState({ keys });
+}
+
+function playChanges(changes: TableChanges, prev: TableState, next: TableState, me: string) {
   const now = performance.now();
   if (reducedMotion() || document.hidden) return;
   const slow = motionScale();
@@ -295,7 +324,7 @@ function fromAnchor(ctx: Ctx, h: Hop): Anchor | null {
   const card = h.prev;
   switch (h.from.kind) {
     case "battlefield": {
-      const live = livePoses.get(h.id)?.();
+      const live = livePoses.get(h.fromId)?.();
       if (live) return { kind: "table", ...live };
       return card ? { kind: "table", x: card.x, y: card.y, h: 0.05, yaw: battlefieldYaw(prev, card) } : null;
     }
@@ -304,14 +333,14 @@ function fromAnchor(ctx: Ctx, h: Hop): Anchor | null {
     case "hand": {
       if (h.from.owner !== me) {
         // They pulled it out over the table (we saw its back under their pointer): start there.
-        const remote = useStore.getState().drags[h.id];
+        const remote = useStore.getState().drags[handDragId(h.from.owner)];
         if (remote && performance.now() - remote.at < 1000) return { kind: "table", x: remote.x, y: remote.y, h: DRAG_LIFT, yaw: -seatAngle(seatOf(prev, h.from.owner), prev.seats.length) };
         return opponentHandAnchor(prev, h.from.owner);
       }
-      const hint = dropHints.get(h.id);
-      dropHints.delete(h.id);
+      const hint = dropHints.get(h.fromId);
+      dropHints.delete(h.fromId);
       if (hint && performance.now() - hint.at < 3000) return { kind: "table", x: hint.x, y: hint.y, h: hint.h, yaw: hint.yaw };
-      return handCardAnchor(h.id) ?? { kind: "screen", cx: window.innerWidth / 2, cy: window.innerHeight - 80, w: 150, roll: 0 };
+      return handCardAnchor(h.fromId) ?? { kind: "screen", cx: window.innerWidth / 2, cy: window.innerHeight - 80, w: 150, roll: 0 };
     }
     case "none":
       return null;
