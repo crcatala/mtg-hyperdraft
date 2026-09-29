@@ -132,6 +132,8 @@ function useTableShortcuts() {
           ui.set({ help: !ui.help });
           break;
         case "escape":
+          // Esc closes an open menu first (it listens for Esc itself), not the dialog behind it.
+          if (useStore.getState().menu) return;
           ui.set({ selected: [], handSelected: null, viewer: null, tokenDialog: false, help: false });
           break;
         default:
@@ -858,23 +860,23 @@ function ZoneViewer() {
   // "Look at top X" is done once every card has been placed: the server drops the look, so close.
   // Only after the look has shown up, though: right after asking for it, the view hasn't caught up.
   const sawPeek = useRef(false);
+  // Set when the look already ended (a button here, or every card placed), so closing doesn't end it again.
+  const ended = useRef(false);
   useEffect(() => {
     if (!libraryOpen) sawPeek.current = false;
     else if (peek) sawPeek.current = true;
     else if (sawPeek.current) {
       sawPeek.current = false;
+      ended.current = true;
       setViewer(null);
     }
   }, [libraryOpen, peek, setViewer]);
-  // Everyone sees a look while it lasts, so it ends however the library closes (Esc included),
-  // unless a button here already ended it or it ended on its own.
+  // Everyone sees a look while it lasts, so it ends however the library closes (Esc included). Even
+  // if the look hasn't shown up in the view yet: the server gets this after the request that starts
+  // it, and ending no look is a no-op.
   const wasOpen = useRef(false);
-  const ended = useRef(false);
   useEffect(() => {
-    if (wasOpen.current && !libraryOpen && !ended.current) {
-      const view = useStore.getState().view;
-      if (view?.table && activePeek(view.table, view.you)) act({ a: "peek", n: 0 });
-    }
+    if (wasOpen.current && !libraryOpen && !ended.current) act({ a: "peek", n: 0 });
     wasOpen.current = libraryOpen;
     ended.current = false;
   }, [libraryOpen]);

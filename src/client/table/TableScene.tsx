@@ -399,7 +399,8 @@ function LibraryLook({ look, libraryCount, seat, seatCount }: { look: PublicLook
   const pos = pilePosition("library", seat, seatCount);
   const angle = seatAngle(seat, seatCount);
   const pileTop = Math.min(libraryCount, 60) * 0.018;
-  const shown = look.kind === "top" ? Math.min(look.left, LOOK_MAX_SHOWN) : 3;
+  // Nothing to thumb through once a search has emptied the library.
+  const shown = look.kind === "top" ? Math.min(look.left, LOOK_MAX_SHOWN) : libraryCount > 0 ? 3 : 0;
   const since = useRef(performance.now());
   const root = useRef<THREE.Group>(null);
   const spot = useRef<THREE.MeshBasicMaterial>(null);
