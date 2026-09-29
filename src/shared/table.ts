@@ -144,22 +144,28 @@ function sightOf(table: TableState, viewer: string): (card: TableCard) => boolea
     (card.zone === "library" && peekIds.has(card.id));
 }
 
-/** A random stand-in: never a real card id, and never one already standing in for another card. */
-function newStandIn(table: TableState, rng: Rng): string {
-  const maps = Object.values(table.standIns ?? {});
+/** Every stand-in in use, for newStandIn to steer clear of. */
+function standInsInUse(table: TableState): Set<string> {
+  return new Set(Object.values(table.standIns ?? {}).flatMap((m) => Object.values(m)));
+}
+
+/** A random stand-in: never a real card id, and never one in `taken` (which it joins). */
+function newStandIn(table: TableState, rng: Rng, taken: Set<string>): string {
   let id: string;
   do id = opaqueCardId(table, rng);
-  while (maps.some((m) => Object.values(m).includes(id)));
+  while (taken.has(id));
+  taken.add(id);
   return id;
 }
 
 /** New stand-ins for these cards, for every player (or everyone but `except`). */
 function redrawStandIns(table: TableState, ids: string[], rng: Rng, except?: string) {
   const all = (table.standIns ??= {});
+  const taken = standInsInUse(table);
   for (const viewer of table.seats) {
     if (viewer === except) continue;
     const mine = (all[viewer] ??= {});
-    for (const id of ids) mine[id] = newStandIn(table, rng);
+    for (const id of ids) mine[id] = newStandIn(table, rng, taken);
   }
 }
 
@@ -172,13 +178,14 @@ function redrawStandIns(table: TableState, ids: string[], rng: Rng, except?: str
 export function syncStandIns(table: TableState, rng: Rng) {
   const fresh = !table.standIns;
   const all = (table.standIns ??= {});
+  const taken = new Set<string>();
   for (const viewer of table.seats) {
     const sees = sightOf(table, viewer);
     const mine = (all[viewer] ??= {});
     for (const id of Object.keys(mine)) if (!table.cards[id]) delete mine[id];
     for (const card of Object.values(table.cards)) {
       if (sees(card)) delete mine[card.id];
-      else mine[card.id] ??= fresh ? newStandIn(table, rng) : card.id;
+      else mine[card.id] ??= fresh ? newStandIn(table, rng, taken) : card.id;
     }
   }
 }
@@ -330,6 +337,8 @@ function moveCard(
   opts: { x?: number; y?: number; bottom?: boolean; faceDown?: boolean } = {},
 ) {
   const from = card.zone;
+  const look = activePeek(table, card.owner);
+  const inLook = from === "library" && !!look && (look.search || look.ids.includes(card.id));
   removeFromZone(table, card);
   leavePeek(table, card);
   // Tokens stop existing once they leave the battlefield.
@@ -359,6 +368,11 @@ function moveCard(
   const shown = isPublicZone(to) && !(to === "battlefield" && card.faceDown);
   if ((from === "hand" || from === "sideboard") && to !== from && !shown) {
     redrawStandIns(table, [card.id, ...table.players[card.owner].zones[from]], env.rng, card.owner);
+  }
+  // Likewise out of a look at the library (a search, or the top few), unless back onto it from the
+  // top few (scrying to the top or bottom is done in plain sight).
+  if (inLook && !shown && (to !== "library" || look!.search)) {
+    redrawStandIns(table, [card.id, ...table.players[card.owner].zones.library], env.rng, card.owner);
   }
 }
 
@@ -473,6 +487,10 @@ function applyAction(table: TableState, playerId: string, action: TableAction, e
     }
     case "turnFace": {
       const card = getCard(action.id);
+      // Anywhere else (or face down, to anyone who can't see it) the log or the refusal would say
+      // what the hidden card is.
+      if (card.zone !== "battlefield") throw new TableError("Only battlefield cards can be transformed.");
+      if (card.faceDown && card.owner !== playerId && card.controller !== playerId) throw new TableError("You can't transform a face-down card you can't see.");
       const faces = faceCount(card.cardId ? env.cards[card.cardId] : undefined);
       if (faces < 2) throw new TableError("That card has only one face.");
       card.face = (card.face + 1) % faces;
@@ -543,6 +561,8 @@ function applyAction(table: TableState, playerId: string, action: TableAction, e
     }
     case "counter": {
       const card = getCard(action.id);
+      // Counters leave with the card anyway; on a hidden card they'd mark it (and the log names it).
+      if (card.zone !== "battlefield") throw new TableError("Only battlefield cards can have counters.");
       const kind = action.kind.trim().slice(0, 24) || "+1/+1";
       const next = (card.counters[kind] ?? 0) + action.delta;
       if (next === 0) delete card.counters[kind];
@@ -630,7 +650,7 @@ export function tableViewFor(table: TableState, viewer: string): TableState {
   for (const card of Object.values(table.cards)) {
     if (sees(card)) list.push(card);
     else {
-      const offTable = card.zone !== "battlefield" ? { x: 0, y: 0, z: 0 } : {};
+      const offTable = card.zone !== "battlefield" ? { x: 0, y: 0, z: 0, counters: {} } : {};
       list.push({ ...card, id: shown(card.id), cardId: undefined, token: undefined, face: 0, foil: undefined, hidden: true, ...offTable });
     }
   }

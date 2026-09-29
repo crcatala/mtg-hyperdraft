@@ -218,7 +218,7 @@ describe("stand-in ids at the table", () => {
     expect(room.state.table!.cards[id].tapped).toBe(true);
   });
 
-  it("relays drags under each player's own id, and hand cards under none", () => {
+  it("relays drags under each player's own id, and hand cards (only your own) under none", () => {
     const { room, a, b } = twoPlayerGame();
     const [down, handCard] = room.state.table!.players[a].zones.hand;
     send(room, a, { t: "table", action: { a: "move", ids: [down], to: "battlefield", x: 0, y: 0, faceDown: true } });
@@ -227,6 +227,9 @@ describe("stand-in ids at the table", () => {
     expect(send(room, a, { t: "drag", id: handCard, x: 1, y: 2 }).outbound).toEqual([{ to: "player", playerId: b, msg: { t: "drag", by: a, id: `hand:${a}`, x: 1, y: 2 } }]);
     // Nothing for ids the sender doesn't know, or cards that can't be dragged.
     expect(send(room, b, { t: "drag", id: handCard, x: 1, y: 2 }).outbound).toEqual([]);
+    // Nor can Bob drag Alice's hand around by the stand-in he knows her card by.
+    const bobsHandId = room.viewFor(b).table!.players[a].zones.hand[0];
+    expect(send(room, b, { t: "drag", id: bobsHandId, x: 1, y: 2 }).outbound).toEqual([]);
     const top = room.viewFor(a).table!.players[a].zones.library[0];
     expect(send(room, a, { t: "drag", id: top, x: 1, y: 2 }).outbound).toEqual([]);
   });

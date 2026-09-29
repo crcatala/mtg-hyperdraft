@@ -401,9 +401,9 @@ export class Room {
         } catch {
           return;
         }
-        // Each player gets the id they know the card by. A card pulled out of a hand goes out without
-        // one: which card of the hand it is would give it away.
-        if (card.zone !== "battlefield" && card.zone !== "hand") return;
+        // Each player gets the id they know the card by. A card pulled out of a hand (only ever the
+        // sender's own) goes out without one: which card of the hand it is would give it away.
+        if (card.zone !== "battlefield" && (card.zone !== "hand" || card.owner !== playerId)) return;
         for (const pid of table.seats) {
           if (pid === playerId) continue;
           const id = card.zone === "hand" ? handDragId(card.owner) : shownId(table, pid, card.id);

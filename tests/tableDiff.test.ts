@@ -153,6 +153,15 @@ describe("table diff", () => {
       expect(watch(table, env, { a: "move", ids: [c2], to: "library" })).toMatchObject({ hops: [], shuffled: [] });
     });
 
+    it("sees a card found by a search fly library → hand, the rest of the library renamed", () => {
+      const { table, env } = setup();
+      applyTableAction(table, "a", { a: "peek", n: 0, search: true }, env);
+      const d = watch(table, env, { a: "move", ids: [table.players.a.zones.library[10]], to: "hand" });
+      expect(d.hops).toEqual([expect.objectContaining({ from: lib, to: hand })]);
+      expect(Object.keys(d.renamed)).toHaveLength(32);
+      expect(d.shuffled).toEqual([]);
+    });
+
     it("sees a shuffle by its counter, with every library card renamed rather than moved", () => {
       const { table, env } = setup();
       const d = watch(table, env, { a: "shuffle" });

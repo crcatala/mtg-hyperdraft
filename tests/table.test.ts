@@ -662,6 +662,83 @@ describe("stand-in ids for hidden cards", () => {
     expect(resolveTableAction(table, "b", { a: "move", ids: [mine], to: "graveyard" })).toEqual({ a: "move", ids: [mine], to: "graveyard" });
   });
 
+  it("won't put counters on hidden cards or transform them (it would mark or name them)", () => {
+    const { table, env } = setup();
+    const [hand, down] = table.players.a.zones.hand;
+    for (const id of [hand, down]) {
+      const data = env.cards[table.cards[id].cardId!];
+      env.cards[data.id] = {
+        ...data,
+        faces: [
+          { name: "Day Side", manaCost: "", typeLine: "Creature", oracleText: "", colors: ["G"], images: { normal: "day.jpg" } },
+          { name: "Night Side", manaCost: "", typeLine: "Creature", oracleText: "", colors: ["G"], images: { normal: "night.jpg" } },
+        ],
+      };
+    }
+    applyTableAction(table, "a", { a: "move", ids: [down], to: "battlefield", faceDown: true }, env);
+    const asPlayer = (pid: string, action: Parameters<typeof resolveTableAction>[2]) => () => applyTableAction(table, pid, resolveTableAction(table, pid, action), env);
+    const logged = table.log.length;
+    const bobSees = (id: string) => shownId(table, "b", id);
+    for (const id of [hand, lib(table)[0]]) {
+      expect(asPlayer("b", { a: "counter", id: bobSees(id), kind: "+1/+1", delta: 1 })).toThrow(TableError);
+      expect(asPlayer("b", { a: "turnFace", id: bobSees(id) })).toThrow(TableError);
+    }
+    // Not even on your own library (you can't see it either), nor a face-down card you can't see.
+    expect(asPlayer("a", { a: "counter", id: shownId(table, "a", lib(table)[0]), kind: "+1/+1", delta: 1 })).toThrow(TableError);
+    expect(asPlayer("b", { a: "turnFace", id: bobSees(down) })).toThrow("You can't transform a face-down card you can't see.");
+    expect(table.log).toHaveLength(logged);
+    expect(Object.values(table.cards).every((c) => Object.keys(c.counters).length === 0)).toBe(true);
+    // Face-down cards still take counters (as at a real table), and their owner can still turn them.
+    asPlayer("b", { a: "counter", id: bobSees(down), kind: "+1/+1", delta: 1 })();
+    asPlayer("a", { a: "turnFace", id: down })();
+    expect(table.cards[down]).toMatchObject({ face: 1, counters: { "+1/+1": 1 } });
+    for (const e of table.log.slice(logged)) expect(e.text).not.toMatch(/Side|Card \d/);
+  });
+
+  it("can't follow a card through a shuffle by its counters", () => {
+    const { table, env } = setup();
+    const id = table.players.a.zones.hand[0];
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield" }, env);
+    applyTableAction(table, "a", { a: "counter", id, kind: "stun", delta: 2 }, env);
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "library" }, env);
+    // A game saved with counters on a hidden card doesn't show them either.
+    table.cards[lib(table)[5]].counters = { oil: 1 };
+    applyTableAction(table, "a", { a: "shuffle" }, env);
+    for (const viewer of ["a", "b"]) {
+      const view = tableViewFor(table, viewer);
+      for (const shown of view.players.a.zones.library) expect(view.cards[shown].counters).toEqual({});
+    }
+  });
+
+  it("can't tell which card a search or a look at the top took", () => {
+    const { table, env } = setup();
+    const id = table.players.a.zones.hand[0];
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "battlefield" }, env);
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "library", bottom: true }, env);
+    // Bob saw it go to the bottom...
+    expect(tableViewFor(table, "b").players.a.zones.library.at(-1)).toBe(id);
+    let before = idsIn(tableViewFor(table, "b"));
+    applyTableAction(table, "a", { a: "peek", n: 0, search: true }, env);
+    applyTableAction(table, "a", { a: "move", ids: [id], to: "hand" }, env);
+    // ...but not which card the search found: the library and the found card are all new to him.
+    let view = tableViewFor(table, "b");
+    expect([...view.players.a.zones.library, shownId(table, "b", id)].filter((x) => before.has(x))).toEqual([]);
+    expect(tableViewFor(table, "a").cards[id].cardId).toBe(table.cards[id].cardId);
+    // The same for a card taken from a look at the top few...
+    applyTableAction(table, "a", { a: "peek", n: 3 }, env);
+    before = idsIn(tableViewFor(table, "b"));
+    applyTableAction(table, "a", { a: "move", ids: [lib(table)[1]], to: "hand" }, env);
+    view = tableViewFor(table, "b");
+    expect(view.players.a.zones.library.filter((x) => before.has(x))).toEqual([]);
+    // ...though putting one on the bottom is done in plain sight.
+    before = idsIn(tableViewFor(table, "b"));
+    const shownTop = tableViewFor(table, "b").players.a.zones.library[0];
+    applyTableAction(table, "a", { a: "move", ids: [lib(table)[0]], to: "library", bottom: true }, env);
+    view = tableViewFor(table, "b");
+    expect(view.players.a.zones.library.at(-1)).toBe(shownTop);
+    expect(view.players.a.zones.library.every((x) => before.has(x))).toBe(true);
+  });
+
   it("redraws everything on a mulligan", () => {
     const { table, env } = setup();
     const before = idsIn(tableViewFor(table, "b"));
