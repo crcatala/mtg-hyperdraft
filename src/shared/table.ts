@@ -9,6 +9,7 @@ import type {
   LogEntry,
   LogKind,
   LibraryPeek,
+  PublicLook,
   TableCard,
   TablePlayer,
   TableState,
@@ -480,6 +481,11 @@ export function tableViewFor(table: TableState, viewer: string): TableState {
       (card.zone === "library" && peekIds.has(card.id));
     cards[card.id] = visible ? card : { ...card, cardId: undefined, token: undefined, face: 0, hidden: true };
   }
-  // Only your own look is anyone's business.
-  return { ...table, cards, peek: own ? { [viewer]: own } : {} };
+  // Only your own look's cards are anyone's business, but everyone sees that a look is happening.
+  const looks: Record<string, PublicLook> = {};
+  for (const pid of table.seats) {
+    const peek = activePeek(table, pid);
+    if (peek) looks[pid] = peek.search ? { kind: "search" } : { kind: "top", n: peek.n, left: peek.ids.length };
+  }
+  return { ...table, cards, peek: own ? { [viewer]: own } : {}, looks };
 }

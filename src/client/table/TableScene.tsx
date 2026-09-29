@@ -5,9 +5,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store";
-import type { TableCard, TableState } from "../../shared/types";
+import type { PublicLook, TableCard, TableState } from "../../shared/types";
 import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
-import { backTexture, feltTexture, glowTexture, labelTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, type LabelVariant } from "./textures";
+import { backTexture, feltTexture, glowTexture, labelTexture, lookTagTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, type LabelVariant } from "./textures";
 import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
 import { DRAG_LIFT, livePoses, motionScale, reducedMotion, useMotion } from "./motion";
@@ -272,6 +272,8 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
   const player = table.players[playerId];
   const arriving = useMotion((s) => s.arriving);
   const handCount = player?.zones.hand.filter((id) => !arriving[id]).length ?? 0;
+  // Someone who dropped out isn't looking at anything (their look waits for them to come back).
+  const look = offline ? undefined : table.looks?.[playerId];
 
   return (
     <group>
@@ -288,6 +290,7 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
       {(["library", "graveyard", "exile", "sideboard"] as PileZone[]).map((zone) => (
         <Pile key={zone} table={table} ownerId={playerId} zone={zone} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />
       ))}
+      {look && <LibraryLook look={look} libraryCount={player?.zones.library.length ?? 0} seat={seat} seatCount={seatCount} />}
       {!isMe && handCount > 0 && <OpponentHand count={handCount} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />}
     </group>
   );
@@ -369,6 +372,104 @@ function OpponentHand({ count, seat, seatCount, viewerAngle }: { count: number; 
       <group position={[0, 0.2, 2]} rotation-y={angle - viewerAngle}>
         <Label text={String(count)} icon="hand" position={[0, 0, 0]} height={0.7} />
       </group>
+    </group>
+  );
+}
+
+// --- library looks --------------------------------------------------------------------------
+
+/** How long the glow takes to breathe in and out, and a search takes to thumb through a few cards. */
+const LOOK_PULSE_S = 1.6;
+const SEARCH_THUMB_S = 1.2;
+/** Cards held up over the library during "look at top X" (more than this just makes a taller fan). */
+const LOOK_MAX_SHOWN = 7;
+
+/**
+ * Someone looking through their library (a search, or "look at top X"): the pile glows in their
+ * colour with a tag over it, the way everyone at a real table sees a player pick up their library.
+ * "Look at top X" holds up the cards still being looked at; a search keeps thumbing through the pile.
+ */
+function LibraryLook({ look, libraryCount, seat, seatCount }: { look: PublicLook; libraryCount: number; seat: number; seatCount: number }) {
+  const hue = seatHue(seat);
+  const color = useMemo(() => new THREE.Color().setHSL(hue / 360, 0.85, 0.62), [hue]);
+  const glow = useMemo(() => glowTexture(), []);
+  const back = useMemo(() => backTexture(), []);
+  const text = look.kind === "search" ? "Searching library" : look.left < look.n ? `Top ${look.n}: ${look.left} left` : `Looking at top ${look.n}`;
+  const tag = lookTagTexture(text, hue, look.kind === "search" ? "search" : "eye");
+  const pos = pilePosition("library", seat, seatCount);
+  const angle = seatAngle(seat, seatCount);
+  const pileTop = Math.min(libraryCount, 60) * 0.018;
+  const shown = look.kind === "top" ? Math.min(look.left, LOOK_MAX_SHOWN) : 3;
+  const since = useRef(performance.now());
+  const root = useRef<THREE.Group>(null);
+  const spot = useRef<THREE.MeshBasicMaterial>(null);
+  const ring = useRef<THREE.Mesh>(null);
+  const held = useRef<THREE.Group>(null);
+  const label = useRef<THREE.Sprite>(null);
+  const thumbs = useRef<(THREE.Group | null)[]>([]);
+
+  useFrame(() => {
+    const still = reducedMotion();
+    const t = still ? 0 : (performance.now() - since.current) / 1000;
+    const inT = still ? 1 : Math.min(1, t / 0.35);
+    const breath = (Math.sin((t / LOOK_PULSE_S) * Math.PI * 2) + 1) / 2;
+    if (root.current) root.current.scale.setScalar(Math.max(0.001, easeOutBack(inT)));
+    if (spot.current) spot.current.opacity = 0.55 + breath * 0.35;
+    if (ring.current) {
+      ring.current.visible = !still;
+      const q = (t / LOOK_PULSE_S) % 1;
+      ring.current.scale.setScalar(2.4 + q * 2.2);
+      (ring.current.material as THREE.MeshBasicMaterial).opacity = (1 - q) ** 1.5 * 0.7;
+    }
+    const bob = Math.sin(t * 2.2) * 0.12;
+    if (held.current) held.current.position.y = pileTop + 1.1 + bob;
+    if (label.current) label.current.position.y = pileTop + 3.9 + bob;
+    // A search lifts the cards one after another from the owner's side, like thumbing through.
+    thumbs.current.forEach((g, k) => {
+      if (!g) return;
+      const p = (t / SEARCH_THUMB_S + k / shown) % 1;
+      const lift = still ? (k === 0 ? 0.5 : 0) : Math.max(0, Math.sin(p * Math.PI * 2)) ** 2;
+      g.rotation.x = -lift * 1.2;
+    });
+  });
+
+  const overlay = { transparent: true, depthWrite: false } as const;
+  return (
+    <group position={[pos.x, 0, pos.y]} rotation-y={-angle}>
+      <group ref={root}>
+        <mesh rotation-x={FLAT} position-y={0.02}>
+          <planeGeometry args={[CARD_W * 2.6, CARD_H * 2.2]} />
+          <meshBasicMaterial ref={spot} map={glow} color={color} {...overlay} opacity={0} blending={THREE.AdditiveBlending} />
+        </mesh>
+        <mesh ref={ring} rotation-x={FLAT} position-y={0.03} geometry={RING_GEO} visible={false}>
+          <meshBasicMaterial color={color} {...overlay} opacity={0} />
+        </mesh>
+        {look.kind === "top" ? (
+          // Held up over the pile, tilted towards their owner, backs to the table.
+          <group ref={held} position-y={pileTop + 1.1} rotation-x={FLAT + 0.35}>
+            {Array.from({ length: shown }, (_, i) => {
+              const off = i - (shown - 1) / 2;
+              return (
+                <mesh key={i} geometry={CARD_GEO} position={[off * 0.55, -Math.abs(off) * 0.08, i * 0.012]} rotation-z={-off * 0.09} scale={0.8} raycast={NO_RAYCAST}>
+                  <meshStandardMaterial map={back} roughness={0.55} emissive={color} emissiveIntensity={0.12} />
+                </mesh>
+              );
+            })}
+          </group>
+        ) : (
+          Array.from({ length: shown }, (_, k) => (
+            // Hinged at the edge facing the middle of the table, so the owner's side lifts.
+            <group key={k} ref={(g) => void (thumbs.current[k] = g)} position={[0, pileTop + 0.01 + k * 0.012, -CARD_H / 2]}>
+              <mesh geometry={CARD_GEO} rotation-x={FLAT} position-z={CARD_H / 2} raycast={NO_RAYCAST}>
+                <meshStandardMaterial map={back} roughness={0.55} emissive={color} emissiveIntensity={0.12} side={THREE.DoubleSide} />
+              </mesh>
+            </group>
+          ))
+        )}
+      </group>
+      <sprite ref={label} position-y={pileTop + 3.9} scale={[1.05 * tag.aspect, 1.05, 1]} renderOrder={23}>
+        <spriteMaterial map={tag.texture} transparent depthTest={false} depthWrite={false} />
+      </sprite>
     </group>
   );
 }
