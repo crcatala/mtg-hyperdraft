@@ -1,18 +1,27 @@
 // A mechanic or type in the rules help: a link to its MTG Wiki page that also explains the term in
 // place. Hovering (or keyboard focus) opens a popover with the wiki's reminder text and summary,
-// fetched on first open and cached. On touch screens the first tap opens the popover instead of
-// following the link; the popover has its own link through to the wiki. The popover lives at the
-// end of the page, so Tab is steered into it from its chip and back out to the chip's neighbour.
+// fetched on first open and cached. The pointer can move into the popover: leaving the chip keeps
+// it open while the pointer heads its way (see hoverIntent). On touch screens the first tap opens
+// the popover instead of following the link; the popover has its own link through to the wiki. The
+// popover lives at the end of the page, so Tab is steered into it from its chip and back out to the
+// chip's neighbour.
 
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { rulesLookupUrl } from "../cardHelp";
+import { inBridge, movedBeyond, rectContains, type Point } from "../hoverIntent";
 import { cachedTermInfo, fetchTermInfo, type TermInfo } from "../wikiTerms";
 import { Icon } from "./Icon";
 import { ManaSymbol } from "./Mana";
 
-const OPEN_DELAY = 300;
-const CLOSE_DELAY = 300;
+// The pointer must rest on the chip this long, moving no more than REST_PX, before it opens; so
+// sweeping across a row of chips (or toward a popover) doesn't open each in turn.
+const OPEN_DELAY = 250;
+const REST_PX = 4;
+// Leaving the popover itself: enough to slip back in after overshooting its edge.
+const LEAVE_GRACE = 250;
+// Pausing this long inside the bridge to the popover means the pointer isn't heading there.
+const BRIDGE_IDLE = 400;
 const GAP = 10;
 const MARGIN = 8;
 
@@ -43,14 +52,25 @@ export function TermChip({ term }: { term: string }) {
   const openTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const pointerType = useRef("mouse");
+  // Where the pointer rested on the chip; and, while it crosses from chip to popover, the cleanup for that.
+  const rest = useRef<Point | null>(null);
+  const stopBridge = useRef<(() => void) | null>(null);
   const id = useId();
 
+  const endBridge = useCallback(() => {
+    stopBridge.current?.();
+    stopBridge.current = null;
+  }, []);
   const hide = useCallback(() => {
     clearTimeout(openTimer.current);
     clearTimeout(closeTimer.current);
+    endBridge();
+    // Closed by Escape, a scroll or a resize with the pointer still on the chip: it takes a fresh
+    // entry to open again, not just a nudge.
+    rest.current = null;
     setOpen(false);
     if (current?.hide === hide) current = null;
-  }, []);
+  }, [endBridge]);
   // Focus goes back to the chip first; refocusing it would otherwise reopen the popover.
   const dismiss = useCallback(() => {
     if (popRef.current?.contains(document.activeElement)) chipRef.current?.focus();
@@ -59,16 +79,48 @@ export function TermChip({ term }: { term: string }) {
   const show = useCallback(() => {
     clearTimeout(openTimer.current);
     clearTimeout(closeTimer.current);
+    endBridge();
     if (current && current.hide !== hide) current.hide();
     current = { hide, dismiss };
     setOpen(true);
-  }, [hide, dismiss]);
-  const hideSoon = () => {
+  }, [hide, dismiss, endBridge]);
+  const hideSoon = (delay: number) => {
     clearTimeout(openTimer.current);
     clearTimeout(closeTimer.current);
-    closeTimer.current = setTimeout(hide, CLOSE_DELAY);
+    closeTimer.current = setTimeout(hide, delay);
   };
-  const keepOpen = () => clearTimeout(closeTimer.current);
+  const keepOpen = () => {
+    clearTimeout(closeTimer.current);
+    endBridge();
+  };
+  const armOpen = () => {
+    clearTimeout(openTimer.current);
+    openTimer.current = setTimeout(show, OPEN_DELAY);
+  };
+
+  // The pointer left the chip. If it's heading for the popover, keep it open for as long as it stays
+  // on the way there; if it goes anywhere else, or stops dead, close.
+  const leaveChip = (origin: Point) => {
+    clearTimeout(openTimer.current);
+    const chip = chipRef.current;
+    const pop = popRef.current;
+    if (!open || !chip || !pop) return;
+    endBridge();
+    clearTimeout(closeTimer.current);
+    const onMove = (e: PointerEvent) => {
+      const at = { x: e.clientX, y: e.clientY };
+      if (rectContains(chip.getBoundingClientRect(), at) || inBridge(at, origin, pop.getBoundingClientRect())) {
+        clearTimeout(closeTimer.current);
+        closeTimer.current = setTimeout(hide, BRIDGE_IDLE);
+      } else {
+        hide();
+      }
+    };
+    document.addEventListener("pointermove", onMove, true);
+    stopBridge.current = () => document.removeEventListener("pointermove", onMove, true);
+    // No movement at all (or the pointer left the window) still ends it.
+    closeTimer.current = setTimeout(hide, BRIDGE_IDLE);
+  };
 
   useEffect(() => hide, [hide]);
 
@@ -121,10 +173,20 @@ export function TermChip({ term }: { term: string }) {
           pointerType.current = e.pointerType;
           if (e.pointerType !== "mouse") return;
           keepOpen();
-          if (!open) openTimer.current = setTimeout(show, OPEN_DELAY);
+          rest.current = { x: e.clientX, y: e.clientY };
+          if (!open) armOpen();
+        }}
+        onPointerMove={(e) => {
+          // Restart the wait whenever the pointer travels: it opens once the pointer rests.
+          if (e.pointerType !== "mouse" || open || !rest.current) return;
+          const at = { x: e.clientX, y: e.clientY };
+          if (movedBeyond(rest.current, at, REST_PX)) {
+            rest.current = at;
+            armOpen();
+          }
         }}
         onPointerLeave={(e) => {
-          if (e.pointerType === "mouse") hideSoon();
+          if (e.pointerType === "mouse") leaveChip({ x: e.clientX, y: e.clientY });
         }}
         onClick={(e) => {
           // Touch has no hover: the first tap explains, a second tap (or the popover's link) opens the wiki.
@@ -151,7 +213,7 @@ export function TermChip({ term }: { term: string }) {
         <Icon name="external" />
       </a>
       {open && chipRef.current && (
-        <Popover id={id} term={term} anchor={chipRef.current} popRef={popRef} onEnter={keepOpen} onLeave={hideSoon} onKeyDown={tabOut} onBlur={(e) => !chipRef.current?.contains(e.relatedTarget as Node | null) && !popRef.current?.contains(e.relatedTarget as Node | null) && hide()} />
+        <Popover id={id} term={term} anchor={chipRef.current} popRef={popRef} onEnter={keepOpen} onLeave={() => hideSoon(LEAVE_GRACE)} onKeyDown={tabOut} onBlur={(e) => !chipRef.current?.contains(e.relatedTarget as Node | null) && !popRef.current?.contains(e.relatedTarget as Node | null) && hide()} />
       )}
     </>
   );
