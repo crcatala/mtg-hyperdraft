@@ -40,25 +40,41 @@ function flipTransform(from: DOMRect, to: DOMRect): string {
   return `translate(${dx}px, ${dy}px) scale(${from.width / to.width})`;
 }
 
-/** Below this width the rules help sits under the card instead of beside it. */
-const SIDE_PANEL_MIN_WIDTH = 900;
 const PANEL_SPACE = 340; // Side panel width plus the gap to the card.
+const ARROW_SPACE = 260; // Room for the browse arrows either side of the card.
+const STACK_CHROME = 72 + 24 + 20; // Title bar, bottom padding, and the gap above the help.
 
-function zoomLayout() {
-  const side = window.innerWidth >= SIDE_PANEL_MIN_WIDTH;
-  const byHeight = ((window.innerHeight - (side ? 170 : 230)) * 63) / 88;
-  const byWidth = window.innerWidth - (side ? 260 + PANEL_SPACE : 260);
-  return { width: Math.max(220, Math.floor(Math.min(byHeight, byWidth, 640))), side };
+/** Height kept for the rules help under the card, so both fit on screen without scrolling. */
+function stackedHelpHeight() {
+  return Math.round(Math.min(320, Math.max(180, window.innerHeight * 0.3)));
 }
 
-function useZoomLayout() {
-  const [layout, setLayout] = useState(zoomLayout);
+/** Card width that fits the space, before the minimum size is applied. */
+function fitWidth(byHeight: number, byWidth: number) {
+  return Math.min((byHeight * 63) / 88, byWidth, 640);
+}
+
+/** The help goes beside the card or under it, whichever leaves the bigger card. Compared before the
+ *  minimum size, so on small screens it's whichever overflows less. Decided with the help open
+ *  either way, so hiding it doesn't swap layouts; under the card, hiding it gives the card its
+ *  space back. */
+function zoomLayout(helpOpen: boolean) {
+  const { innerWidth: w, innerHeight: h } = window;
+  const helpHeight = stackedHelpHeight();
+  const sideFit = fitWidth(h - 170, w - ARROW_SPACE - PANEL_SPACE);
+  const side = sideFit > fitWidth(h - STACK_CHROME - helpHeight, w - ARROW_SPACE);
+  const fit = side ? sideFit : fitWidth(h - STACK_CHROME - (helpOpen ? helpHeight : 0), w - ARROW_SPACE);
+  return { width: Math.max(220, Math.floor(fit)), side, helpHeight };
+}
+
+function useZoomLayout(helpOpen: boolean) {
+  const [, setResizes] = useState(0);
   useEffect(() => {
-    const onResize = () => setLayout(zoomLayout());
+    const onResize = () => setResizes((n) => n + 1);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  return layout;
+  return zoomLayout(helpOpen);
 }
 
 export function CardCarousel({ items, startKey, title, originFor, badge, onFaceChange, onClose }: Props) {
@@ -66,7 +82,6 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
   const [dir, setDir] = useState<"next" | "prev" | "open">("open");
   const [closing, setClosing] = useState(false);
   const flyRef = useRef<HTMLDivElement>(null);
-  const { width, side } = useZoomLayout();
   const item = items[Math.min(index, items.length - 1)];
   // Which face each card is showing, remembered while browsing back and forth.
   const [faces, setFaces] = useState<Record<string, number>>({});
@@ -74,6 +89,7 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
   const face = item ? faces[item.key] ?? item.face ?? 0 : 0;
   // Rules help can be hidden (remembered across visits); a button by the card name brings it back.
   const [helpOpen, setHelpOpen] = useState(loadRulesHelpOpen);
+  const { width, side, helpHeight } = useZoomLayout(helpOpen);
   const [hint, setHint] = useState(false);
   const [helpBtn, setHelpBtn] = useState<HTMLButtonElement | null>(null);
   const showHelp = (open: boolean) => {
@@ -215,7 +231,7 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
             so the card glides to its new spot when the help is shown or hidden. */}
         <div className={`card-help-slot${helpOpen ? "" : " hidden"}`} inert={!helpOpen}>
           {item.card && (
-            <CardHelp key={item.key} card={item.card} face={face} style={side ? { maxHeight: Math.round((width * 88) / 63) } : undefined} onHide={() => showHelp(false)} />
+            <CardHelp key={item.key} card={item.card} face={face} style={{ maxHeight: side ? Math.round((width * 88) / 63) : helpHeight }} onHide={() => showHelp(false)} />
           )}
         </div>
       </div>

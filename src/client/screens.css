@@ -2353,10 +2353,17 @@ body.dragging * {
   flex-direction: row;
   align-items: flex-start;
 }
-/* Narrow screens: the help sits under the card and the whole viewer scrolls. */
+/* Help under the card: the card is sized so both fit on screen. Scrolling is only a fallback
+   for screens too short to fit the smallest card and help. Hiding the help grows the card. */
 .carousel:not(.side-help) {
   overflow-y: auto;
   place-items: safe center;
+}
+.carousel:not(.side-help) .carousel-fly {
+  transition: width 0.5s var(--help-ease);
+}
+.carousel:not(.side-help) .carousel-fly .card {
+  transition: transform 0.18s ease, filter 0.2s, opacity 0.2s, width 0.5s var(--help-ease);
 }
 .carousel:not(.side-help) .carousel-stage {
   padding: 72px 16px 24px;
