@@ -218,6 +218,7 @@
   }
   /* Stitching on the big leather panels. */
   .home-panel,
+  .home-rooms,
   .lobby-grid > .panel:not(.solo-banner),
   .draft-side,
   .db-side,
@@ -553,6 +554,10 @@
   .home-hero .home-panel {
     max-width: 480px;
     padding: 28px 28px 24px;
+  }
+  .home-hero .home-rooms {
+    max-width: 480px;
+    padding: 22px 24px;
   }
   .home-or {
     font-weight: 800;
@@ -1067,8 +1072,7 @@
   }
 }
 
-/* Short windows: tighten the lid so "Your rooms" keeps some room; shorter still, the steps fold into
-   one line. */
+/* Short windows: tighten the lid so "Your rooms" keeps some room. */
 @media (max-height: 1000px) and (min-width: 761px) {
   [data-theme="gamenight"] {
     .home .center-stage {
@@ -1108,9 +1112,11 @@
     }
   }
 }
-@media (max-height: 820px) and (min-width: 761px) {
-  [data-theme="gamenight"] {
+/* With rooms to show, the lid folds sooner: the steps become one line and the tagline shortens. */
+@media (max-height: 1000px) and (min-width: 761px) {
+  [data-theme="gamenight"] .home:has(.home-rooms) {
     .home-tag {
+      max-width: 640px;
       margin: 6px auto 14px;
       font-size: 17px;
     }
@@ -1157,5 +1163,11 @@
     .home-steps {
       display: none;
     }
+  }
+}
+@media (min-width: 900px) {
+  [data-theme="gamenight"] .home-hero:has(> .home-rooms) {
+    grid-template-columns: minmax(0, 480px) minmax(0, 440px);
+    width: min(940px, 100%);
   }
 }

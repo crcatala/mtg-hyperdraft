@@ -3052,8 +3052,9 @@ body.dragging * {
 /* ---------- home: solo, invites, my rooms ---------- */
 
 /* Home is a title screen: it fits the window instead of scrolling it. The hero never grows past the
-   stage; when space runs short, "Your rooms" gives way first and scrolls on its own, then the panel.
-   Phones and very short windows keep the plain scrolling page. */
+   stage; when space runs short, the "Your rooms" card gives way and its list scrolls on its own.
+   Wide windows put that card beside the panel instead of under it. Phones and very short windows
+   keep the plain scrolling page. */
 .home .center-stage {
   display: flex;
   min-height: 0;
@@ -3061,6 +3062,24 @@ body.dragging * {
 }
 .home .home-hero {
   margin: auto;
+}
+.home-kicker {
+  grid-area: kicker;
+}
+.home-title {
+  grid-area: title;
+}
+.home-tag {
+  grid-area: tag;
+}
+.home-steps {
+  grid-area: steps;
+}
+.home-panel {
+  grid-area: panel;
+}
+.home-rooms {
+  grid-area: rooms;
 }
 @media (min-width: 761px) and (min-height: 600px) {
   .home .home-hero {
@@ -3072,20 +3091,35 @@ body.dragging * {
     flex-shrink: 0;
   }
   .home-hero > .home-panel {
-    flex-shrink: 1;
     width: 100%;
-    min-height: 0;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: rgb(var(--fg-rgb) / 0.18) transparent;
   }
-  .home-panel > * {
-    flex-shrink: 0;
-  }
-  /* Shrinks down to about one room row before the panel starts scrolling. */
-  .home-panel > .my-rooms {
+  /* Under the panel, the card shrinks down to about one room row. */
+  .home-hero > .home-rooms {
     flex-shrink: 1;
-    min-height: 6.5rem;
+    min-height: 8.5rem;
+  }
+}
+/* Side by side: the rooms card takes the panel's height (size containment keeps its list from
+   stretching the row), so the list gets the whole height of the form. */
+@media (min-width: 900px) {
+  .home-hero:has(> .home-rooms) {
+    display: grid;
+    grid-template-columns: minmax(0, 500px) minmax(0, 440px);
+    grid-template-areas: "kicker kicker" "title title" "tag tag" "steps steps" "panel rooms";
+    justify-content: center;
+    column-gap: 20px;
+    width: min(960px, 100%);
+  }
+  .home-hero:has(> .home-rooms) > .home-panel,
+  .home-hero:has(> .home-rooms) > .home-rooms {
+    max-width: none;
+    margin: 0;
+  }
+  .home-hero:has(> .home-rooms) > .home-rooms {
+    contain: size;
+  }
+  .home-hero:has(> .home-rooms) .home-rooms ul {
+    max-height: none;
   }
 }
 .home-note {
@@ -3117,13 +3151,22 @@ body.dragging * {
   text-decoration: underline;
   cursor: pointer;
 }
-.my-rooms {
+.home-hero .home-rooms {
+  width: 100%;
+  max-width: 520px;
+  margin: 14px auto 0;
+}
+.home-rooms {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 4px;
+  padding: 18px 22px;
+  text-align: left;
 }
-.my-rooms ul {
+.home-rooms .label {
+  margin: 0;
+}
+.home-rooms ul {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -3149,7 +3192,7 @@ body.dragging * {
   initial-value: 0px;
 }
 @supports (animation-timeline: scroll()) {
-  .my-rooms ul {
+  .home-rooms ul {
     mask-image: linear-gradient(to bottom, transparent, #000 var(--rooms-fade-top), #000 calc(100% - var(--rooms-fade-bottom)), transparent);
     animation: rooms-fade linear both;
     animation-timeline: scroll(self);

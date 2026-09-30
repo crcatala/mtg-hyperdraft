@@ -494,9 +494,10 @@
       "kicker kicker"
       "title title"
       "tag panel"
-      "steps panel";
-    /* minmax(0, 1fr): under the hero's max-height, the panel's rows give way rather than overflow. */
-    grid-template-rows: auto auto auto minmax(0, 1fr);
+      "steps panel"
+      "rooms panel";
+    /* minmax(0, 1fr): under the hero's max-height, the rooms row gives way rather than overflow. */
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
     column-gap: 72px;
     align-items: start;
     text-align: left;
@@ -587,13 +588,24 @@
   .home-hero .home-panel {
     grid-area: panel;
     align-self: start;
-    max-height: 100%;
     width: 100%;
     max-width: none;
     margin: 0;
     padding: 28px;
     background: var(--reg), var(--s1);
     border-color: rgb(var(--fg-rgb) / 0.12);
+  }
+  /* Your rooms: under the steps in the left column, down to the bottom of the panel or the window. */
+  .home-hero .home-rooms {
+    align-self: start;
+    max-width: 560px;
+    max-height: calc(100% - 28px);
+    margin: 28px 0 0;
+    padding: 20px 22px;
+    border-color: rgb(var(--fg-rgb) / 0.12);
+  }
+  .home-hero:has(> .home-rooms) > .home-rooms {
+    contain: none;
   }
   .home-or {
     font-family: var(--font-mono);
@@ -1209,8 +1221,8 @@
     }
     .home-hero {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-areas: "kicker" "title" "tag" "panel" "steps";
-      grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+      grid-template-areas: "kicker" "title" "tag" "panel" "rooms" "steps";
+      grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
     }
     .home-title {
       font-size: clamp(34px, 10.5vw, 72px);
@@ -1222,6 +1234,10 @@
     }
     .home-steps {
       margin-top: 28px;
+    }
+    .home-hero .home-rooms {
+      max-width: none;
+      margin-top: 14px;
     }
   }
 }
@@ -1250,6 +1266,41 @@
     }
   }
 }
+/* Narrow windows and tablets: the rooms card sits beside the panel, and the title shrinks with the
+   window's height too. */
+@media (min-width: 761px) and (max-width: 900px) {
+  [data-theme="signal"] {
+    .home-hero:has(> .home-rooms) {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas: "kicker kicker" "title title" "tag tag" "panel rooms" "steps steps";
+      grid-template-rows: none;
+      column-gap: 20px;
+    }
+    /* As in the other themes: the card takes the panel's height. */
+    .home-hero:has(> .home-rooms) .home-rooms {
+      contain: size;
+      align-self: stretch;
+      max-height: none;
+      margin-top: 0;
+    }
+    .home-title {
+      font-size: clamp(34px, min(10.5vw, 11vh), 72px);
+    }
+  }
+}
+@media (min-width: 761px) and (max-width: 900px) and (max-height: 800px) {
+  [data-theme="signal"] {
+    .home .center-stage {
+      padding-block: 20px;
+    }
+    .home-kicker {
+      display: none;
+    }
+    .home-tag {
+      margin: 12px 0 18px;
+    }
+  }
+}
 /* One column but not a phone (narrow windows, tablets): the steps go so the panel can fit. */
 @media (min-width: 761px) and (max-width: 900px) and (max-height: 1100px) {
   [data-theme="signal"] {
@@ -1266,6 +1317,23 @@
     .home-hero .home-panel {
       padding: 18px 22px;
       gap: 8px;
+    }
+  }
+}
+/* Fitting the window, the rooms card fills its row; phones keep the list's usual cap. */
+@media (min-width: 761px) and (min-height: 600px) {
+  [data-theme="signal"] .home-hero:has(> .home-rooms) .home-rooms ul {
+    max-height: none;
+  }
+}
+/* With rooms to show on a short window, the steps make way for the rooms card. */
+@media (max-height: 800px) and (min-width: 901px) {
+  [data-theme="signal"] .home:has(.home-rooms) {
+    .home-steps {
+      display: none;
+    }
+    .home-rooms {
+      margin-top: 0;
     }
   }
 }

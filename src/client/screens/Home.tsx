@@ -18,6 +18,7 @@ export function Home() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const toast = useStore((s) => s.toast);
+  const invite = useInvite();
 
   const needName = () => {
     if (name.trim()) {
@@ -94,8 +95,9 @@ export function Home() {
                 Join
               </button>
             </div>
-            <HostSection needName={needName} />
+            <HostSection needName={needName} invite={invite} />
           </div>
+          <YourRooms ledger={invite.info?.rooms ?? []} onDelete={invite.key ? invite.remove : undefined} />
         </div>
       </div>
       <footer className="home-foot faint">
@@ -110,17 +112,13 @@ export function Home() {
   );
 }
 
-/**
- * Hosting online rooms: with an invite code, the invite's rooms. Without one, a public room from
- * the shared pool, when the server has public rooms switched on. Either way, "Your rooms" below.
- */
-function HostSection({ needName }: { needName: () => boolean }) {
+type Invite = ReturnType<typeof useInvite>;
+
+/** The saved invite code, if any, and what the server says about it (quota, its rooms). */
+function useInvite() {
   const toast = useStore((s) => s.toast);
   const [key, setKey] = useState(loadInvite);
   const [info, setInfo] = useState<InviteInfo | null>(null);
-  const [entering, setEntering] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(
     async (k: string) => {
@@ -143,6 +141,38 @@ function HostSection({ needName }: { needName: () => boolean }) {
   useEffect(() => {
     if (key) void refresh(key);
   }, [key, refresh]);
+
+  const forget = () => {
+    forgetInvite();
+    setKey(null);
+    setInfo(null);
+  };
+
+  const remove = async (room: RoomEntry) => {
+    if (!key || !confirm(`Delete room ${room.code}? Everything in it (draft, decks, table) is gone for good.`)) return;
+    try {
+      await deleteRoom(key, room.code);
+      forgetRoom(room.code);
+      toast(`Deleted room ${room.code}.`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not delete the room.", "error");
+    }
+    void refresh(key);
+  };
+
+  return { key, setKey, info, refresh, forget, remove };
+}
+
+/**
+ * Hosting online rooms: with an invite code, the invite's rooms. Without one, a public room from
+ * the shared pool, when the server has public rooms switched on. "Your rooms" sits beside the panel.
+ */
+function HostSection({ needName, invite }: { needName: () => boolean; invite: Invite }) {
+  const toast = useStore((s) => s.toast);
+  const { key, setKey, info, refresh } = invite;
+  const [entering, setEntering] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const submitKey = async () => {
     const k = draft.trim();
@@ -170,18 +200,6 @@ function HostSection({ needName }: { needName: () => boolean }) {
     } finally {
       setBusy(false);
     }
-  };
-
-  const remove = async (room: RoomEntry) => {
-    if (!key || !confirm(`Delete room ${room.code}? Everything in it (draft, decks, table) is gone for good.`)) return;
-    try {
-      await deleteRoom(key, room.code);
-      forgetRoom(room.code);
-      toast(`Deleted room ${room.code}.`);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Could not delete the room.", "error");
-    }
-    void refresh(key);
   };
 
   if (!key) {
@@ -212,7 +230,6 @@ function HostSection({ needName }: { needName: () => boolean }) {
       <>
         <PublicHost needName={needName} />
         {inviteEntry}
-        <YourRooms ledger={[]} />
       </>
     );
   }
@@ -234,19 +251,11 @@ function HostSection({ needName }: { needName: () => boolean }) {
       {info && q && (
         <p className="faint small-print home-note">
           Invite <b>{info.label}</b> · {q.createdInWindow}/{q.perWindow} rooms in 24h · {q.rooms}/{q.maxRooms} saved ·{" "}
-          <button
-            className="link-btn"
-            onClick={() => {
-              forgetInvite();
-              setKey(null);
-              setInfo(null);
-            }}
-          >
+          <button className="link-btn" onClick={invite.forget}>
             forget invite
           </button>
         </p>
       )}
-      <YourRooms ledger={info?.rooms ?? []} onDelete={remove} />
     </>
   );
 }
@@ -374,8 +383,10 @@ function YourRooms({ ledger, onDelete }: { ledger: RoomRecord[]; onDelete?: (r: 
   };
 
   return (
-    <div className="my-rooms">
-      <div className="label">Your rooms</div>
+    <section className="panel home-rooms" aria-labelledby="home-rooms-label">
+      <div className="label" id="home-rooms-label">
+        Your rooms
+      </div>
       <ul>
         {rooms.map((r) => (
           <li key={r.code} className="my-room">
@@ -415,7 +426,7 @@ function YourRooms({ ledger, onDelete }: { ledger: RoomRecord[]; onDelete?: (r: 
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   );
 }
 
