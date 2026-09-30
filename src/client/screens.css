@@ -2352,12 +2352,19 @@ body.dragging * {
 .carousel.side-help .carousel-stage {
   flex-direction: row;
   align-items: flex-start;
+  /* Centred between the title bar and the key hint. */
+  padding: var(--card-top) 0 48px;
 }
 /* Help under the card: the card is sized so both fit on screen. Scrolling is only a fallback
-   for screens too short to fit the smallest card and help. Hiding the help grows the card. */
+   for screens too short to fit the smallest card and help. Hiding the help grows the card.
+   Top-aligned, so the card stays put while browsing cards with more or less help. */
 .carousel:not(.side-help) {
   overflow-y: auto;
-  place-items: safe center;
+  place-items: start center;
+}
+.carousel:not(.side-help) .carousel-arrow {
+  top: calc(var(--card-top) + var(--card-h) / 2);
+  transition: background 0.15s, transform 0.15s, border-color 0.15s, top 0.5s cubic-bezier(0.32, 0.72, 0, 1);
 }
 .carousel:not(.side-help) .carousel-fly {
   transition: width 0.5s var(--help-ease);
@@ -2366,10 +2373,52 @@ body.dragging * {
   transition: transform 0.18s ease, filter 0.2s, opacity 0.2s, width 0.5s var(--help-ease);
 }
 .carousel:not(.side-help) .carousel-stage {
-  padding: 72px 16px 24px;
+  padding: var(--card-top) 16px 24px;
+  transition: padding-top 0.5s var(--help-ease);
 }
 .carousel:not(.side-help) .carousel-hint {
   display: none;
+}
+/* Breakpoints match NARROW and SHORT in CardCarousel.tsx, which sizes the card to suit. */
+@media (max-width: 559px) {
+  /* Two steady lines: the name, then the rest. So the card doesn't change size while browsing. */
+  .carousel-top {
+    padding: 14px 66px;
+  }
+  .carousel-title {
+    min-width: 0;
+    gap: 2px 8px;
+    font-size: 13px;
+  }
+  .carousel-title b {
+    order: -1;
+    flex-basis: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 18px;
+  }
+  .carousel-arrow {
+    width: 40px;
+    height: 40px;
+    margin-top: -20px;
+    font-size: 20px;
+  }
+  .carousel-arrow.left {
+    left: 8px;
+  }
+  .carousel-arrow.right {
+    right: 8px;
+  }
+}
+@media (max-height: 499px) {
+  .carousel-hint {
+    display: none;
+  }
+  .carousel.side-help .carousel-stage {
+    padding-bottom: 16px;
+  }
 }
 
 /* ---------- rules help beside the zoomed card ---------- */

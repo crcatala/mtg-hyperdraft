@@ -2,7 +2,7 @@
 // neighbours (← → buttons or keys), tilt the card by hovering or dragging, and flies back on close.
 // Double-faced cards can be turned over (button on the card, or F).
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { CardData } from "../../shared/types";
 import { CardHelp, RulesHelpHint } from "./CardHelp";
@@ -41,8 +41,11 @@ function flipTransform(from: DOMRect, to: DOMRect): string {
 }
 
 const PANEL_SPACE = 340; // Side panel width plus the gap to the card.
-const ARROW_SPACE = 260; // Room for the browse arrows either side of the card.
-const STACK_CHROME = 72 + 24 + 20; // Title bar, bottom padding, and the gap above the help.
+const BADGE_SPACE = 22; // Below the title bar, room for the badge above the card.
+const STACK_CHROME = 24 + 20; // Bottom padding, and the gap above the help.
+// These breakpoints match the carousel media queries in screens.css.
+const NARROW = 560; // Below this width the browse arrows shrink, leaving more room for the card.
+const SHORT = 500; // Below this height the key hint goes, leaving more room for the card.
 
 /** Height kept for the rules help under the card, so both fit on screen without scrolling. */
 function stackedHelpHeight() {
@@ -58,23 +61,43 @@ function fitWidth(byHeight: number, byWidth: number) {
  *  minimum size, so on small screens it's whichever overflows less. Decided with the help open
  *  either way, so hiding it doesn't swap layouts; under the card, hiding it gives the card its
  *  space back. */
-function zoomLayout(helpOpen: boolean) {
+function zoomLayout(helpOpen: boolean, topBarHeight: number) {
   const { innerWidth: w, innerHeight: h } = window;
+  const cardTop = topBarHeight + BADGE_SPACE;
+  const arrowSpace = w < NARROW ? 112 : 260; // The browse arrows either side of the card.
+  // Title bar and the key hint below; short screens drop the hint, others keep some breathing room.
+  const sideChrome = h < SHORT ? cardTop + 16 : Math.max(170, cardTop + 48);
+  const stackChrome = cardTop + STACK_CHROME;
   const helpHeight = stackedHelpHeight();
-  const sideFit = fitWidth(h - 170, w - ARROW_SPACE - PANEL_SPACE);
-  const side = sideFit > fitWidth(h - STACK_CHROME - helpHeight, w - ARROW_SPACE);
-  const fit = side ? sideFit : fitWidth(h - STACK_CHROME - (helpOpen ? helpHeight : 0), w - ARROW_SPACE);
-  return { width: Math.max(220, Math.floor(fit)), side, helpHeight };
+  const sideFit = fitWidth(h - sideChrome, w - arrowSpace - PANEL_SPACE);
+  const side = sideFit > fitWidth(h - stackChrome - helpHeight, w - arrowSpace);
+  const fit = side ? sideFit : fitWidth(h - stackChrome - (helpOpen ? helpHeight : 0), w - arrowSpace);
+  const width = Math.max(220, Math.floor(fit));
+  // Under-card help keeps the card at the top so it stays put while browsing; with the help
+  // hidden there's nothing below it, so it's centred in the space instead.
+  const spare = side || helpOpen ? 0 : h - 24 - cardTop - (width * 88) / 63; // Less the bottom padding.
+  return { width, side, helpHeight, cardTop: Math.round(cardTop + Math.max(0, spare / 2)) };
 }
 
+/** Sizes the card to the window and to the title bar, which wraps on narrow screens. */
 function useZoomLayout(helpOpen: boolean) {
   const [, setResizes] = useState(0);
+  const [topBar, setTopBar] = useState<HTMLDivElement | null>(null);
+  const [topBarHeight, setTopBarHeight] = useState(60);
   useEffect(() => {
     const onResize = () => setResizes((n) => n + 1);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  return zoomLayout(helpOpen);
+  useLayoutEffect(() => {
+    if (!topBar) return;
+    const measure = () => setTopBarHeight(Math.ceil(topBar.offsetHeight));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(topBar);
+    return () => observer.disconnect();
+  }, [topBar]);
+  return { ...zoomLayout(helpOpen, topBarHeight), topBarRef: setTopBar };
 }
 
 export function CardCarousel({ items, startKey, title, originFor, badge, onFaceChange, onClose }: Props) {
@@ -89,7 +112,7 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
   const face = item ? faces[item.key] ?? item.face ?? 0 : 0;
   // Rules help can be hidden (remembered across visits); a button by the card name brings it back.
   const [helpOpen, setHelpOpen] = useState(loadRulesHelpOpen);
-  const { width, side, helpHeight } = useZoomLayout(helpOpen);
+  const { width, side, helpHeight, cardTop, topBarRef } = useZoomLayout(helpOpen);
   const [hint, setHint] = useState(false);
   const [helpBtn, setHelpBtn] = useState<HTMLButtonElement | null>(null);
   const showHelp = (open: boolean) => {
@@ -178,11 +201,12 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
   return createPortal(
     <div
       className={`carousel${side ? " side-help" : ""}${closing ? " closing" : ""}`}
+      style={{ "--card-top": `${cardTop}px`, "--card-h": `${Math.round((width * 88) / 63)}px` } as CSSProperties}
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) close();
       }}
     >
-      <div className="carousel-top">
+      <div className="carousel-top" ref={topBarRef}>
         <div className="carousel-title">
           {title && <span className="faint">{title}</span>}
           <b>{item.card && dfc ? faceOf(item.card, face).name : item.card?.name}</b>
