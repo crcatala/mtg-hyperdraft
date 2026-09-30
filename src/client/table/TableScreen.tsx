@@ -1248,6 +1248,7 @@ const SHORTCUTS: [string, string][] = [
   ["Arrows · Q/E · wheel", "Pan · rotate · zoom the camera (or drag empty table / middle mouse)"],
   ["1–4 · V", "View from a seat (1 is yours) · look down on the whole table"],
   ["Home", "Reset the camera"],
+  ["Alt+Shift+T", "Switch UI theme (or pick one on the home page)"],
   ["` (backtick)", "Debug console"],
 ];
 

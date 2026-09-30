@@ -588,6 +588,23 @@
   .home-foot a {
     color: var(--muted);
   }
+  .theme-picker {
+    background: rgb(20 15 11 / 0.8);
+    backdrop-filter: blur(4px);
+  }
+  .theme-picker-label {
+    color: #9b8255;
+    font-weight: 800;
+  }
+  .theme-opt {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .theme-opt[aria-pressed="true"] {
+    background: rgb(var(--brass-rgb) / 0.16);
+    box-shadow: inset 0 0 0 1px rgb(var(--brass-rgb) / 0.45);
+    color: var(--brass-hi);
+  }
 
   /* ---------- lobby ---------- */
 

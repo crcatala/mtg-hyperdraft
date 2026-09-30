@@ -8,6 +8,7 @@ import { clockTime } from "../expiry";
 import { navigate } from "../router";
 import { useStore } from "../store";
 import { Icon } from "../components/Icon";
+import { ThemePicker } from "../components/ThemePicker";
 import { ROOM_CODE_LENGTH, ROOM_CODE_RE } from "../../shared/roomCode";
 import type { InviteInfo, RoomRecord } from "../../shared/invites";
 import { durationLabel, type PublicStatus } from "../../shared/publicRooms";
@@ -98,6 +99,9 @@ export function Home() {
         </div>
       </div>
       <footer className="home-foot faint">
+        <div className="home-theme">
+          <ThemePicker />
+        </div>
         Card data &amp; images courtesy of <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a>. Cubes from{" "}
         <a href="https://cubecobra.com" target="_blank" rel="noreferrer">CubeCobra</a>. HyperDraft is unofficial Fan Content permitted under the Wizards of the Coast Fan
         Content Policy; not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.

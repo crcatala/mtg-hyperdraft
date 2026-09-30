@@ -608,6 +608,25 @@
   .home-foot a {
     color: var(--muted);
   }
+  .home-theme {
+    justify-content: flex-start;
+  }
+  .theme-picker,
+  .theme-opt {
+    border-radius: 3px;
+  }
+  .theme-picker-label {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+  }
+  .theme-opt {
+    font-family: var(--font-ui);
+  }
+  .theme-opt[aria-pressed="true"] {
+    background: var(--signal);
+    color: var(--black);
+  }
   .my-room {
     border-radius: 3px;
     background: rgb(var(--fg-rgb) / 0.02);

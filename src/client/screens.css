@@ -181,6 +181,66 @@
 .home-steps {
   display: none;
 }
+/* Theme picker (Home footer). Swatches preview each theme whatever the current one is. */
+.home-theme {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.theme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgb(var(--fg-rgb) / 0.03);
+}
+.theme-picker-label {
+  padding: 0 6px 0 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.theme-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.theme-opt:hover {
+  color: var(--text);
+  background: rgb(var(--fg-rgb) / 0.06);
+}
+.theme-opt[aria-pressed="true"] {
+  color: var(--text);
+  background: rgb(var(--fg-rgb) / 0.11);
+}
+.theme-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.3);
+}
+.theme-swatch.t-gamenight {
+  background: linear-gradient(135deg, #c9a15a 50%, #a52e27 50%);
+}
+.theme-swatch.t-signal {
+  background: linear-gradient(135deg, #d4f53c 50%, #1b1c1e 50%);
+}
+.theme-swatch.t-arcane {
+  background: linear-gradient(135deg, #f4c55b 50%, #8f6bff 50%);
+}
 .home-foot {
   position: relative;
   z-index: 1;
