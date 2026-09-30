@@ -1,4 +1,6 @@
-/* HyperDraft — dark arcane tabletop theme. */
+/* HyperDraft base styles, which are also the Arcane theme (the original look). Other UI themes
+   layer their overrides on top from themes/<id>.css, scoped to <html data-theme="<id>">; see
+   theme.ts. */
 @import "mana-font/css/mana.css";
 
 :root {
