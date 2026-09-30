@@ -2621,6 +2621,10 @@ body.dragging * {
   line-height: 1.45;
   animation: term-pop-in 0.16s ease-out;
 }
+/* Focus only lands on the popover itself after a retry, to keep the reader's place. */
+.term-pop:focus {
+  outline: none;
+}
 @keyframes term-pop-in {
   from {
     opacity: 0;
@@ -2881,6 +2885,21 @@ body.dragging * {
   .card-help-slot.hidden,
   .card-help {
     transition-duration: 0s;
+  }
+  .card-help,
+  .carousel-help-btn {
+    animation: none;
+  }
+  /* The card resizing and its arrows following, with the help under it. */
+  .carousel:not(.side-help) .carousel-fly,
+  .carousel:not(.side-help) .carousel-stage {
+    transition: none;
+  }
+  .carousel:not(.side-help) .carousel-fly .card {
+    transition: transform 0.18s ease, filter 0.2s, opacity 0.2s;
+  }
+  .carousel:not(.side-help) .carousel-arrow {
+    transition: background 0.15s, transform 0.15s, border-color 0.15s;
   }
   .carousel-help-btn.hinting,
   .rules-hint-arrow path,

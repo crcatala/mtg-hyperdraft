@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import type { CardData } from "../../shared/types";
 import { CardHelp, RulesHelpHint } from "./CardHelp";
 import { CardView } from "./CardView";
+import { dismissTermPopover } from "./TermPopover";
 import { Icon } from "./Icon";
 import { faceOf, hasBackFace, nextFace } from "../cardStyle";
 import { loadRulesHelpOpen, saveRulesHelpOpen, takeRulesHelpHint } from "../cardHelp";
@@ -181,7 +182,9 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight") go(1);
       else if (e.key === "ArrowLeft") go(-1);
-      else if (e.key === "Escape") close();
+      else if (e.key === "Escape") {
+        if (!dismissTermPopover()) close();
+      }
       else if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && dfc) turnOver();
       else return;
       e.preventDefault();

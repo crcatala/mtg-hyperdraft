@@ -1,9 +1,10 @@
 // A mechanic or type in the rules help: a link to its MTG Wiki page that also explains the term in
 // place. Hovering (or keyboard focus) opens a popover with the wiki's reminder text and summary,
 // fetched on first open and cached. On touch screens the first tap opens the popover instead of
-// following the link; the popover has its own link through to the wiki.
+// following the link; the popover has its own link through to the wiki. The popover lives at the
+// end of the page, so Tab is steered into it from its chip and back out to the chip's neighbour.
 
-import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type RefObject } from "react";
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { rulesLookupUrl } from "../cardHelp";
 import { cachedTermInfo, fetchTermInfo, type TermInfo } from "../wikiTerms";
@@ -16,7 +17,17 @@ const GAP = 10;
 const MARGIN = 8;
 
 // One popover at a time: opening one closes whichever was open.
-let closeCurrent: (() => void) | null = null;
+let current: { hide: () => void; dismiss: () => void } | null = null;
+
+/** Closes the open popover, if there is one, putting focus back on its chip. Lets Escape close
+ *  the popover before whatever it sits over. */
+export function dismissTermPopover(): boolean {
+  if (!current) return false;
+  current.dismiss();
+  return true;
+}
+
+const focusables = (el: HTMLElement | null) => Array.from(el?.querySelectorAll<HTMLElement>("a[href], button") ?? []);
 
 type Status = { state: "loading" } | { state: "error" } | { state: "done"; info: TermInfo | null };
 
@@ -38,15 +49,20 @@ export function TermChip({ term }: { term: string }) {
     clearTimeout(openTimer.current);
     clearTimeout(closeTimer.current);
     setOpen(false);
-    if (closeCurrent === hide) closeCurrent = null;
+    if (current?.hide === hide) current = null;
   }, []);
+  // Focus goes back to the chip first; refocusing it would otherwise reopen the popover.
+  const dismiss = useCallback(() => {
+    if (popRef.current?.contains(document.activeElement)) chipRef.current?.focus();
+    hide();
+  }, [hide]);
   const show = useCallback(() => {
     clearTimeout(openTimer.current);
     clearTimeout(closeTimer.current);
-    if (closeCurrent && closeCurrent !== hide) closeCurrent();
-    closeCurrent = hide;
+    if (current && current.hide !== hide) current.hide();
+    current = { hide, dismiss };
     setOpen(true);
-  }, [hide]);
+  }, [hide, dismiss]);
   const hideSoon = () => {
     clearTimeout(openTimer.current);
     clearTimeout(closeTimer.current);
@@ -56,7 +72,8 @@ export function TermChip({ term }: { term: string }) {
 
   useEffect(() => hide, [hide]);
 
-  // Tap or click elsewhere closes it; so does scrolling anything but the popover (it's fixed).
+  // Tap or click elsewhere closes it; so does scrolling anything but the popover (it's fixed), or
+  // resizing the window, which moves the chip out from under it.
   useEffect(() => {
     if (!open) return;
     const inside = (t: EventTarget | null) => t instanceof Node && (chipRef.current?.contains(t) || popRef.current?.contains(t));
@@ -68,11 +85,25 @@ export function TermChip({ term }: { term: string }) {
     };
     document.addEventListener("pointerdown", onDown, true);
     window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", dismiss);
     return () => {
       document.removeEventListener("pointerdown", onDown, true);
       window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", dismiss);
     };
-  }, [open, hide]);
+  }, [open, hide, dismiss]);
+
+  // Tabbing off either end of the popover goes back to where it hangs from: Shift+Tab to the chip,
+  // Tab onward from the chip (focusing it without stopping the Tab moves focus to its neighbour).
+  const tabOut = (e: KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    const all = focusables(popRef.current);
+    const atEdge = e.shiftKey ? e.target === all[0] || e.target === popRef.current : e.target === all[all.length - 1];
+    if (atEdge) {
+      if (e.shiftKey) e.preventDefault();
+      chipRef.current?.focus();
+    }
+  };
 
   return (
     <>
@@ -108,12 +139,19 @@ export function TermChip({ term }: { term: string }) {
         onBlur={(e) => {
           if (!popRef.current?.contains(e.relatedTarget as Node | null)) hide();
         }}
+        onKeyDown={(e) => {
+          if (!open || e.key !== "Tab" || e.shiftKey) return;
+          const first = focusables(popRef.current)[0];
+          if (!first) return;
+          e.preventDefault();
+          first.focus();
+        }}
       >
         {term}
         <Icon name="external" />
       </a>
       {open && chipRef.current && (
-        <Popover id={id} term={term} anchor={chipRef.current} popRef={popRef} onEnter={keepOpen} onLeave={hideSoon} onBlur={(e) => !chipRef.current?.contains(e.relatedTarget as Node | null) && !popRef.current?.contains(e.relatedTarget as Node | null) && hide()} />
+        <Popover id={id} term={term} anchor={chipRef.current} popRef={popRef} onEnter={keepOpen} onLeave={hideSoon} onKeyDown={tabOut} onBlur={(e) => !chipRef.current?.contains(e.relatedTarget as Node | null) && !popRef.current?.contains(e.relatedTarget as Node | null) && hide()} />
       )}
     </>
   );
@@ -126,6 +164,7 @@ function Popover({
   popRef,
   onEnter,
   onLeave,
+  onKeyDown,
   onBlur,
 }: {
   id: string;
@@ -134,6 +173,7 @@ function Popover({
   popRef: RefObject<HTMLDivElement | null>;
   onEnter: () => void;
   onLeave: () => void;
+  onKeyDown: (e: KeyboardEvent) => void;
   onBlur: (e: FocusEvent) => void;
 }) {
   const [status, setStatus] = useState<Status>(() => initialStatus(term));
@@ -186,11 +226,13 @@ function Popover({
       ref={popRef}
       id={id}
       role="dialog"
+      tabIndex={-1}
       aria-label={`${term}, from the MTG Wiki`}
       className="term-pop"
       style={pos ? { left: pos.x, top: pos.y } : { left: -9999, top: -9999, visibility: "hidden" }}
       onPointerEnter={onEnter}
       onPointerLeave={(e) => e.pointerType === "mouse" && onLeave()}
+      onKeyDown={onKeyDown}
       onBlur={onBlur}
     >
       <header className="term-pop-head">
@@ -207,7 +249,14 @@ function Popover({
       {status.state === "error" && (
         <p className="term-pop-empty faint">
           Couldn't reach the MTG Wiki.{" "}
-          <button className="link-btn" onClick={load}>
+          {/* The button goes once the retry starts; focus waits on the popover rather than being lost. */}
+          <button
+            className="link-btn"
+            onClick={() => {
+              popRef.current?.focus();
+              load();
+            }}
+          >
             Try again
           </button>
         </p>
