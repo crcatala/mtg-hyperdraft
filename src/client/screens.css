@@ -3052,9 +3052,8 @@ body.dragging * {
 /* ---------- home: solo, invites, my rooms ---------- */
 
 /* Home is a title screen: it fits the window instead of scrolling it. The hero never grows past the
-   stage; when space runs short, the "Your rooms" card gives way and its list scrolls on its own.
-   Wide windows put that card beside the panel instead of under it. Phones and very short windows
-   keep the plain scrolling page. */
+   stage, and the "Your rooms" card sits beside the panel with its list scrolling on its own.
+   Phones and very short windows keep the plain scrolling page, with the card under the panel. */
 .home .center-stage {
   display: flex;
   min-height: 0;
@@ -3093,15 +3092,11 @@ body.dragging * {
   .home-hero > .home-panel {
     width: 100%;
   }
-  /* Under the panel, the card shrinks down to about one room row. */
-  .home-hero > .home-rooms {
-    flex-shrink: 1;
-    min-height: 8.5rem;
-  }
 }
-/* Side by side: the rooms card takes the panel's height (size containment keeps its list from
-   stretching the row), so the list gets the whole height of the form. */
-@media (min-width: 900px) {
+/* Side by side (whenever Home fits the window, and there are rooms): the rooms card takes the
+   panel's height (size containment keeps its list from stretching the row), so the list gets the
+   whole height of the form. Themes that change the panel's width change these columns to match. */
+@media (min-width: 761px) {
   .home-hero:has(> .home-rooms) {
     display: grid;
     grid-template-columns: minmax(0, 500px) minmax(0, 440px);
@@ -3240,8 +3235,9 @@ body.dragging * {
 }
 .my-room-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   font-size: 13px;
 }
 .my-room-top > .faint {

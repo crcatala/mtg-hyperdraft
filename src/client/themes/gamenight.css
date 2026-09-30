@@ -1160,12 +1160,38 @@
       max-width: 640px;
       font-size: 16px;
     }
-    .home-steps {
+    /* First visit (no rooms): the steps stay, folded into one line as above. */
+    .home:not(:has(.home-rooms)) {
+      .home-steps {
+        gap: 26px;
+        margin-bottom: 14px;
+      }
+      .home-steps li {
+        flex-direction: row;
+        gap: 8px;
+        width: auto;
+      }
+      .home-steps li::before {
+        width: 24px;
+        height: 24px;
+        margin: 0;
+        font-size: 11px;
+      }
+      .home-steps li + li::after,
+      .home-steps span {
+        display: none;
+      }
+      .home-steps b {
+        font-size: 17px;
+      }
+    }
+    /* Coming back to rooms: they get the space. */
+    .home:has(.home-rooms) .home-steps {
       display: none;
     }
   }
 }
-@media (min-width: 900px) {
+@media (min-width: 761px) {
   [data-theme="gamenight"] .home-hero:has(> .home-rooms) {
     grid-template-columns: minmax(0, 480px) minmax(0, 440px);
     width: min(940px, 100%);

@@ -1299,6 +1299,10 @@
     .home-tag {
       margin: 12px 0 18px;
     }
+    .home-hero .home-panel,
+    .home-hero .home-rooms {
+      padding: 20px;
+    }
   }
 }
 /* One column but not a phone (narrow windows, tablets): the steps go so the panel can fit. */
