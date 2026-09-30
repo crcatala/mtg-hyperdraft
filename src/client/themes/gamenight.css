@@ -218,6 +218,7 @@
   }
   /* Stitching on the big leather panels. */
   .home-panel,
+  .home-rooms,
   .lobby-grid > .panel:not(.solo-banner),
   .draft-side,
   .db-side,
@@ -553,6 +554,10 @@
   .home-hero .home-panel {
     max-width: 480px;
     padding: 28px 28px 24px;
+  }
+  .home-hero .home-rooms {
+    max-width: 480px;
+    padding: 22px 24px;
   }
   .home-or {
     font-weight: 800;
@@ -1064,5 +1069,131 @@
     .home-tag {
       font-size: 18px;
     }
+  }
+}
+
+/* Short windows: tighten the lid so "Your rooms" keeps some room. */
+@media (max-height: 1000px) and (min-width: 761px) {
+  [data-theme="gamenight"] {
+    .home .center-stage {
+      padding-block: 16px;
+    }
+    .home-kicker {
+      margin-bottom: 8px;
+    }
+    .home-title {
+      font-size: clamp(50px, min(9vw, 10.5vh), 108px);
+    }
+    .home-tag {
+      margin: 10px auto 20px;
+      font-size: 18px;
+    }
+    .home-steps {
+      margin-bottom: 20px;
+    }
+    .home-steps li::before {
+      width: 30px;
+      height: 30px;
+      margin-bottom: 5px;
+      font-size: 13px;
+    }
+    .home-steps li + li::after {
+      top: 15px;
+    }
+    .home-hero .home-panel {
+      padding: 20px 24px 18px;
+      gap: 10px;
+    }
+    .home-foot {
+      padding: 8px 24px 10px;
+    }
+    .home-theme {
+      margin-bottom: 6px;
+    }
+  }
+}
+/* With rooms to show, the lid folds sooner: the steps become one line and the tagline shortens. */
+@media (max-height: 1000px) and (min-width: 761px) {
+  [data-theme="gamenight"] .home:has(.home-rooms) {
+    .home-tag {
+      max-width: 640px;
+      margin: 6px auto 14px;
+      font-size: 17px;
+    }
+    .home-steps {
+      gap: 26px;
+      margin-bottom: 14px;
+    }
+    .home-steps li {
+      flex-direction: row;
+      gap: 8px;
+      width: auto;
+    }
+    .home-steps li::before {
+      width: 24px;
+      height: 24px;
+      margin: 0;
+      font-size: 11px;
+    }
+    .home-steps li + li::after,
+    .home-steps span {
+      display: none;
+    }
+    .home-steps b {
+      font-size: 17px;
+    }
+  }
+}
+@media (max-height: 740px) and (min-width: 761px) {
+  [data-theme="gamenight"] {
+    .home-kicker {
+      display: none;
+    }
+    .home-hero .home-panel {
+      gap: 8px;
+    }
+  }
+}
+@media (max-height: 680px) and (min-width: 761px) {
+  [data-theme="gamenight"] {
+    .home-tag {
+      max-width: 640px;
+      font-size: 16px;
+    }
+    /* First visit (no rooms): the steps stay, folded into one line as above. */
+    .home:not(:has(.home-rooms)) {
+      .home-steps {
+        gap: 26px;
+        margin-bottom: 14px;
+      }
+      .home-steps li {
+        flex-direction: row;
+        gap: 8px;
+        width: auto;
+      }
+      .home-steps li::before {
+        width: 24px;
+        height: 24px;
+        margin: 0;
+        font-size: 11px;
+      }
+      .home-steps li + li::after,
+      .home-steps span {
+        display: none;
+      }
+      .home-steps b {
+        font-size: 17px;
+      }
+    }
+    /* Coming back to rooms: they get the space. */
+    .home:has(.home-rooms) .home-steps {
+      display: none;
+    }
+  }
+}
+@media (min-width: 761px) {
+  [data-theme="gamenight"] .home-hero:has(> .home-rooms) {
+    grid-template-columns: minmax(0, 480px) minmax(0, 440px);
+    width: min(940px, 100%);
   }
 }

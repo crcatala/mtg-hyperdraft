@@ -279,6 +279,38 @@
     translate: 0 -14px;
   }
 }
+/* Short windows (laptops): tighten the hero so "Your rooms" keeps some room. */
+@media (max-height: 820px) {
+  .home .center-stage {
+    padding-block: 16px;
+  }
+  .home-title {
+    font-size: clamp(44px, min(9vw, 11vh), 96px);
+  }
+  .home-tag {
+    margin: 10px auto 18px;
+  }
+  .home-panel {
+    padding: 18px 22px;
+    gap: 10px;
+  }
+  .home-foot {
+    padding: 8px 24px 10px;
+  }
+  .home-theme {
+    margin-bottom: 6px;
+  }
+}
+@media (max-height: 680px) {
+  .home-tag {
+    max-width: 760px;
+    margin-bottom: 14px;
+  }
+  .home-panel {
+    padding: 16px 20px;
+    gap: 8px;
+  }
+}
 
 /* ---------- lobby ---------- */
 
@@ -3019,12 +3051,71 @@ body.dragging * {
 
 /* ---------- home: solo, invites, my rooms ---------- */
 
+/* Home is a title screen: it fits the window instead of scrolling it. The hero never grows past the
+   stage, and the "Your rooms" card sits beside the panel with its list scrolling on its own.
+   Phones and very short windows keep the plain scrolling page, with the card under the panel. */
 .home .center-stage {
   display: flex;
+  min-height: 0;
   overflow-y: auto;
 }
 .home .home-hero {
   margin: auto;
+}
+.home-kicker {
+  grid-area: kicker;
+}
+.home-title {
+  grid-area: title;
+}
+.home-tag {
+  grid-area: tag;
+}
+.home-steps {
+  grid-area: steps;
+}
+.home-panel {
+  grid-area: panel;
+}
+.home-rooms {
+  grid-area: rooms;
+}
+@media (min-width: 761px) and (min-height: 600px) {
+  .home .home-hero {
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .home-hero > * {
+    flex-shrink: 0;
+  }
+  .home-hero > .home-panel {
+    width: 100%;
+  }
+}
+/* Side by side (whenever Home fits the window, and there are rooms): the rooms card takes the
+   panel's height (size containment keeps its list from stretching the row), so the list gets the
+   whole height of the form. Themes that change the panel's width change these columns to match. */
+@media (min-width: 761px) {
+  .home-hero:has(> .home-rooms) {
+    display: grid;
+    grid-template-columns: minmax(0, 500px) minmax(0, 440px);
+    grid-template-areas: "kicker kicker" "title title" "tag tag" "steps steps" "panel rooms";
+    justify-content: center;
+    column-gap: 20px;
+    width: min(960px, 100%);
+  }
+  .home-hero:has(> .home-rooms) > .home-panel,
+  .home-hero:has(> .home-rooms) > .home-rooms {
+    max-width: none;
+    margin: 0;
+  }
+  .home-hero:has(> .home-rooms) > .home-rooms {
+    contain: size;
+  }
+  .home-hero:has(> .home-rooms) .home-rooms ul {
+    max-height: none;
+  }
 }
 .home-note {
   margin: -4px 0 0;
@@ -3055,21 +3146,67 @@ body.dragging * {
   text-decoration: underline;
   cursor: pointer;
 }
-.my-rooms {
+.home-hero .home-rooms {
+  width: 100%;
+  max-width: 520px;
+  margin: 14px auto 0;
+}
+.home-rooms {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 4px;
+  padding: 18px 22px;
+  text-align: left;
 }
-.my-rooms ul {
+.home-rooms .label {
+  margin: 0;
+}
+.home-rooms ul {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-height: 0;
   max-height: 320px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--fg-rgb) / 0.18) transparent;
+}
+/* A long list fades out at whichever edge has more rooms past it. Scroll-driven, so it only shows
+   while the list actually scrolls; browsers without scroll timelines just get the hard edge. */
+@property --rooms-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --rooms-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@supports (animation-timeline: scroll()) {
+  .home-rooms ul {
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--rooms-fade-top), #000 calc(100% - var(--rooms-fade-bottom)), transparent);
+    animation: rooms-fade linear both;
+    animation-timeline: scroll(self);
+  }
+}
+@keyframes rooms-fade {
+  0% {
+    --rooms-fade-top: 0px;
+    --rooms-fade-bottom: 28px;
+  }
+  8%,
+  92% {
+    --rooms-fade-top: 28px;
+    --rooms-fade-bottom: 28px;
+  }
+  100% {
+    --rooms-fade-top: 28px;
+    --rooms-fade-bottom: 0px;
+  }
 }
 .my-room {
   display: flex;
@@ -3098,9 +3235,13 @@ body.dragging * {
 }
 .my-room-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   font-size: 13px;
+}
+.my-room-top > .faint {
+  white-space: nowrap;
 }
 .my-room-code {
   font-family: ui-monospace, Menlo, monospace;
