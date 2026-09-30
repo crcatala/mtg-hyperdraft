@@ -88,7 +88,8 @@
     /* Alegreya defaults to old-style figures; UI numbers read better lining. */
     font-variant-numeric: lining-nums;
   }
-  a {
+  /* :where keeps this below component link styles. */
+  :where(a) {
     color: var(--brass-hi);
   }
   ::selection {
