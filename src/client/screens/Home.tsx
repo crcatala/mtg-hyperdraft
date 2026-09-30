@@ -8,6 +8,7 @@ import { clockTime } from "../expiry";
 import { navigate } from "../router";
 import { useStore } from "../store";
 import { Icon } from "../components/Icon";
+import { ThemePicker } from "../components/ThemePicker";
 import { ROOM_CODE_LENGTH, ROOM_CODE_RE } from "../../shared/roomCode";
 import type { InviteInfo, RoomRecord } from "../../shared/invites";
 import { durationLabel, type PublicStatus } from "../../shared/publicRooms";
@@ -49,8 +50,23 @@ export function Home() {
       </div>
       <div className="center-stage">
         <div className="home-hero">
+          <p className="home-kicker">Cube draft &amp; tabletop · 1–4 players</p>
           <h1 className="brand home-title">HyperDraft</h1>
           <p className="home-tag">Crack packs, draft a cube with up to three friends, build your deck, and battle on a shared 3D table.</p>
+          <ol className="home-steps" aria-label="How it works">
+            <li>
+              <b>Crack</b> <span>packs from any cube</span>
+            </li>
+            <li>
+              <b>Draft</b> <span>with friends or bots</span>
+            </li>
+            <li>
+              <b>Build</b> <span>your deck, basics free</span>
+            </li>
+            <li>
+              <b>Play</b> <span>on a shared 3D table</span>
+            </li>
+          </ol>
           <div className="panel home-panel">
             <label className="label" htmlFor="name">
               Your name
@@ -83,6 +99,9 @@ export function Home() {
         </div>
       </div>
       <footer className="home-foot faint">
+        <div className="home-theme">
+          <ThemePicker />
+        </div>
         Card data &amp; images courtesy of <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a>. Cubes from{" "}
         <a href="https://cubecobra.com" target="_blank" rel="noreferrer">CubeCobra</a>. HyperDraft is unofficial Fan Content permitted under the Wizards of the Coast Fan
         Content Policy; not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.

@@ -74,6 +74,8 @@ src/
     screens/         Home (+ Your rooms), Solo, Lobby, Draft (pack opening), Deckbuilder
     table/           3D scene, textures, drag & drop, HUD, dialogs
     debug/           debug console
+    theme.ts         UI themes: which one is active and remembered, ?theme= previews, Alt+Shift+T
+    themes/          theme overrides (Game Night, Signal) on top of styles.css + screens.css (Arcane)
 ```
 
 - **The server is authoritative.** Each player only ever receives their own view: other packs, other
@@ -113,6 +115,22 @@ src/
   made-up codes without touching a Durable Object; the draft clock pauses (no alarms) while no humans are
   connected, so an abandoned draft waits for you; alarms are only rewritten when the deadline changes, and
   an overdue deadline that doesn't advance backs off instead of re-firing in a loop.
+
+## UI themes
+
+The screens and the table HUD (not the 3D table itself) come in three themes. **Game Night** (walnut,
+brass and oxblood) is the default, **Signal** is graphite with a lime accent, and **Arcane** is the
+original violet-and-gold look. Players pick one at the bottom of the home page, from the debug console, or
+cycle with <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>; the choice is remembered per browser. Visitors who never
+choose follow the default. `?theme=gamenight|signal|arcane` previews a theme for one visit without changing
+the saved choice.
+
+`styles.css` + `screens.css` are the base and the Arcane look. Each other theme is one file in
+`src/client/themes/`, scoped to `<html data-theme="…">`, that redefines the tokens in `:root` (colours,
+fonts, radius, and the optional surface tokens listed there) and restyles components where needed. To add
+one, create `themes/<id>.css`, import it in `main.tsx`, add it to `THEMES` in `theme.ts` and to the pre-paint
+list in `index.html` (`tests/theme.test.ts` checks these agree), and add its fonts to `index.html` (browsers
+only download the font files a page actually uses).
 
 ## Controls (tabletop)
 

@@ -24,22 +24,23 @@ export function TopBar({ title, children }: { title?: ReactNode; children?: Reac
       <span className="brand" role="link" style={{ cursor: "pointer" }} onClick={() => navigate("/")} title="Home">
         HyperDraft
       </span>
+      {title && <span className="topbar-sep" aria-hidden />}
       {title && <span className="topbar-title">{title}</span>}
       <div className="spacer" />
       {children}
-      {mode === "solo" ? (
-        <span className="conn open" title="Running in your browser — nothing is saved">
-          Solo · offline
-        </span>
-      ) : (
+      {/* Solo needs no status; online rooms show the invite code, and the connection only when it's in trouble
+          (the reconnect banner covers the rest). */}
+      {mode !== "solo" && (
         <>
           <PublicRoomChip />
+          {status !== "open" && <span className={`conn ${status}`}>{status}</span>}
           {code && (
-            <span className="code-chip" onClick={copyInvite} title="Click to copy invite link">
+            <button className="code-chip" onClick={copyInvite} title="Copy invite link">
+              <span className="code-chip-label">Room</span>
               {code}
-            </span>
+              <Icon name="copy" />
+            </button>
           )}
-          <span className={`conn ${status}`}>{status === "open" ? "Live" : status}</span>
         </>
       )}
     </header>
