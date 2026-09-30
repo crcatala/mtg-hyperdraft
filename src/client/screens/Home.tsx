@@ -49,8 +49,23 @@ export function Home() {
       </div>
       <div className="center-stage">
         <div className="home-hero">
+          <p className="home-kicker">Cube draft &amp; tabletop · 1–4 players</p>
           <h1 className="brand home-title">HyperDraft</h1>
           <p className="home-tag">Crack packs, draft a cube with up to three friends, build your deck, and battle on a shared 3D table.</p>
+          <ol className="home-steps" aria-label="How it works">
+            <li>
+              <b>Crack</b> <span>packs from any cube</span>
+            </li>
+            <li>
+              <b>Draft</b> <span>with friends or bots</span>
+            </li>
+            <li>
+              <b>Build</b> <span>your deck, basics free</span>
+            </li>
+            <li>
+              <b>Play</b> <span>on a shared 3D table</span>
+            </li>
+          </ol>
           <div className="panel home-panel">
             <label className="label" htmlFor="name">
               Your name
