@@ -494,7 +494,7 @@
     opacity: 0.6;
   }
   .home-title {
-    font-size: clamp(60px, 11.5vw, 148px);
+    font-size: clamp(44px, 11.5vw, 148px);
     font-weight: 900;
     line-height: 0.9;
     letter-spacing: -0.045em;
@@ -1227,8 +1227,33 @@
 
 @media (max-width: 760px) {
   [data-theme="folio"] {
+    /* Phones: the form first, the how-it-works strip under it. */
+    .home-hero {
+      display: flex;
+      flex-direction: column;
+    }
     .home-steps {
+      order: 1;
+      width: 100%;
+      margin: 32px 0 8px;
       grid-template-columns: 1fr 1fr;
+    }
+    .home-kicker::before,
+    .home-kicker::after {
+      display: none;
+    }
+    .home-tag {
+      margin: 26px auto 28px;
+      font-size: 18px;
+    }
+    .home .center-stage {
+      padding: 40px 24px 16px;
+    }
+    .home-hero .home-panel {
+      padding: 22px 18px 18px;
+    }
+    .home-invite-link {
+      white-space: normal;
     }
     .home-steps li:nth-child(3) {
       border-left: 0;
