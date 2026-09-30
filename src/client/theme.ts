@@ -5,10 +5,13 @@
 
 import { useSyncExternalStore } from "react";
 
-export const THEMES = [{ id: "arcane", label: "Arcane" }] as const;
+export const THEMES = [
+  { id: "gamenight", label: "Game Night" },
+  { id: "arcane", label: "Arcane" },
+] as const;
 export type ThemeId = (typeof THEMES)[number]["id"];
 
-export const DEFAULT_THEME: ThemeId = "arcane";
+export const DEFAULT_THEME: ThemeId = "gamenight";
 /** localStorage key. index.html reads it too, to set the theme before the first paint. */
 export const THEME_KEY = "hd.theme";
 

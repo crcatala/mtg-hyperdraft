@@ -176,6 +176,11 @@
   text-transform: uppercase;
   font-weight: 700;
 }
+/* The kicker and how-it-works strip are for themes that want them (Arcane doesn't). */
+.home-kicker,
+.home-steps {
+  display: none;
+}
 .home-foot {
   position: relative;
   z-index: 1;
