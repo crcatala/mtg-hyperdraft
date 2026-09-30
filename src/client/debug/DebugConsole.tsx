@@ -5,7 +5,7 @@ import { useStore } from "../store";
 import { Icon } from "../components/Icon";
 import type { DebugCommand } from "../../shared/protocol";
 import { quickstart, SAMPLE_CUBE, STARTER_CUBE } from "../quickstart";
-import { applyTheme, THEMES, useTheme } from "../theme";
+import { setTheme, THEMES, useTheme } from "../theme";
 
 export function DebugConsole() {
   const open = useStore((s) => s.debug.open);
@@ -49,7 +49,7 @@ export function DebugConsole() {
         <div className="label">Theme · Alt+Shift+T cycles</div>
         <div className="debug-buttons">
           {THEMES.map((t) => (
-            <button key={t.id} className={`btn small${theme === t.id ? " primary" : ""}`} onClick={() => applyTheme(t.id)}>
+            <button key={t.id} className={`btn small${theme === t.id ? " primary" : ""}`} onClick={() => setTheme(t.id)}>
               {t.label}
             </button>
           ))}

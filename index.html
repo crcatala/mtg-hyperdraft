@@ -8,11 +8,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700;800&family=Alegreya+SC:wght@500;700;800&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400&family=Alegreya:ital,wght@1,500&family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
     <title>HyperDraft</title>
-    <!-- Set the saved UI theme before the first paint (theme.ts validates it and takes over). -->
+    <!-- Set the saved UI theme before the first paint; theme.ts takes over once loaded. The ids mirror
+         THEMES in src/client/theme.ts (tests/theme.test.ts checks they match). This is an inline
+         script: a Content-Security-Policy added later must allow it (e.g. by hash). -->
     <script>
       try {
-        var t = new URLSearchParams(location.search).get("theme") || localStorage.getItem("hd.theme");
-        if (t) document.documentElement.dataset.theme = t;
+        var ids = ["gamenight", "signal", "arcane"];
+        var t = new URLSearchParams(location.search).get("theme");
+        if (ids.indexOf(t) < 0) t = localStorage.getItem("hd.theme");
+        if (ids.indexOf(t) >= 0) document.documentElement.dataset.theme = t;
       } catch (e) {}
     </script>
   </head>
