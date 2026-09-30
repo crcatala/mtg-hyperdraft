@@ -1066,3 +1066,96 @@
     }
   }
 }
+
+/* Short windows: tighten the lid so "Your rooms" keeps some room; shorter still, the steps fold into
+   one line. */
+@media (max-height: 1000px) and (min-width: 761px) {
+  [data-theme="gamenight"] {
+    .home .center-stage {
+      padding-block: 16px;
+    }
+    .home-kicker {
+      margin-bottom: 8px;
+    }
+    .home-title {
+      font-size: clamp(50px, min(9vw, 10.5vh), 108px);
+    }
+    .home-tag {
+      margin: 10px auto 20px;
+      font-size: 18px;
+    }
+    .home-steps {
+      margin-bottom: 20px;
+    }
+    .home-steps li::before {
+      width: 30px;
+      height: 30px;
+      margin-bottom: 5px;
+      font-size: 13px;
+    }
+    .home-steps li + li::after {
+      top: 15px;
+    }
+    .home-hero .home-panel {
+      padding: 20px 24px 18px;
+      gap: 10px;
+    }
+    .home-foot {
+      padding: 8px 24px 10px;
+    }
+    .home-theme {
+      margin-bottom: 6px;
+    }
+  }
+}
+@media (max-height: 820px) and (min-width: 761px) {
+  [data-theme="gamenight"] {
+    .home-tag {
+      margin: 6px auto 14px;
+      font-size: 17px;
+    }
+    .home-steps {
+      gap: 26px;
+      margin-bottom: 14px;
+    }
+    .home-steps li {
+      flex-direction: row;
+      gap: 8px;
+      width: auto;
+    }
+    .home-steps li::before {
+      width: 24px;
+      height: 24px;
+      margin: 0;
+      font-size: 11px;
+    }
+    .home-steps li + li::after,
+    .home-steps span {
+      display: none;
+    }
+    .home-steps b {
+      font-size: 17px;
+    }
+  }
+}
+@media (max-height: 740px) and (min-width: 761px) {
+  [data-theme="gamenight"] {
+    .home-kicker {
+      display: none;
+    }
+    .home-hero .home-panel {
+      gap: 8px;
+    }
+  }
+}
+@media (max-height: 680px) and (min-width: 761px) {
+  [data-theme="gamenight"] {
+    .home-tag {
+      max-width: 640px;
+      font-size: 16px;
+    }
+    .home-steps {
+      display: none;
+    }
+  }
+}
