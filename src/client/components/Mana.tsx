@@ -41,3 +41,15 @@ export function RulesText({ text }: { text: string }) {
     </>
   );
 }
+
+/** One line of prose with inline symbols, without the reminder-text styling of `RulesText`. */
+export function SymbolText({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(\{[^}]+\})/g).map((chunk, i) => {
+        const sym = chunk.match(/^\{([^}]+)\}$/);
+        return sym ? <ManaSymbol key={i} sym={sym[1]} /> : <Fragment key={i}>{chunk}</Fragment>;
+      })}
+    </>
+  );
+}

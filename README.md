@@ -129,6 +129,14 @@ Tabletop Simulator). Card names in the game log are links: hover for a preview, 
 (draft, picks, deckbuilder, zoom view — <kbd>F</kbd> there — and your hand, where <kbd>R</kbd> works too). A card
 turned over in your hand enters the battlefield on that face.
 
+**Rules help:** the zoom view lists the card's mechanics (Scryfall's keywords: Flying, Scry, Landfall…)
+and rules-relevant types. Hovering one (tapping, on touch screens) explains it in place with the reminder
+text and opening summary from the community [MTG Wiki](https://mtg.wiki), fetched on first use and cached;
+clicking opens the full wiki page in a new tab. A
+**View detailed rulings** button fetches the card's official rulings from Scryfall, only when clicked, and
+keeps them for the session. Hidden cards show none of this. The ⌃ button hides the panel (remembered in
+`localStorage`); a book button next to the card name brings it back.
+
 ## Deploying to Cloudflare (Workers + Durable Objects)
 
 Everything — static client, API and rooms — deploys as **one Worker**. Durable Objects with SQLite
@@ -247,7 +255,9 @@ Useful afterwards:
 
 Card data and images courtesy of [Scryfall](https://scryfall.com) (please respect their
 [API guidelines](https://scryfall.com/docs/api)); cubes from [CubeCobra](https://cubecobra.com); mana
-symbols from the MIT-licensed [Mana font](https://github.com/andrewgioia/mana). HyperDraft is unofficial Fan
+symbols from the MIT-licensed [Mana font](https://github.com/andrewgioia/mana); rules help shows short
+excerpts from the [MTG Wiki](https://mtg.wiki) (CC BY-NC-SA 4.0, credited and linked in place) and never
+copies the Comprehensive Rules. HyperDraft is unofficial Fan
 Content permitted under the Wizards of the Coast Fan Content Policy. Not approved/endorsed by Wizards.
 Keep it free — don't paywall or monetize anything built on this data.
 

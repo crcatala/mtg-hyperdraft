@@ -2227,16 +2227,19 @@ body.dragging * {
   right: 0;
   display: flex;
   align-items: center;
-  padding: 16px 20px;
+  /* Clear of the close button on both sides, so the title stays centred. */
+  padding: 16px 72px;
   pointer-events: none;
 }
 .carousel-title {
   flex: 1;
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: baseline;
-  gap: 14px;
+  gap: 4px 14px;
   font-size: 15px;
+  text-align: center;
 }
 .carousel-title b {
   font-family: var(--font-display);
@@ -2339,6 +2342,571 @@ body.dragging * {
   text-align: center;
   font-size: 12.5px;
   pointer-events: none;
+}
+.carousel-stage {
+  --help-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.carousel.side-help .carousel-stage {
+  flex-direction: row;
+  align-items: flex-start;
+  /* Centred between the title bar and the key hint. */
+  padding: var(--card-top) 0 48px;
+}
+/* Help under the card: the card is sized so both fit on screen. Scrolling is only a fallback
+   for screens too short to fit the smallest card and help. Hiding the help grows the card.
+   Top-aligned, so the card stays put while browsing cards with more or less help. */
+.carousel:not(.side-help) {
+  overflow-y: auto;
+  place-items: start center;
+}
+.carousel:not(.side-help) .carousel-arrow {
+  top: calc(var(--card-top) + var(--card-h) / 2);
+  transition: background 0.15s, transform 0.15s, border-color 0.15s, top 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.carousel:not(.side-help) .carousel-fly {
+  transition: width 0.5s var(--help-ease);
+}
+.carousel:not(.side-help) .carousel-fly .card {
+  transition: transform 0.18s ease, filter 0.2s, opacity 0.2s, width 0.5s var(--help-ease);
+}
+.carousel:not(.side-help) .carousel-stage {
+  padding: var(--card-top) 16px 24px;
+  transition: padding-top 0.5s var(--help-ease);
+}
+.carousel:not(.side-help) .carousel-hint {
+  display: none;
+}
+/* Breakpoints match NARROW and SHORT in CardCarousel.tsx, which sizes the card to suit. */
+@media (max-width: 559px) {
+  /* Two steady lines: the name, then the rest. So the card doesn't change size while browsing. */
+  .carousel-top {
+    padding: 14px 66px;
+  }
+  .carousel-title {
+    min-width: 0;
+    gap: 2px 8px;
+    font-size: 13px;
+  }
+  .carousel-title b {
+    order: -1;
+    flex-basis: 100%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 18px;
+  }
+  .carousel-arrow {
+    width: 40px;
+    height: 40px;
+    margin-top: -20px;
+    font-size: 20px;
+  }
+  .carousel-arrow.left {
+    left: 8px;
+  }
+  .carousel-arrow.right {
+    right: 8px;
+  }
+}
+@media (max-height: 499px) {
+  .carousel-hint {
+    display: none;
+  }
+  .carousel.side-help .carousel-stage {
+    padding-bottom: 16px;
+  }
+}
+
+/* ---------- rules help beside the zoomed card ---------- */
+
+/* The slot animates open and shut; the stage is centred, so the card glides to its new spot. */
+.card-help-slot {
+  flex: none;
+  transition:
+    width 0.5s var(--help-ease),
+    margin 0.5s var(--help-ease),
+    grid-template-rows 0.5s var(--help-ease),
+    opacity 0.3s ease 0.1s,
+    visibility 0s;
+}
+.card-help-slot.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    width 0.5s var(--help-ease),
+    margin 0.5s var(--help-ease),
+    grid-template-rows 0.5s var(--help-ease),
+    opacity 0.2s ease,
+    visibility 0s 0.5s;
+}
+.carousel.side-help .card-help-slot {
+  width: 300px;
+  margin-left: 40px;
+}
+.carousel.side-help .card-help-slot.hidden {
+  width: 0;
+  margin-left: 0;
+}
+.carousel:not(.side-help) .card-help-slot {
+  display: grid;
+  grid-template-rows: 1fr;
+  width: min(480px, 100%);
+  margin-top: 20px;
+}
+.carousel:not(.side-help) .card-help-slot.hidden {
+  grid-template-rows: 0fr;
+  margin-top: 0;
+}
+.card-help {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  min-height: 0;
+  transform-origin: left top;
+  transition: transform 0.5s var(--help-ease);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  animation: card-help-in 0.3s ease-out 0.12s backwards;
+}
+.card-help-slot.hidden .card-help {
+  transform: translateX(-12px) scale(0.96);
+}
+.carousel:not(.side-help) .card-help {
+  width: 100%;
+}
+.carousel:not(.side-help) .card-help-slot.hidden .card-help {
+  transform: translateY(-12px) scale(0.98);
+}
+.card-help-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 16px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Room for the hide button beside the first heading. */
+.card-help-body > :first-child {
+  margin-right: 26px;
+}
+.card-help-hide {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.card-help-hide:hover,
+.card-help-hide:focus-visible {
+  border-color: var(--line-2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+@keyframes card-help-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.card-help-section h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.card-help-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card-help-terms a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid rgba(143, 107, 255, 0.35);
+  border-radius: 999px;
+  background: rgba(143, 107, 255, 0.12);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.card-help-terms a:hover,
+.card-help-terms a:focus-visible,
+.card-help-terms a[aria-expanded="true"] {
+  background: rgba(143, 107, 255, 0.28);
+  border-color: var(--violet-2);
+}
+.card-help-terms .icon {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.card-help-note {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+}
+.card-help-body > .card-help-note {
+  margin-top: -8px;
+}
+.card-rulings-btn {
+  width: 100%;
+}
+.card-rulings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card-rulings li {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.card-rulings li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.card-rulings p {
+  margin: 0 0 3px;
+}
+.card-rulings span {
+  font-size: 11px;
+}
+
+/* A term's explanation from the MTG Wiki, beside (or under) its chip. */
+.term-pop {
+  position: fixed;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(143, 107, 255, 0.4);
+  border-radius: 12px;
+  background: var(--panel-solid);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  line-height: 1.45;
+  animation: term-pop-in 0.16s ease-out;
+}
+/* Focus only lands on the popover itself after a retry, to keep the reader's place. */
+.term-pop:focus {
+  outline: none;
+}
+@keyframes term-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+.term-pop p {
+  margin: 0;
+}
+.term-pop-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+.term-pop-head b {
+  font-family: var(--font-display);
+  font-size: 16px;
+}
+.term-pop-head span {
+  font-size: 11.5px;
+}
+/* Reminder text reads like it does on a card. */
+.term-pop-reminder {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--gold);
+  border-radius: 4px 8px 8px 4px;
+  background: rgba(244, 197, 91, 0.08);
+  color: #f3ead2;
+  font-family: var(--font-card);
+  font-size: 15px;
+  font-style: italic;
+  line-height: 1.35;
+}
+.term-pop-ph {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  font-style: normal;
+}
+.term-pop-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #cfc9e2;
+}
+.term-pop-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+.term-pop-skeleton span {
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05));
+  background-size: 200% 100%;
+  animation: term-pop-shimmer 1.1s linear infinite;
+}
+.term-pop-skeleton span:nth-child(1) {
+  width: 92%;
+}
+.term-pop-skeleton span:nth-child(3) {
+  width: 64%;
+}
+@keyframes term-pop-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+.term-pop-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.term-pop-foot a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--violet-2);
+  font-weight: 600;
+  text-decoration: none;
+}
+.term-pop-foot a:hover,
+.term-pop-foot a:focus-visible {
+  text-decoration: underline;
+}
+.term-pop-foot a.faint {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 500;
+}
+.term-pop-foot .icon {
+  font-size: 11px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .term-pop,
+  .term-pop-skeleton span {
+    animation: none;
+  }
+}
+
+/* Shown by the card name while the rules help is hidden. */
+.carousel-help-btn {
+  pointer-events: auto;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  background: rgba(24, 21, 40, 0.85);
+  color: var(--violet-2);
+  font-size: 16px;
+  cursor: pointer;
+  animation: help-btn-in 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.3) both;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.carousel-help-btn:hover,
+.carousel-help-btn:focus-visible {
+  border-color: var(--violet-2);
+  background: rgba(143, 107, 255, 0.35);
+  transform: scale(1.08);
+}
+.carousel-help-btn.hinting {
+  border-color: rgba(244, 197, 91, 0.7);
+  color: var(--gold-2);
+  animation:
+    help-btn-in 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.3) both,
+    help-btn-pulse 1.6s ease-out 0.5s infinite;
+}
+@keyframes help-btn-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+@keyframes help-btn-pulse {
+  from {
+    box-shadow: 0 0 0 0 rgba(244, 197, 91, 0.55);
+  }
+  to {
+    box-shadow: 0 0 0 12px rgba(244, 197, 91, 0);
+  }
+}
+
+/* First-time tip after hiding the rules help: a hand-drawn arrow up to the button and a note. */
+.rules-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.rules-hint.leaving {
+  opacity: 0;
+}
+.rules-hint-arrow {
+  position: fixed;
+  overflow: visible;
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+}
+.rules-hint-arrow.flip {
+  transform: scaleX(-1);
+}
+.rules-hint-arrow path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: hint-draw 0.55s ease-out 0.3s forwards;
+}
+.rules-hint-arrow path.head {
+  animation-duration: 0.2s;
+  animation-delay: 0.85s;
+}
+@keyframes hint-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* Positions the note; the note itself animates. Beside the button, it hangs centred on its line. */
+.rules-hint-anchor {
+  position: fixed;
+  transform: translateY(-50%);
+}
+.rules-hint-anchor:has(.below) {
+  transform: none;
+}
+.rules-hint-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 8px 10px 14px;
+  border: 1px solid rgba(244, 197, 91, 0.45);
+  border-radius: 12px;
+  background: var(--panel-solid);
+  box-shadow: var(--shadow);
+  color: var(--gold-2);
+  font-family: var(--font-card);
+  font-size: 16.5px;
+  font-style: italic;
+  line-height: 1.3;
+  pointer-events: auto;
+  transform: rotate(-1deg);
+  transform-origin: left top;
+  animation: hint-note-in 0.5s cubic-bezier(0.2, 0.9, 0.25, 1.2) 0.7s both;
+}
+.rules-hint-note p {
+  flex: 1;
+  margin: 0;
+}
+.rules-hint-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.rules-hint-close:hover,
+.rules-hint-close:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+@keyframes hint-note-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) rotate(-3deg) scale(0.92);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-help-slot,
+  .card-help-slot.hidden,
+  .card-help {
+    transition-duration: 0s;
+  }
+  .card-help,
+  .carousel-help-btn {
+    animation: none;
+  }
+  /* The card resizing and its arrows following, with the help under it. */
+  .carousel:not(.side-help) .carousel-fly,
+  .carousel:not(.side-help) .carousel-stage {
+    transition: none;
+  }
+  .carousel:not(.side-help) .carousel-fly .card {
+    transition: transform 0.18s ease, filter 0.2s, opacity 0.2s;
+  }
+  .carousel:not(.side-help) .carousel-arrow {
+    transition: background 0.15s, transform 0.15s, border-color 0.15s;
+  }
+  .carousel-help-btn.hinting,
+  .rules-hint-arrow path,
+  .rules-hint-note {
+    animation-duration: 0s;
+    animation-delay: 0s;
+  }
 }
 
 /* ---------- deckbuilder: selection + hint ---------- */

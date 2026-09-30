@@ -101,6 +101,10 @@ export const ICONS = {
   eye: [stroke("M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"), stroke(circle(12, 12, 3)), solid(circle(12, 12, 1.2))],
   /** Overview: the round table from above, one seat on each side. */
   overview: [stroke(circle(12, 12, 5.5)), stroke("M9.5 2.8h5"), stroke("M9.5 21.2h5"), stroke("M2.8 9.5v5"), stroke("M21.2 9.5v5")],
+  /** Open book: rules and rulings. */
+  book: [stroke("M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5z"), stroke("M12 6.5v13")],
+  /** Opens in a new tab: an arrow leaving a box. */
+  external: [stroke("M14 4h6v6"), stroke("M20 4l-9 9"), stroke("M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10")],
   help: [stroke(circle(12, 12, 9.5)), stroke("M9.2 9.4a2.9 2.9 0 1 1 4 2.7c-.8.4-1.2 1-1.2 1.8v.6"), solid(circle(12, 17.4, 1.2))],
 
   // --- players ---
@@ -143,6 +147,7 @@ export const ICONS = {
   /** Delete for good (a plain × only takes something off a list). */
   trash: [stroke("M4 6.5h16"), stroke("M9.5 6.5V4h5v2.5"), stroke("M6.2 6.5l.9 13.5h9.8l.9-13.5"), stroke("M10 10.5v6"), stroke("M14 10.5v6")],
   "chevron-down": [stroke("M6 9l6 6 6-6")],
+  "chevron-up": [stroke("M6 15l6-6 6 6")],
   "chevron-right": [stroke("M9 6l6 6-6 6")],
   "chevron-left": [stroke("M15 6l-6 6 6 6")],
   "arrow-down": [stroke("M12 4.5v15"), stroke("M6 13.5l6 6 6-6")],
