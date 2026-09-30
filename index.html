@@ -8,6 +8,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <title>HyperDraft</title>
+    <!-- Set the saved UI theme before the first paint (theme.ts validates it and takes over). -->
+    <script>
+      try {
+        var t = new URLSearchParams(location.search).get("theme") || localStorage.getItem("hd.theme");
+        if (t) document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
