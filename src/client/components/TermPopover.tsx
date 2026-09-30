@@ -1,9 +1,10 @@
 // A mechanic or type in the rules help: a link to its MTG Wiki page that also explains the term in
 // place. Hovering (or keyboard focus) opens a popover with the wiki's reminder text and summary,
-// fetched on first open and cached. The pointer can move into the popover: leaving the chip keeps it
-// open while the pointer heads its way (see hoverIntent). On touch screens the first tap opens the popover instead of
-// following the link; the popover has its own link through to the wiki. The popover lives at the
-// end of the page, so Tab is steered into it from its chip and back out to the chip's neighbour.
+// fetched on first open and cached. The pointer can move into the popover: leaving the chip keeps
+// it open while the pointer heads its way (see hoverIntent). On touch screens the first tap opens
+// the popover instead of following the link; the popover has its own link through to the wiki. The
+// popover lives at the end of the page, so Tab is steered into it from its chip and back out to the
+// chip's neighbour.
 
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -64,6 +65,9 @@ export function TermChip({ term }: { term: string }) {
     clearTimeout(openTimer.current);
     clearTimeout(closeTimer.current);
     endBridge();
+    // Closed by Escape, a scroll or a resize with the pointer still on the chip: it takes a fresh
+    // entry to open again, not just a nudge.
+    rest.current = null;
     setOpen(false);
     if (current?.hide === hide) current = null;
   }, [endBridge]);
