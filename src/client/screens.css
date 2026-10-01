@@ -726,9 +726,29 @@
   perspective: 1400px;
 }
 .fan-row {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: center;
   gap: 14px;
+}
+/* The 3D booster fills the whole fan area (it needs room to tilt, and for the light of the burst).
+   Once it's opened it stops taking the pointer and sits behind the cards being dealt. */
+.pack3d {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.pack3d.is-opened {
+  pointer-events: none;
+}
+.pack3d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .fan-slot {
   position: relative;
@@ -1156,15 +1176,15 @@
   opacity: 0;
   z-index: 3;
 }
-/* Tearing takes TEAR_MS (320ms, revealSchedule.ts) before the cards are dealt. */
+/* Tearing takes TEAR_MS (640ms, revealSchedule.ts) before the cards are dealt. */
 .sealed-pack.tearing .sp-strip {
-  animation: strip-off 0.3s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  animation: strip-off 0.45s cubic-bezier(0.4, 0, 0.6, 1) forwards;
 }
 .sealed-pack.tearing .sp-light {
-  animation: light-burst 0.32s ease-out forwards;
+  animation: light-burst 0.5s ease-out forwards;
 }
 .sealed-pack.tearing .sp-body {
-  animation: body-drop 0.28s ease-in forwards 0.06s;
+  animation: body-drop 0.4s ease-in forwards 0.2s;
 }
 @keyframes strip-off {
   to {

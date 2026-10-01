@@ -1,6 +1,20 @@
-// Tiny synthesized sound effects (WebAudio, no asset files). Muted state persists per browser.
+// Sound effects. The real sounds are generated samples in public/sfx/<pack>/ (scripts/build-sfx.mjs,
+// made with ElevenLabs); which pack plays is the player's choice (soundPacks.ts). Samples are decoded
+// once per pack, trimmed of leading silence and loudness-matched, then played through one compressed
+// bus so a flurry of flips can't clip. Until a sample has loaded (or if it never does) each effect
+// falls back to another pack's sample or a small WebAudio synth, so the UI is never silent.
+// Muted state persists per browser.
+//
+// The audio graph is: effects → sfxBus → compressor → master → speakers. Background music, when it
+// comes, joins at `master` with its own gain, so it never passes through the effects compressor and
+// can have its own volume and mute.
+
+import manifest from "./sfxManifest.json";
+import { analyze, isAudible, jitter, normalizeGain, pickTake } from "./sfxMath";
+import { activePack, FALLBACK_PACK, type PackId } from "./soundPacks";
 
 let ctx: AudioContext | null = null;
+let bus: AudioNode | null = null;
 let muted = (() => {
   try {
     return localStorage.getItem("hyperdraft:muted") === "1";
@@ -9,17 +23,104 @@ let muted = (() => {
   }
 })();
 
+/** Sample name → how many takes there are (files are <name>.mp3 or <name>-1.mp3 … <name>-N.mp3). */
+const FILES: Record<string, number> = Object.fromEntries(manifest.map((s) => [s.name, s.count]));
+/** Loops are used whole: trimming their head would move the seam. */
+const LOOPS = new Set(manifest.filter((s) => "loop" in s && s.loop).map((s) => s.name));
+
+interface Take {
+  buffer: AudioBuffer;
+  /** Seconds of room tone to skip so the sound starts on its first audible sample. */
+  offset: number;
+  /** Brings every take to a similar loudness; each effect then scales it to sit in the mix. */
+  norm: number;
+}
+
+/** Decoded takes: pack → sound name → takes. */
+const bank = new Map<PackId, Map<string, Take[]>>();
+const lastTake = new Map<string, number>();
+const loading = new Map<PackId, Promise<void>>();
+
+function takesOf(name: string): Take[] | undefined {
+  const pack = activePack();
+  const own = bank.get(pack)?.get(name);
+  if (own?.length) return own;
+  // Not (yet) available in the chosen pack: start loading it, and cover with the fallback pack.
+  void loadPack(pack);
+  return bank.get(FALLBACK_PACK)?.get(name);
+}
+
 function audio(): AudioContext | null {
   if (muted) return null;
   if (!ctx) {
     try {
       ctx = new AudioContext();
+      const master = ctx.createGain();
+      master.gain.value = 0.9;
+      master.connect(ctx.destination);
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -16;
+      comp.knee.value = 12;
+      comp.ratio.value = 3.5;
+      comp.attack.value = 0.004;
+      comp.release.value = 0.22;
+      const sfxBus = ctx.createGain();
+      sfxBus.connect(comp).connect(master);
+      bus = sfxBus;
     } catch {
       return null;
     }
   }
   if (ctx.state === "suspended") void ctx.resume();
+  void loadPack(FALLBACK_PACK);
+  void loadPack(activePack());
   return ctx;
+}
+
+/** Fetches and decodes every sample of a pack (once). Failures just leave those effects on their fallback. */
+export function loadPack(pack: PackId): Promise<void> {
+  const cached = loading.get(pack);
+  if (cached) return cached;
+  const a = ctx;
+  if (!a) return Promise.resolve();
+  const base = import.meta.env.BASE_URL ?? "/";
+  const mine = new Map<string, Take[]>();
+  bank.set(pack, mine);
+  const done = Promise.all(
+    Object.entries(FILES).flatMap(([name, count]) =>
+      Array.from({ length: count }, async (_, i) => {
+        const file = count > 1 ? `${name}-${i + 1}.mp3` : `${name}.mp3`;
+        try {
+          const res = await fetch(`${base}sfx/${pack}/${file}`);
+          if (!res.ok) return;
+          const buffer = await a.decodeAudioData(await res.arrayBuffer());
+          const info = analyze(buffer.getChannelData(0));
+          if (!isAudible(info)) return; // a failed generation: better to fall back than to hiss
+          const take: Take = { buffer, offset: LOOPS.has(name) ? 0 : info.start / buffer.sampleRate, norm: normalizeGain(info) };
+          mine.set(name, [...(mine.get(name) ?? []), take]);
+        } catch {
+          /* missing or undecodable: that effect stays on its fallback */
+        }
+      }),
+    ),
+  ).then(() => undefined);
+  loading.set(pack, done);
+  return done;
+}
+
+/**
+ * Browsers only start audio after a click or key press, and the samples take a moment to fetch and
+ * decode, so the first interaction anywhere in the app sets all that going. By the time a pack
+ * lands on the draft table the sounds are ready.
+ */
+export function installSfxWarmUp() {
+  const go = () => {
+    window.removeEventListener("pointerdown", go, true);
+    window.removeEventListener("keydown", go, true);
+    audio();
+  };
+  window.addEventListener("pointerdown", go, true);
+  window.addEventListener("keydown", go, true);
 }
 
 export function isMuted() {
@@ -28,12 +129,52 @@ export function isMuted() {
 
 export function setMuted(m: boolean) {
   muted = m;
+  if (m) tearVoice?.end(false);
   try {
     localStorage.setItem("hyperdraft:muted", m ? "1" : "0");
   } catch {
     /* ignore */
   }
 }
+
+interface PlayOptions {
+  gain?: number;
+  rate?: number;
+  /** Seconds from now. */
+  when?: number;
+  /** -1 (left) … 1 (right). */
+  pan?: number;
+}
+
+/**
+ * Plays a sample. Returns false only when it isn't available yet (so the caller can use its synth);
+ * muted counts as played.
+ */
+function play(name: string, { gain = 1, rate = 1, when = 0, pan = 0 }: PlayOptions = {}): boolean {
+  const a = audio();
+  if (!a) return true;
+  const takes = takesOf(name);
+  if (!takes?.length || !bus) return false;
+  const i = pickTake(takes.length, lastTake.get(name) ?? -1);
+  lastTake.set(name, i);
+  const take = takes[i];
+  const src = a.createBufferSource();
+  src.buffer = take.buffer;
+  src.playbackRate.value = rate;
+  const g = a.createGain();
+  g.gain.value = gain * take.norm;
+  let out: AudioNode = src.connect(g);
+  if (pan) {
+    const p = a.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    out = out.connect(p);
+  }
+  out.connect(bus);
+  src.start(a.currentTime + when, take.offset);
+  return true;
+}
+
+// --- synth fallbacks ---------------------------------------------------------------------------
 
 function noise(a: AudioContext, duration: number, from: number, to: number, gain: number, when = 0) {
   const len = Math.floor(a.sampleRate * duration);
@@ -50,7 +191,7 @@ function noise(a: AudioContext, duration: number, from: number, to: number, gain
   filter.frequency.exponentialRampToValueAtTime(to, t + duration);
   const g = a.createGain();
   g.gain.value = gain;
-  src.connect(filter).connect(g).connect(a.destination);
+  src.connect(filter).connect(g).connect(bus ?? a.destination);
   src.start(t);
 }
 
@@ -63,61 +204,202 @@ function tone(a: AudioContext, freq: number, when: number, duration: number, gai
   g.gain.setValueAtTime(0, t);
   g.gain.linearRampToValueAtTime(gain, t + 0.01);
   g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-  osc.connect(g).connect(a.destination);
+  osc.connect(g).connect(bus ?? a.destination);
   osc.start(t);
   osc.stop(t + duration + 0.05);
 }
 
-export const sfx = {
-  rip() {
-    const a = audio();
-    if (!a) return;
+const synth = {
+  rip(a: AudioContext) {
     noise(a, 0.45, 5200, 900, 0.5);
     noise(a, 0.2, 2500, 6000, 0.25, 0.08);
   },
-  deal() {
-    const a = audio();
-    if (!a) return;
+  deal(a: AudioContext) {
     noise(a, 0.06, 3000, 1500, 0.18);
   },
-  /** A card turning face up; `step` nudges the pitch up so a wave of flips rises. */
-  flip(step = 0) {
-    const a = audio();
-    if (!a) return;
+  flip(a: AudioContext, step: number) {
     const lift = Math.min(step, 14) * 110;
     noise(a, 0.07, 1800 + lift, 4200 + lift, 0.14);
   },
-  rare() {
-    const a = audio();
-    if (!a) return;
+  rare(a: AudioContext) {
     [659, 880, 1319].forEach((f, i) => tone(a, f, i * 0.07, 0.6, 0.12, "triangle"));
   },
-  mythic() {
-    const a = audio();
-    if (!a) return;
+  mythic(a: AudioContext) {
     [523, 659, 784, 1047, 1568].forEach((f, i) => tone(a, f, i * 0.06, 0.9, 0.11, "triangle"));
     tone(a, 130, 0, 0.8, 0.2, "sine");
   },
-  select() {
-    const a = audio();
-    if (!a) return;
+  select(a: AudioContext) {
     tone(a, 1200, 0, 0.08, 0.06, "sine");
   },
-  pick() {
-    const a = audio();
-    if (!a) return;
+  pick(a: AudioContext) {
     noise(a, 0.25, 800, 4000, 0.3);
     tone(a, 988, 0.05, 0.25, 0.07, "triangle");
   },
-  tick() {
-    const a = audio();
-    if (!a) return;
+  tick(a: AudioContext) {
     tone(a, 1800, 0, 0.04, 0.05, "square");
   },
-  tap() {
-    const a = audio();
-    if (!a) return;
+  tap(a: AudioContext) {
     noise(a, 0.07, 1200, 600, 0.2);
+  },
+};
+
+/** Plays the sample, or this synth sound when the sample isn't ready. */
+function sample(name: string, options: PlayOptions, fallback?: (a: AudioContext) => void) {
+  if (play(name, options)) return;
+  const a = audio();
+  if (a && fallback) fallback(a);
+}
+
+// --- tearing a pack ----------------------------------------------------------------------------
+
+/** The looping rip that follows the player's drag across a pack. */
+export interface TearVoice {
+  /** `speed` is how fast the tear front is moving, roughly 0 (still) … 1 (fast); pitch and volume follow it. */
+  update(speed: number): void;
+  /** Fades the rip out. */
+  end(completed: boolean): void;
+}
+
+let tearVoice: TearVoice | null = null;
+let lastRowHover = 0;
+
+function startTear(): TearVoice {
+  tearVoice?.end(false);
+  const a = audio();
+  const take = takesOf("tear-scrub")?.[0];
+  if (!a || !take || !bus) {
+    return (tearVoice = { update() {}, end() {} });
+  }
+  const src = a.createBufferSource();
+  src.buffer = take.buffer;
+  src.loop = true;
+  // Stay off the very ends of the file so the seam never clicks.
+  src.loopStart = 0.04;
+  src.loopEnd = Math.max(0.2, take.buffer.duration - 0.04);
+  src.playbackRate.value = 0.9;
+  const g = a.createGain();
+  g.gain.value = 0;
+  src.connect(g).connect(bus);
+  src.start(a.currentTime, Math.random() * Math.max(0, take.buffer.duration - 0.3));
+  let done = false;
+  const voice: TearVoice = {
+    update(speed) {
+      if (done) return;
+      const s = Math.max(0, Math.min(1.2, speed));
+      const t = a.currentTime;
+      g.gain.setTargetAtTime(Math.min(1, s * 1.4) * 0.85 * take.norm, t, 0.035);
+      src.playbackRate.setTargetAtTime(0.85 + s * 0.4, t, 0.05);
+    },
+    end() {
+      if (done) return;
+      done = true;
+      const t = a.currentTime;
+      g.gain.cancelScheduledValues(t);
+      g.gain.setTargetAtTime(0, t, 0.03);
+      src.stop(t + 0.25);
+      if (tearVoice === voice) tearVoice = null;
+    },
+  };
+  return (tearVoice = voice);
+}
+
+export const sfx = {
+  /** The pack dropping into place. */
+  packLand() {
+    sample("pack-land", { gain: 0.9 });
+  },
+  /** The pointer passing over the pack: a small foil crinkle. */
+  packHover() {
+    sample("pack-hover", { gain: 0.5, rate: jitter(1, 0.06) });
+  },
+  /** Starts the rip that follows a drag; drive it with `update(speed)` and finish it with `end()`. */
+  tearStart: startTear,
+  /** A click or Space tears the pack by itself: one full rip. */
+  tearAuto() {
+    sample("tear", { gain: 1, rate: jitter(1, 0.04) }, synth.rip);
+  },
+  /** The tear completes: the top comes away and the light bursts out. */
+  packBurst() {
+    sample("pack-burst", { gain: 0.85 });
+  },
+  /** The stack of cards sliding up out of the opened pack. */
+  cardsSlide() {
+    sample("cards-slide", { gain: 0.7 });
+  },
+  /** The simple CSS pack's tear (no 3D): the rip, then the burst as it opens. */
+  rip() {
+    sample("tear", { gain: 1, rate: jitter(1, 0.04) }, synth.rip);
+    play("pack-burst", { gain: 0.6, when: 0.25 });
+  },
+  deal() {
+    sample("deal", { gain: 0.5, rate: jitter(1, 0.08), pan: (Math.random() - 0.5) * 0.5 }, synth.deal);
+  },
+  /** A card turning face up; `step` nudges the pitch up so a wave of flips rises. */
+  flip(step = 0) {
+    sample("flip", { gain: 0.6, rate: jitter(1 + Math.min(step, 14) * 0.016, 0.03), pan: (Math.random() - 0.5) * 0.4 }, (a) => synth.flip(a, step));
+  },
+  /** A chime under a flip for a card that's rarer than the rest of its pack. */
+  notable() {
+    play("uncommon", { gain: 0.5, rate: jitter(1, 0.05) });
+  },
+  rare() {
+    sample("rare", { gain: 0.9 }, synth.rare);
+  },
+  mythic() {
+    sample("mythic", { gain: 1 }, synth.mythic);
+  },
+  select() {
+    sample("select", { gain: 0.6, rate: jitter(1, 0.04) }, synth.select);
+  },
+  deselect() {
+    sample("deselect", { gain: 0.55 }, synth.select);
+  },
+  pick() {
+    sample("pick", { gain: 0.85 }, synth.pick);
+  },
+  /** A burned card going up in flames. */
+  burn() {
+    sample("burn", { gain: 0.7 }, synth.pick);
+  },
+  /** A pack slid in from the neighbour. */
+  packArrive() {
+    sample("pack-arrive", { gain: 0.7 });
+  },
+  /** Your pack sent on to the next seat. */
+  packPass() {
+    sample("pack-pass", { gain: 0.6 });
+  },
+  tick() {
+    sample("tick", { gain: 0.9 }, synth.tick);
+  },
+  /** A card zooming up into the carousel. */
+  zoomOpen() {
+    sample("zoom-open", { gain: 0.6 });
+  },
+  /** ...and going back down. */
+  zoomClose() {
+    sample("zoom-close", { gain: 0.5 });
+  },
+  /** The pointer moving over a row of the picks list: barely there, and never a machine gun. */
+  rowHover() {
+    const now = performance.now();
+    if (now - lastRowHover < 70) return;
+    lastRowHover = now;
+    sample("row-hover", { gain: 0.3, rate: jitter(1, 0.06) });
+  },
+  /** A double-faced card turned over to its other face. */
+  turnOver() {
+    sample("turn-over", { gain: 0.7, rate: jitter(1, 0.04) }, (a) => synth.flip(a, 6));
+  },
+  /** A short taste of the current pack: two flips, a chime and a rare sting. */
+  preview() {
+    sfx.flip(0);
+    play("flip", { gain: 0.6, rate: 1.06, when: 0.13 });
+    play("uncommon", { gain: 0.5, when: 0.26 });
+    play("rare", { gain: 0.9, when: 0.5 });
+  },
+  tap() {
+    sample("tap", { gain: 0.7, rate: jitter(1, 0.05) }, synth.tap);
   },
   /** Table ping: a soft two-note bell. Each seat gets its own pitch so you can tell who pinged. */
   ping(seat = 0) {
