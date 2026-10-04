@@ -72,6 +72,8 @@ interface Store {
   preview: PreviewState;
   menu: MenuState | null;
   debug: DebugState;
+  /** Whether the player-facing Settings dialog is open (it's mounted once, in App). */
+  settingsOpen: boolean;
   sendImpl: (msg: ClientMessage) => void;
 
   send: (msg: ClientMessage) => void;
@@ -81,6 +83,7 @@ interface Store {
   openMenu: (m: MenuState) => void;
   closeMenu: () => void;
   setDebug: (d: Partial<DebugState>) => void;
+  setSettingsOpen: (open: boolean) => void;
 }
 
 let toastId = 1;
@@ -99,6 +102,7 @@ export const useStore = create<Store>((set, get) => ({
   preview: {},
   menu: null,
   debug: { open: false, forceText: false, slowMotion: false, msgIn: 0, msgOut: 0, bytesIn: 0 },
+  settingsOpen: false,
   sendImpl: () => {},
 
   send: (msg) => {
@@ -115,6 +119,7 @@ export const useStore = create<Store>((set, get) => ({
   openMenu: (menu) => set({ menu }),
   closeMenu: () => set({ menu: null }),
   setDebug: (d) => set((s) => ({ debug: { ...s.debug, ...d } })),
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
 }));
 
 /** Server clock "now", corrected for the local clock offset (for pick timers). */

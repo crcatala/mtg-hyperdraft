@@ -7,6 +7,8 @@ import { IconGallery } from "./screens/IconGallery";
 import { SoundStudio } from "./screens/SoundStudio";
 import { Toasts } from "./components/Toasts";
 import { ContextMenu } from "./components/ContextMenu";
+import { MusicPlayer } from "./components/MusicPlayer";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { DebugConsole } from "./debug/DebugConsole";
 import { useStore } from "./store";
 
@@ -31,6 +33,8 @@ export function App() {
       {path === "/solo" ? <SoloScreen /> : path === "/dev/icons" ? <IconGallery /> : path === "/dev/sound-studio" ? <SoundStudio /> : code ? <RoomScreen code={code} /> : <Home />}
       <Toasts />
       <ContextMenu />
+      <MusicPlayer />
+      <SettingsDialog />
       <DebugConsole />
     </>
   );

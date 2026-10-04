@@ -5,6 +5,7 @@ import { saveName } from "../identity";
 import { copyText } from "../clipboard";
 import { Icon } from "./Icon";
 import { PublicRoomChip } from "./PublicRoomChip";
+import { SettingsButton } from "./SettingsDialog";
 
 export function TopBar({ title, children }: { title?: ReactNode; children?: ReactNode }) {
   const code = useStore((s) => s.view?.code);
@@ -43,6 +44,7 @@ export function TopBar({ title, children }: { title?: ReactNode; children?: Reac
           )}
         </>
       )}
+      <SettingsButton />
     </header>
   );
 }

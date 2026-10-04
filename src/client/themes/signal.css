@@ -440,6 +440,10 @@
   .debug-tab {
     border-radius: 3px;
   }
+  .music-mini,
+  .music-btn {
+    border-radius: 3px;
+  }
   .debug-console {
     border-color: rgb(var(--signal-rgb) / 0.4);
   }

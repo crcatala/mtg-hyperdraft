@@ -5,9 +5,6 @@ import { useStore } from "../store";
 import { Icon } from "../components/Icon";
 import type { DebugCommand } from "../../shared/protocol";
 import { quickstart, SAMPLE_CUBE, STARTER_CUBE } from "../quickstart";
-import { setTheme, THEMES, useTheme } from "../theme";
-import { setSoundPack, SOUND_PACKS, useSoundPack, type PackId } from "../soundPacks";
-import { loadPack, sfx } from "../sfx";
 
 export function DebugConsole() {
   const open = useStore((s) => s.debug.open);
@@ -18,19 +15,11 @@ export function DebugConsole() {
   const mode = useStore((s) => s.mode);
   const send = useStore((s) => s.send);
   const [showState, setShowState] = useState(false);
-  const theme = useTheme();
-  const soundPack = useSoundPack();
-
-  // Switching plays a short sample of the new pack, once its files have loaded.
-  const chooseSounds = (p: PackId) => {
-    setSoundPack(p);
-    void loadPack(p).then(() => sfx.preview());
-  };
 
   if (!open) {
     return (
       <button className="debug-tab" onClick={() => setDebug({ open: true })} title="Debug console (`)">
-        <Icon name="gear" />
+        <Icon name="bug" />
       </button>
     );
   }
@@ -53,32 +42,6 @@ export function DebugConsole() {
           <Icon name="x" />
         </button>
       </div>
-
-      <section>
-        <div className="label">Theme · Alt+Shift+T cycles</div>
-        <div className="debug-buttons">
-          {THEMES.map((t) => (
-            <button key={t.id} className={`btn small${theme === t.id ? " primary" : ""}`} onClick={() => setTheme(t.id)}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <div className="label">Sound effects · pick one to hear it</div>
-        <div className="debug-buttons">
-          {SOUND_PACKS.map((p) => (
-            <button key={p.id} className={`btn small${soundPack === p.id ? " primary" : ""}`} title={p.blurb} onClick={() => chooseSounds(p.id)}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-        <p className="faint debug-note">{SOUND_PACKS.find((p) => p.id === soundPack)?.blurb}</p>
-        <a href="/dev/sound-studio" target="_blank" rel="noreferrer">
-          Open Sound Studio (new tab)
-        </a>
-      </section>
 
       {view ? (
         <>
@@ -169,9 +132,14 @@ export function DebugConsole() {
           <input type="checkbox" checked={debug.slowMotion} onChange={(e) => setDebug({ slowMotion: e.target.checked })} />
           <span>Slow-motion card animations (6×)</span>
         </label>
-        <a href="/dev/icons" target="_blank" rel="noreferrer">
-          Open icon gallery (new tab)
-        </a>
+        <div className="debug-buttons">
+          <a href="/dev/icons" target="_blank" rel="noreferrer">
+            Open icon gallery (new tab)
+          </a>
+          <a href="/dev/sound-studio" target="_blank" rel="noreferrer">
+            Open Sound Studio (new tab)
+          </a>
+        </div>
       </section>
 
       <section>

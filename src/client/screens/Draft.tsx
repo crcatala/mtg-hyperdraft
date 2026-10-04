@@ -12,7 +12,7 @@ import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { AnchoredPreview } from "../components/AnchoredPreview";
 import { ManaCost } from "../components/Mana";
 import type { CardData, CardInstance, CardMap, Rarity } from "../../shared/types";
-import { sfx, isMuted, setMuted } from "../sfx";
+import { sfx, setMuted, useMuted } from "../sfx";
 import { hasBackFace } from "../cardStyle";
 import { RARITY_RANK, REVEAL_FX_MS, revealSchedule, TEAR_MS } from "../revealSchedule";
 import { hasOpened, markOpened } from "../openedPacks";
@@ -63,7 +63,7 @@ export function Draft() {
     setFx(new Map());
   }, []);
   useEffect(() => () => fxTimers.current.forEach(clearTimeout), []);
-  const [muted, setMutedState] = useState(isMuted());
+  const muted = useMuted();
 
   const sorted = useMemo(() => (pack ? sortPack(pack.cards, view.instances, cards) : []), [pack, view.instances, cards]);
   const fresh = !!pack && pack.picksTaken === 0 && !hasOpened(view.code, pack.id);
@@ -283,13 +283,10 @@ export function Draft() {
       >
         <button
           className="btn ghost small icon-only"
-          title={muted ? "Sound off" : "Sound on"}
-          aria-label="Mute sound"
+          title={muted ? "Sound effects off" : "Sound effects on"}
+          aria-label="Mute sound effects"
           aria-pressed={muted}
-          onClick={() => {
-            setMuted(!muted);
-            setMutedState(!muted);
-          }}
+          onClick={() => setMuted(!muted)}
         >
           <Icon name={muted ? "volume-off" : "volume"} />
         </button>

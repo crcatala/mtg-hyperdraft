@@ -362,6 +362,7 @@ function ActionBar() {
       </div>
       <span className="dock-sep" aria-hidden />
       <DockButton icon="help" label="Help" tip="Table controls" keys="?" onClick={() => set({ help: true })} />
+      <DockButton icon="gear" label="Settings" tip="Settings: theme and sound" onClick={() => useStore.getState().setSettingsOpen(true)} />
     </div>
   );
 }
@@ -1248,7 +1249,7 @@ const SHORTCUTS: [string, string][] = [
   ["Arrows · Q/E · wheel", "Pan · rotate · zoom the camera (or drag empty table / middle mouse)"],
   ["1–4 · V", "View from a seat (1 is yours) · look down on the whole table"],
   ["Home", "Reset the camera"],
-  ["Alt+Shift+T", "Switch UI theme (or pick one on the home page)"],
+  ["Alt+Shift+T", "Switch UI theme (or open Settings, next to Help)"],
   ["` (backtick)", "Debug console"],
 ];
 
