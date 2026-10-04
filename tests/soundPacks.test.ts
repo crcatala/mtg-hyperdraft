@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import manifest from "../src/client/sfxManifest.json";
-import { DEFAULT_SOUND_CHOICE, FALLBACK_PACK, isPack, isSoundChoice, packFor, resolveSoundChoice, SOUND_PACKS } from "../src/client/soundPacks";
+import { DEFAULT_PACK, FALLBACK_PACK, isPack, resolvePack, SOUND_PACKS } from "../src/client/soundPacks";
 import { analyze, isAudible, MAX_GAIN, normalizeGain } from "../src/client/sfxMath";
-import { THEMES } from "../src/client/theme";
 
 // The files on disk, found by Vite's glob (lazy: nothing is loaded, only listed).
 const mp3s = Object.keys(import.meta.glob("../public/sfx/*/*.mp3"));
@@ -12,27 +11,23 @@ const promptsFor = (pack: string) => promptFiles[`../scripts/sfx/prompts/${pack}
 
 describe("choosing a sound pack", () => {
   it("takes the URL's pack first, then the saved one, then the default", () => {
-    expect(resolveSoundChoice("arcane", "signal")).toBe("arcane");
-    expect(resolveSoundChoice(null, "tabletop")).toBe("tabletop");
-    expect(resolveSoundChoice("nonsense", "signal")).toBe("signal");
-    expect(resolveSoundChoice(null, null)).toBe(DEFAULT_SOUND_CHOICE);
-    expect(resolveSoundChoice("theme", null)).toBe("theme");
-    expect(resolveSoundChoice("garbage", "also garbage")).toBe(DEFAULT_SOUND_CHOICE);
+    expect(resolvePack("arcane", "tabletop")).toBe("arcane");
+    expect(resolvePack(null, "arcane")).toBe("arcane");
+    expect(resolvePack("nonsense", "arcane")).toBe("arcane");
+    expect(resolvePack(null, null)).toBe(DEFAULT_PACK);
+    expect(resolvePack("garbage", "also garbage")).toBe(DEFAULT_PACK);
   });
 
-  it("recognizes packs and the match-theme choice only", () => {
-    for (const p of SOUND_PACKS) expect(isPack(p.id) && isSoundChoice(p.id)).toBe(true);
+  it("drops a saved choice of a pack that's gone (or the old match-theme) back to the default", () => {
+    for (const old of ["foil", "signal", "theme"]) expect(resolvePack(null, old)).toBe(DEFAULT_PACK);
+  });
+
+  it("recognizes the packs only, and defaults to Tabletop", () => {
+    for (const p of SOUND_PACKS) expect(isPack(p.id)).toBe(true);
     expect(isPack("theme")).toBe(false);
-    expect(isSoundChoice("theme")).toBe(true);
-    expect(isSoundChoice("")).toBe(false);
-  });
-
-  it("match-theme picks a real pack for every theme, and a fixed choice ignores the theme", () => {
-    for (const t of THEMES) expect(isPack(packFor("theme", t.id))).toBe(true);
-    expect(packFor("theme", "gamenight")).toBe("tabletop");
-    expect(packFor("theme", "no-such-theme")).toBe(FALLBACK_PACK);
-    expect(packFor("theme", undefined)).toBe(FALLBACK_PACK);
-    expect(packFor("signal", "gamenight")).toBe("signal");
+    expect(isPack("")).toBe(false);
+    expect(DEFAULT_PACK).toBe("tabletop");
+    expect(isPack(FALLBACK_PACK)).toBe(true);
   });
 });
 

@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import type { DebugCommand } from "../../shared/protocol";
 import { quickstart, SAMPLE_CUBE, STARTER_CUBE } from "../quickstart";
 import { setTheme, THEMES, useTheme } from "../theme";
-import { activePack, setSoundChoice, SOUND_PACKS, useSoundChoice, type SoundChoice } from "../soundPacks";
+import { setSoundPack, SOUND_PACKS, useSoundPack, type PackId } from "../soundPacks";
 import { loadPack, sfx } from "../sfx";
 
 export function DebugConsole() {
@@ -19,12 +19,12 @@ export function DebugConsole() {
   const send = useStore((s) => s.send);
   const [showState, setShowState] = useState(false);
   const theme = useTheme();
-  const soundChoice = useSoundChoice();
+  const soundPack = useSoundPack();
 
   // Switching plays a short sample of the new pack, once its files have loaded.
-  const chooseSounds = (c: SoundChoice) => {
-    setSoundChoice(c);
-    void loadPack(activePack()).then(() => sfx.preview());
+  const chooseSounds = (p: PackId) => {
+    setSoundPack(p);
+    void loadPack(p).then(() => sfx.preview());
   };
 
   if (!open) {
@@ -69,15 +69,12 @@ export function DebugConsole() {
         <div className="label">Sound effects · pick one to hear it</div>
         <div className="debug-buttons">
           {SOUND_PACKS.map((p) => (
-            <button key={p.id} className={`btn small${soundChoice === p.id ? " primary" : ""}`} title={p.blurb} onClick={() => chooseSounds(p.id)}>
+            <button key={p.id} className={`btn small${soundPack === p.id ? " primary" : ""}`} title={p.blurb} onClick={() => chooseSounds(p.id)}>
               {p.label}
             </button>
           ))}
-          <button className={`btn small${soundChoice === "theme" ? " primary" : ""}`} title="Follows the UI theme: Game Night → Tabletop, Signal → Signal, Arcane → Arcane" onClick={() => chooseSounds("theme")}>
-            Match theme
-          </button>
         </div>
-        <p className="faint debug-note">{soundChoice === "theme" ? `Following the theme: ${SOUND_PACKS.find((p) => p.id === activePack())?.label}` : SOUND_PACKS.find((p) => p.id === soundChoice)?.blurb}</p>
+        <p className="faint debug-note">{SOUND_PACKS.find((p) => p.id === soundPack)?.blurb}</p>
       </section>
 
       {view ? (

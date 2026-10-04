@@ -75,7 +75,7 @@ src/
     pack/            the 3D foil booster on the Draft screen: pillowed/crimped geometry, tear-and-peel
                      math (pure, unit tested), canvas-drawn per-theme foil art, the R3F scene
     sfx.ts           sound effects: generated samples (public/sfx/<pack>/) on one compressed bus, synth fallback
-    soundPacks.ts    which sound pack plays (switchable, remembered, ?sounds= previews, match-theme)
+    soundPacks.ts    which sound pack plays (switchable, remembered, ?sounds= previews)
     table/           3D scene, textures, drag & drop, HUD, dialogs
     debug/           debug console
     theme.ts         UI themes: which one is active and remembered, ?theme= previews, Alt+Shift+T
@@ -292,9 +292,8 @@ strip flies off and the cards slide out to be dealt. Packs are themed (Game Nigh
 have their own foil). If WebGL isn't available or the 3D pack fails to start, the simple CSS pack is used
 instead; add `?pack=css` to the URL to force it. Reduced-motion skips the opening entirely.
 
-Sound effects come in switchable **sound packs**, like the UI themes: **Foil** (the original), **Tabletop**
-(wood, cardstock, brass bells), **Arcane** (crystal chimes, harp) and **Signal** (clean digital blips), plus
-**Match theme**. Pick one in the debug console (it plays a short sample); the choice is remembered, and
+Sound effects come in switchable **sound packs**, like the UI themes: **Tabletop** (the default: wood,
+cardstock and soft chimes) and **Arcane** (crystal chimes, harp). Pick one in the debug console (it plays a short sample); the choice is remembered, and
 `?sounds=<pack>` previews one for a visit. Each pack is a folder of short samples in `public/sfx/<pack>/`,
 generated with the [ElevenLabs sound-effects API](https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert)
 (the files are committed, so you only need this to change or add one):
@@ -311,7 +310,7 @@ node scripts/build-sfx.mjs --force              # regenerate everything
   in `src/client/soundPacks.ts`, and `node scripts/build-sfx.mjs <pack>`; a test fails until every sound exists.
 - `sfx.ts` trims each sample's leading silence, matches loudness (capped, and silent takes are skipped), varies pitch
   slightly and never repeats the same take back to back. Packs load on demand; until a sample is ready (or if it's
-  missing) an effect falls back to the Foil sample, then to a small synth.
+  missing) an effect falls back to the Tabletop sample, then to a small synth.
 
 ## Roadmap
 
