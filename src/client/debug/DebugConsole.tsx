@@ -75,6 +75,9 @@ export function DebugConsole() {
           ))}
         </div>
         <p className="faint debug-note">{SOUND_PACKS.find((p) => p.id === soundPack)?.blurb}</p>
+        <a href="/dev/sound-studio" target="_blank" rel="noreferrer">
+          Open Sound Studio (new tab)
+        </a>
       </section>
 
       {view ? (

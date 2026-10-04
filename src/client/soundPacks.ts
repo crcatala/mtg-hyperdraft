@@ -10,6 +10,8 @@ import { useSyncExternalStore } from "react";
 export const SOUND_PACKS = [
   { id: "tabletop", label: "Tabletop", blurb: "Wood, cardstock and soft chimes" },
   { id: "arcane", label: "Arcane", blurb: "Crystal chimes, harp and spellcraft" },
+  { id: "library", label: "Library", blurb: "Parchment, leather and a music box" },
+  { id: "grove", label: "Grove", blurb: "Leaves, twigs, kalimba and pond drops" },
 ] as const;
 export type PackId = (typeof SOUND_PACKS)[number]["id"];
 

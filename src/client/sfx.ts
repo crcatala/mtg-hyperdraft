@@ -41,13 +41,49 @@ const bank = new Map<PackId, Map<string, Take[]>>();
 const lastTake = new Map<string, number>();
 const loading = new Map<PackId, Promise<void>>();
 
-function takesOf(name: string): Take[] | undefined {
-  const pack = activePack();
+// --- Sound Studio hooks (/dev/sound-studio): play any sound from any pack, and watch what plays ---
+
+/** Picks the pack per sound instead of the player's choice; undefined means "use the player's". */
+let packOverride: ((name: string) => PackId | undefined) | null = null;
+export function setPackOverride(fn: ((name: string) => PackId | undefined) | null) {
+  packOverride = fn;
+}
+
+/** A sample started (`pack` is the one it came from, after any fallback), or had nothing to play. */
+export type SfxEvent = { name: string; pack: PackId | null };
+const sfxListeners = new Set<(e: SfxEvent) => void>();
+export function onSfx(listener: (e: SfxEvent) => void): () => void {
+  sfxListeners.add(listener);
+  return () => sfxListeners.delete(listener);
+}
+const emit = (e: SfxEvent) => sfxListeners.forEach((l) => l(e));
+
+/** Every sample still sounding, so stopAll() can cut them. */
+const live = new Set<AudioBufferSourceNode>();
+function track(src: AudioBufferSourceNode) {
+  live.add(src);
+  src.addEventListener("ended", () => live.delete(src));
+}
+export function stopAll() {
+  tearVoice?.end(false);
+  for (const src of live) {
+    try {
+      src.stop();
+    } catch {
+      /* already stopped */
+    }
+  }
+  live.clear();
+}
+
+function takesOf(name: string): { takes: Take[]; pack: PackId } | undefined {
+  const pack = packOverride?.(name) ?? activePack();
   const own = bank.get(pack)?.get(name);
-  if (own?.length) return own;
+  if (own?.length) return { takes: own, pack };
   // Not (yet) available in the chosen pack: start loading it, and cover with the fallback pack.
   void loadPack(pack);
-  return bank.get(FALLBACK_PACK)?.get(name);
+  const fallback = bank.get(FALLBACK_PACK)?.get(name);
+  return fallback?.length ? { takes: fallback, pack: FALLBACK_PACK } : undefined;
 }
 
 function audio(): AudioContext | null {
@@ -153,10 +189,15 @@ interface PlayOptions {
 function play(name: string, { gain = 1, rate = 1, when = 0, pan = 0 }: PlayOptions = {}): boolean {
   const a = audio();
   if (!a) return true;
-  const takes = takesOf(name);
-  if (!takes?.length || !bus) return false;
-  const i = pickTake(takes.length, lastTake.get(name) ?? -1);
-  lastTake.set(name, i);
+  const found = takesOf(name);
+  if (!found || !bus) {
+    emit({ name, pack: null });
+    return false;
+  }
+  const { takes, pack } = found;
+  const key = `${pack}/${name}`;
+  const i = pickTake(takes.length, lastTake.get(key) ?? -1);
+  lastTake.set(key, i);
   const take = takes[i];
   const src = a.createBufferSource();
   src.buffer = take.buffer;
@@ -171,6 +212,8 @@ function play(name: string, { gain = 1, rate = 1, when = 0, pan = 0 }: PlayOptio
   }
   out.connect(bus);
   src.start(a.currentTime + when, take.offset);
+  track(src);
+  emit({ name, pack });
   return true;
 }
 
@@ -266,10 +309,13 @@ let lastRowHover = 0;
 function startTear(): TearVoice {
   tearVoice?.end(false);
   const a = audio();
-  const take = takesOf("tear-scrub")?.[0];
+  const found = takesOf("tear-scrub");
+  const take = found?.takes[0];
   if (!a || !take || !bus) {
+    if (a) emit({ name: "tear-scrub", pack: null });
     return (tearVoice = { update() {}, end() {} });
   }
+  emit({ name: "tear-scrub", pack: found.pack });
   const src = a.createBufferSource();
   src.buffer = take.buffer;
   src.loop = true;
@@ -281,6 +327,7 @@ function startTear(): TearVoice {
   g.gain.value = 0;
   src.connect(g).connect(bus);
   src.start(a.currentTime, Math.random() * Math.max(0, take.buffer.duration - 0.3));
+  track(src);
   let done = false;
   const voice: TearVoice = {
     update(speed) {

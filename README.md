@@ -71,11 +71,12 @@ src/
     invite.ts        invite key storage, magic links, invite API calls
     publicRooms.ts   public pool status/create calls, Turnstile widget
     recentRooms.ts   rooms this browser hosted or joined, merged with the invite's for "Your rooms"
-    screens/         Home (+ Your rooms), Solo, Lobby, Draft (pack opening), Deckbuilder
+    screens/         Home (+ Your rooms), Solo, Lobby, Draft (pack opening), Deckbuilder, Sound Studio
     pack/            the 3D foil booster on the Draft screen: pillowed/crimped geometry, tear-and-peel
                      math (pure, unit tested), canvas-drawn per-theme foil art, the R3F scene
     sfx.ts           sound effects: generated samples (public/sfx/<pack>/) on one compressed bus, synth fallback
     soundPacks.ts    which sound pack plays (switchable, remembered, ?sounds= previews)
+    soundStudio.ts   the Sound Studio's sequences and per-sound mix (/dev/sound-studio)
     table/           3D scene, textures, drag & drop, HUD, dialogs
     debug/           debug console
     theme.ts         UI themes: which one is active and remembered, ?theme= previews, Alt+Shift+T
@@ -293,7 +294,8 @@ have their own foil). If WebGL isn't available or the 3D pack fails to start, th
 instead; add `?pack=css` to the URL to force it. Reduced-motion skips the opening entirely.
 
 Sound effects come in switchable **sound packs**, like the UI themes: **Tabletop** (the default: wood,
-cardstock and soft chimes) and **Arcane** (crystal chimes, harp). Pick one in the debug console (it plays a short sample); the choice is remembered, and
+cardstock and soft chimes), **Arcane** (crystal chimes, harp), **Library** (parchment, leather, a music box)
+and **Grove** (leaves, twigs, kalimba). Pick one in the debug console (it plays a short sample); the choice is remembered, and
 `?sounds=<pack>` previews one for a visit. Each pack is a folder of short samples in `public/sfx/<pack>/`,
 generated with the [ElevenLabs sound-effects API](https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert)
 (the files are committed, so you only need this to change or add one):
@@ -308,6 +310,9 @@ node scripts/build-sfx.mjs --force              # regenerate everything
 - `src/client/sfxManifest.json` lists the sounds (name, takes, length); the client, the generator and a test share it.
 - `scripts/sfx/prompts/<pack>.json` says what each sound is in that pack. **A new pack** is a prompts file, an entry
   in `src/client/soundPacks.ts`, and `node scripts/build-sfx.mjs <pack>`; a test fails until every sound exists.
+- **Sound Studio** (`/dev/sound-studio`, linked from the debug console) auditions the packs: it plays the draft's
+  sound sequences (opening a pack, making a pick, browsing cards) with the game's own timings, plays any sound
+  from any pack, and lets each sound come from a different pack to try combinations. Hover a cell for its prompt.
 - `sfx.ts` trims each sample's leading silence, matches loudness (capped, and silent takes are skipped), varies pitch
   slightly and never repeats the same take back to back. Packs load on demand; until a sample is ready (or if it's
   missing) an effect falls back to the Tabletop sample, then to a small synth.

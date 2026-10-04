@@ -223,7 +223,8 @@
   .draft-side,
   .db-side,
   .modal,
-  .notice {
+  .notice,
+  .ss-panel {
     outline: 1px dashed rgb(var(--brass-rgb) / 0.24);
     outline-offset: -7px;
   }
