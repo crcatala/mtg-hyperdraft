@@ -43,20 +43,30 @@ export default function PackScene(props: PackSceneProps) {
   // Open requests made before this pack was mounted (for an earlier pack) don't count.
   const firstSignal = useRef(props.openSignal).current;
   const [art, setArt] = useState<PackArt | null>(null);
+  // The art is built outside the canvas, so a failure there wouldn't reach PackBoundary by itself
+  // (and the pack would never appear, leaving nothing to open). It's rethrown while rendering below.
+  const [failure, setFailure] = useState<Error | null>(null);
   const { brand, name, meta } = props.label;
   useEffect(() => {
     let dead = false;
     let built: PackArt | null = null;
-    void buildPackArt({ brand, name, meta }, theme).then((a) => {
-      if (dead) return a.dispose();
-      built = a;
-      setArt(a);
-    });
+    buildPackArt({ brand, name, meta }, theme).then(
+      (a) => {
+        if (dead) return a.dispose();
+        built = a;
+        setArt(a);
+      },
+      (e: unknown) => {
+        if (!dead) setFailure(e instanceof Error ? e : new Error(String(e)));
+      },
+    );
     return () => {
       dead = true;
       built?.dispose();
     };
   }, [brand, name, meta, theme]);
+
+  if (failure) throw failure;
 
   return (
     <Canvas

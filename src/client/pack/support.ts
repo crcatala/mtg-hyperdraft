@@ -26,3 +26,11 @@ export function canUse3d(): boolean {
 export function prefersReducedMotion(): boolean {
   return !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
+
+/**
+ * Whether to show the 3D pack. It needs WebGL, and it's all motion (the drop-in, the tear, the burst),
+ * so with reduced motion the CSS pack is used: opening it skips straight to the revealed cards.
+ */
+export function wants3dPack(webgl: boolean, reducedMotion: boolean): boolean {
+  return webgl && !reducedMotion;
+}

@@ -18,7 +18,7 @@ import { RARITY_RANK, REVEAL_FX_MS, revealSchedule, TEAR_MS } from "../revealSch
 import { hasOpened, markOpened } from "../openedPacks";
 import PackScene from "../pack/PackScene";
 import { PackBoundary } from "../pack/PackBoundary";
-import { canUse3d, prefersReducedMotion } from "../pack/support";
+import { canUse3d, prefersReducedMotion, wants3dPack } from "../pack/support";
 
 const COLOR_RANK = (c: CardData) => (c.colors.length === 0 ? 6 : c.colors.length > 1 ? 5 : "WUBRG".indexOf(c.colors[0]));
 
@@ -47,8 +47,8 @@ export function Draft() {
   const [zoom, setZoom] = useState<{ source: "pack" | "picks"; key: string } | null>(null);
   const [stage, setStage] = useState<Stage>("revealed");
   // The 3D pack tears itself when asked (Space, a click); `openReq` is that request. If 3D can't
-  // run here (no WebGL, or it failed), the CSS pack opens the way it always did.
-  const [mode3d, setMode3d] = useState(canUse3d);
+  // run here (no WebGL, it failed, or reduced motion is on), the CSS pack opens the way it always did.
+  const [mode3d, setMode3d] = useState(() => wants3dPack(canUse3d(), prefersReducedMotion()));
   const [openReq, setOpenReq] = useState(0);
   const [revealCount, setRevealCount] = useState(99);
   // Screen flash for a rare / mythic landing (keyed so each one replays the animation).

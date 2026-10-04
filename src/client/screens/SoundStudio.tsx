@@ -13,6 +13,7 @@ import {
   basePack,
   browseCards,
   chain,
+  createStudioPlayer,
   makePick,
   mixSummary,
   openPack,
@@ -96,7 +97,7 @@ export function SoundStudio() {
 
   const mixRef = useRef(mix);
   mixRef.current = mix;
-  const timers = useRef<number[]>([]);
+  const [player] = useState(() => createStudioPlayer({ load: (packs) => Promise.all(packs.map(loadPack)), stopAudio: stopAll }));
   const startedAt = useRef(performance.now());
   const logRef = useRef<HTMLOListElement>(null);
 
@@ -133,30 +134,23 @@ export function SoundStudio() {
   }, [cues]);
 
   const stop = () => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    stopAll();
+    player.stop();
+    setLoading(null);
   };
-  useEffect(() => stop, []);
-
-  const scheduler: Scheduler = {
-    at: (ms, _cue, fn) => {
-      timers.current.push(window.setTimeout(fn, ms));
-    },
-  };
+  // Leaving the studio cancels everything, including a sequence still loading its packs.
+  useEffect(() => () => player.stop(), [player]);
 
   /** Loads every pack the mix uses (first time only), then starts from a clean log. */
   const start = async (build: (s: Scheduler) => unknown, packs: PackId[], seq: SequenceId | null) => {
-    stop();
     if (seq) setLoading(seq);
     try {
-      await Promise.all([...new Set(packs)].map(loadPack));
+      await player.start(build, packs, () => {
+        if (seq) setCues([]);
+        startedAt.current = performance.now();
+      });
     } finally {
-      setLoading(null);
+      if (seq) setLoading((cur) => (cur === seq ? null : cur));
     }
-    if (seq) setCues([]);
-    startedAt.current = performance.now();
-    build(scheduler);
   };
 
   const sequence = (seq: SequenceId) => {

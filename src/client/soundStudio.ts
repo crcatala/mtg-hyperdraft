@@ -257,3 +257,39 @@ export function playOne(s: Scheduler, name: string) {
   if (name === "tear-scrub") dragTear(s, 0, 1200);
   else if (one[name]) s.at(0, name, one[name]);
 }
+
+// --- playback ------------------------------------------------------------------------------------
+
+export interface StudioPlayer {
+  /**
+   * Stops whatever is playing, loads `packs`, then runs `build`'s cues. Resolves false (and plays
+   * nothing) if stop() or another start() came while the packs were loading.
+   */
+  start(build: (s: Scheduler) => unknown, packs: PackId[], onStart?: () => void): Promise<boolean>;
+  /** Cancels pending cues, a start still loading, and every sound playing. */
+  stop(): void;
+}
+
+/** Plays one studio sequence at a time; each start or stop cancels the one before. */
+export function createStudioPlayer(deps: { load: (packs: PackId[]) => Promise<unknown>; stopAudio: () => void }): StudioPlayer {
+  let run = 0;
+  let timers: ReturnType<typeof setTimeout>[] = [];
+  const stop = () => {
+    run++;
+    timers.forEach(clearTimeout);
+    timers = [];
+    deps.stopAudio();
+  };
+  return {
+    stop,
+    async start(build, packs, onStart) {
+      stop();
+      const mine = run;
+      await deps.load([...new Set(packs)]);
+      if (mine !== run) return false;
+      onStart?.();
+      build({ at: (ms, _cue, fn) => void timers.push(setTimeout(fn, ms)) });
+      return true;
+    },
+  };
+}

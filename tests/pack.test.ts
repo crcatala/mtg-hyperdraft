@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { HALF_H, HALF_W, PACK_T, TEAR_Y, buildPeelPath, halfThickness, peelOffset, sideProfile, tearEdgeY } from "../src/client/pack/packShape";
 import { COMMIT_AT, MAX_RATE, autoStep, dirFromGrab, progressAt, soundSpeed, stepFront } from "../src/client/pack/tearGesture";
+import { wants3dPack } from "../src/client/pack/support";
 import { analyze, jitter, normalizeGain, pickTake, SILENCE } from "../src/client/sfxMath";
 import { RARITY_RANK, revealSchedule } from "../src/client/revealSchedule";
 import type { Rarity } from "../src/shared/types";
@@ -46,6 +47,16 @@ describe("pack shape", () => {
       lastZ = z;
     }
     expect(path.theta[path.theta.length - 1]).toBeCloseTo(2);
+  });
+});
+
+describe("which pack is shown", () => {
+  it("uses the 3D pack only with WebGL and without reduced motion", () => {
+    expect(wants3dPack(true, false)).toBe(true);
+    // Reduced motion gets the CSS pack, whose opening (pointer or keyboard) skips to the revealed cards.
+    expect(wants3dPack(true, true)).toBe(false);
+    expect(wants3dPack(false, false)).toBe(false);
+    expect(wants3dPack(false, true)).toBe(false);
   });
 });
 

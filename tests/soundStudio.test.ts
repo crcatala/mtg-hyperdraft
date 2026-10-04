@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import manifest from "../src/client/sfxManifest.json";
 import { TEAR_MS } from "../src/client/revealSchedule";
 import {
@@ -6,6 +6,7 @@ import {
   basePack,
   browseCards,
   chain,
+  createStudioPlayer,
   makePick,
   mixSummary,
   openPack,
@@ -107,5 +108,62 @@ describe("chaining sequences", () => {
     const zoom = r.sorted().find((c) => c.cue === "zoom-open")!;
     expect(zoom.ms).toBe(makePick(recorder().s));
     expect(total).toBe(makePick(recorder().s) + browseCards(recorder().s));
+  });
+});
+
+describe("the studio player", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /** A pack load that finishes only when the test says so. */
+  function slowLoad() {
+    const pending: (() => void)[] = [];
+    const load = vi.fn(() => new Promise<void>((done) => pending.push(done)));
+    return { load, finish: () => pending.splice(0).forEach((done) => done()) };
+  }
+
+  it("plays a sequence's cues once its packs have loaded, and Stop cuts the rest", async () => {
+    const { load, finish } = slowLoad();
+    const stopAudio = vi.fn();
+    const player = createStudioPlayer({ load, stopAudio });
+    const played: string[] = [];
+    const started = player.start((s) => ["a", "b"].forEach((c, i) => s.at(i * 100, c, () => played.push(c))), ["grove", "grove", "tabletop"]);
+    expect(load).toHaveBeenCalledWith(["grove", "tabletop"]);
+    finish();
+    expect(await started).toBe(true);
+    vi.advanceTimersByTime(50);
+    expect(played).toEqual(["a"]);
+    player.stop();
+    vi.advanceTimersByTime(500);
+    expect(played).toEqual(["a"]);
+    expect(stopAudio).toHaveBeenCalled();
+  });
+
+  it("plays nothing if stopped while the packs are still loading", async () => {
+    const { load, finish } = slowLoad();
+    const player = createStudioPlayer({ load, stopAudio: () => {} });
+    const build = vi.fn();
+    const onStart = vi.fn();
+    const started = player.start(build, ["library"], onStart);
+    player.stop();
+    finish();
+    expect(await started).toBe(false);
+    vi.runAllTimers();
+    expect(build).not.toHaveBeenCalled();
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
+  it("drops a start that's still loading when a newer one begins", async () => {
+    const { load, finish } = slowLoad();
+    const player = createStudioPlayer({ load, stopAudio: () => {} });
+    const first = vi.fn();
+    const second = vi.fn();
+    const a = player.start(first, ["arcane"]);
+    const b = player.start(second, ["grove"]);
+    finish();
+    expect(await a).toBe(false);
+    expect(await b).toBe(true);
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledOnce();
   });
 });
