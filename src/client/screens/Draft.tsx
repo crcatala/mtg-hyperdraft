@@ -16,6 +16,9 @@ import { sfx, isMuted, setMuted } from "../sfx";
 import { hasBackFace } from "../cardStyle";
 import { RARITY_RANK, REVEAL_FX_MS, revealSchedule, TEAR_MS } from "../revealSchedule";
 import { hasOpened, markOpened } from "../openedPacks";
+import PackScene from "../pack/PackScene";
+import { PackBoundary } from "../pack/PackBoundary";
+import { canUse3d, prefersReducedMotion, wants3dPack } from "../pack/support";
 
 const COLOR_RANK = (c: CardData) => (c.colors.length === 0 ? 6 : c.colors.length > 1 ? 5 : "WUBRG".indexOf(c.colors[0]));
 
@@ -43,6 +46,10 @@ export function Draft() {
   }, [leaving]);
   const [zoom, setZoom] = useState<{ source: "pack" | "picks"; key: string } | null>(null);
   const [stage, setStage] = useState<Stage>("revealed");
+  // The 3D pack tears itself when asked (Space, a click); `openReq` is that request. If 3D can't
+  // run here (no WebGL, it failed, or reduced motion is on), the CSS pack opens the way it always did.
+  const [mode3d, setMode3d] = useState(() => wants3dPack(canUse3d(), prefersReducedMotion()));
+  const [openReq, setOpenReq] = useState(0);
   const [revealCount, setRevealCount] = useState(99);
   // Screen flash for a rare / mythic landing (keyed so each one replays the animation).
   const [flash, setFlash] = useState<{ key: number; rarity: Rarity } | null>(null);
@@ -76,6 +83,8 @@ export function Draft() {
     } else {
       setStage("revealed");
       setRevealCount(99);
+      // A pack passed on from the neighbour slides in.
+      if (pack.picksTaken > 0) sfx.packArrive();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pack?.id]);
@@ -88,14 +97,25 @@ export function Draft() {
     clearFx();
   }, [pack, view.code, clearFx]);
 
-  const rip = useCallback(() => {
+  // The strip has come away (3D) or the simple pack was clicked: the burst plays, then cards are dealt.
+  const torn = useCallback(() => {
     if (stage !== "sealed" || !pack) return;
     markOpened(view.code, pack.id);
-    sfx.rip();
-    // Reduced motion: no tearing, dealing or flipping — just show the pack.
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return skip();
     setStage("tearing");
-  }, [stage, pack, view.code, skip]);
+  }, [stage, pack, view.code]);
+
+  // Asks for the pack to open: click beside it, Space, or the simple pack's click.
+  const rip = useCallback(() => {
+    if (stage !== "sealed" || !pack) return;
+    // Reduced motion: no tearing, dealing or flipping, just show the pack.
+    if (prefersReducedMotion()) {
+      sfx.rip();
+      return skip();
+    }
+    if (mode3d) return setOpenReq((n) => n + 1);
+    sfx.rip();
+    torn();
+  }, [stage, pack, mode3d, skip, torn]);
 
   // tearing → dealing → a wave of flips (commons first; a short beat of suspense before rares).
   useEffect(() => {
@@ -125,7 +145,9 @@ export function Draft() {
               });
             }, REVEAL_FX_MS),
           );
-          if (!step.highlight) return sfx.flip(step.k);
+          sfx.flip(step.k);
+          if (step.notable) sfx.notable();
+          if (!step.highlight) return;
           setFlash({ key: ++flashes, rarity: rarities[step.k] });
           if (step.rank >= 3) {
             sfx.mythic();
@@ -151,6 +173,8 @@ export function Draft() {
       if (picks.length !== need.picks || burns.length !== need.burns) return;
       setLeaving(true);
       sfx.pick();
+      sfx.packPass();
+      if (burns.length) setTimeout(() => sfx.burn(), 140);
       // The next pack replaces this one, so wait for the picked cards to land first.
       const flight = flyToPicks(picks);
       pickFlight.current = flight.animations;
@@ -178,6 +202,7 @@ export function Draft() {
   };
 
   const deselect = (iid: string) => {
+    sfx.deselect();
     setSelected((s) => s.filter((x) => x !== iid));
     setBurning((b) => b.filter((x) => x !== iid));
   };
@@ -277,7 +302,15 @@ export function Draft() {
               <div className="draft-instructions">
                 {stage === "sealed" ? (
                   <span>
-                    A fresh pack! Click it or press <kbd>Space</kbd> to rip it open.
+                    {mode3d ? (
+                      <>
+                        A fresh pack! Drag across the top to tear it open, or click it or press <kbd>Space</kbd>.
+                      </>
+                    ) : (
+                      <>
+                        A fresh pack! Click it or press <kbd>Space</kbd> to rip it open.
+                      </>
+                    )}
                   </span>
                 ) : stage !== "revealed" ? (
                   <span className="faint">
@@ -321,6 +354,10 @@ export function Draft() {
                 arrival={pack.picksTaken === 0 ? "fresh" : d.passDirection === "left" ? "from-left" : "from-right"}
                 passDirection={d.passDirection}
                 onRip={rip}
+                onTorn={torn}
+                mode3d={mode3d}
+                on3dFail={() => setMode3d(false)}
+                openReq={openReq}
                 onSkip={skip}
                 onClickCard={clickCard}
                 onDeselect={deselect}
@@ -436,6 +473,10 @@ interface PackFanProps {
   arrival: "fresh" | "from-left" | "from-right";
   passDirection: "left" | "right";
   onRip: () => void;
+  onTorn: () => void;
+  mode3d: boolean;
+  on3dFail: () => void;
+  openReq: number;
   onSkip: () => void;
   onClickCard: (iid: string) => void;
   onDeselect: (iid: string) => void;
@@ -474,10 +515,34 @@ function PackFan(props: PackFanProps) {
   for (let i = 0; i < ids.length; i += layout.perRow) rows.push(ids.slice(i, i + layout.perRow));
 
   const showCards = stage === "dealing" || stage === "revealed";
+  // The 3D pack's last effects (sparks, rays) play on behind the first cards being dealt.
+  const [lingering, setLingering] = useState(true);
+  const show3d = props.mode3d && (stage === "sealed" || stage === "tearing" || (stage === "dealing" && lingering));
   return (
     <div ref={ref} className={`pack-fan stage-${stage}`} onClick={stage === "dealing" ? props.onSkip : undefined}>
       {props.flash && <div key={props.flash.key} className={`fan-flash r-${props.flash.rarity}`} />}
-      {(stage === "sealed" || stage === "tearing") && (
+      {show3d && (
+        <div
+          className={`pack3d${stage === "sealed" ? "" : " is-opened"}`}
+          role="button"
+          tabIndex={stage === "sealed" ? 0 : -1}
+          aria-label="Open pack: drag across its top, or press Enter or Space"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") props.onRip();
+          }}
+        >
+          <PackBoundary onFail={props.on3dFail}>
+            <PackScene
+              label={{ brand: "HyperDraft", name: props.cubeName, meta: `Pack ${props.round + 1} · ${ids.length} cards` }}
+              openSignal={props.openReq}
+              interactive={stage === "sealed"}
+              onTorn={props.onTorn}
+              onDone={() => setLingering(false)}
+            />
+          </PackBoundary>
+        </div>
+      )}
+      {!props.mode3d && (stage === "sealed" || stage === "tearing") && (
         <SealedPack name={props.cubeName} round={props.round} tearing={stage === "tearing"} onClick={props.onRip} count={ids.length} />
       )}
       {showCards &&
@@ -698,7 +763,10 @@ function PicksList({ picks, instances, cards, onOpen }: { picks: string[]; insta
               key={iid}
               data-iid={iid}
               className={`pick-row r-${card.rarity}${fresh.has(iid) ? " just-picked" : ""}`}
-              onPointerEnter={(e) => setHover({ iid, rect: e.currentTarget.getBoundingClientRect() })}
+              onPointerEnter={(e) => {
+                sfx.rowHover();
+                setHover({ iid, rect: e.currentTarget.getBoundingClientRect() });
+              }}
               onPointerLeave={() => setHover(null)}
               onClick={() => {
                 setHover(null);

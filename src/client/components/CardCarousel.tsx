@@ -11,6 +11,7 @@ import { dismissTermPopover } from "./TermPopover";
 import { Icon } from "./Icon";
 import { faceOf, hasBackFace, nextFace } from "../cardStyle";
 import { loadRulesHelpOpen, saveRulesHelpOpen, takeRulesHelpHint } from "../cardHelp";
+import { sfx } from "../sfx";
 
 export interface CarouselItem {
   key: string;
@@ -138,6 +139,7 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
   useLayoutEffect(() => {
     const el = flyRef.current;
     if (!el || !item) return;
+    sfx.zoomOpen();
     const from = originFor(item.key);
     if (from && from.width > 0) {
       el.animate([{ transform: flipTransform(from, el.getBoundingClientRect()), opacity: 0.8 }, { transform: "none", opacity: 1 }], { duration: 420, easing: EASE_OUT });
@@ -150,6 +152,7 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
   const close = useCallback(() => {
     if (closing) return;
     setClosing(true);
+    sfx.zoomClose();
     const el = flyRef.current;
     if (!el || !item) return onClose();
     const from = originFor(item.key);
@@ -185,7 +188,11 @@ export function CardCarousel({ items, startKey, title, originFor, badge, onFaceC
       else if (e.key === "Escape") {
         if (!dismissTermPopover()) close();
       }
-      else if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && dfc) turnOver();
+      else if ((e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && dfc) {
+        // The turn-over button plays its own sound (in CardView); the key has to.
+        sfx.turnOver();
+        turnOver();
+      }
       else return;
       e.preventDefault();
       e.stopPropagation();

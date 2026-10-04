@@ -8,8 +8,12 @@ import type { Rarity } from "../shared/types";
 
 export const RARITY_RANK: Record<Rarity, number> = { mythic: 4, special: 3, rare: 2, uncommon: 1, common: 0 };
 
-/** How long the booster takes to tear open before cards are dealt (matches the CSS). */
-export const TEAR_MS = 320;
+/**
+ * How long the booster's opening burst plays (strip flying off, light, the cards sliding out)
+ * before cards are dealt. The 3D pack's timeline (pack/PackScene.tsx) and the CSS fallback's
+ * keyframes (screens.css) are both built around it.
+ */
+export const TEAR_MS = 640;
 /** How long a card's reveal effects (flip arc, glint, rarity ring, sparks) keep playing. */
 export const REVEAL_FX_MS = 1000;
 
@@ -30,6 +34,8 @@ export interface RevealStep {
   rank: number;
   /** A standout card for this pack: suspense beat, flash, sparks and a fanfare. */
   highlight: boolean;
+  /** Rarer than the pack's typical card (but not a highlight): gets a small chime. */
+  notable: boolean;
 }
 
 export interface RevealSchedule {
@@ -57,7 +63,7 @@ export function revealSchedule(ranks: number[]): RevealSchedule {
   ranks.forEach((rank, k) => {
     const big = rank > RARITY_RANK.rare;
     if (highlight[k]) t += big ? HIGHLIGHT_SUSPENSE_MS.mythic : HIGHLIGHT_SUSPENSE_MS.rare;
-    reveals.push({ k, at: t, rank, highlight: highlight[k] });
+    reveals.push({ k, at: t, rank, highlight: highlight[k], notable: !highlight[k] && rank > typical });
     t += highlight[k] ? (big ? HIGHLIGHT_GAP_MS.mythic : HIGHLIGHT_GAP_MS.rare) : WAVE_GAP_MS[Math.min(rank, WAVE_GAP_MS.length - 1)];
   });
   return { deals, reveals, done: t + SETTLE_MS };

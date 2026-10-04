@@ -9,6 +9,7 @@ import { ManaCost, RulesText } from "./Mana";
 import { imageStatus, useImage } from "../imageCache";
 import { Icon } from "./Icon";
 import { cardTypeIcon } from "../icons";
+import { sfx } from "../sfx";
 
 export interface CardViewProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"> {
   card?: CardData;
@@ -159,6 +160,7 @@ export const CardView = memo(function CardView({
           onDoubleClick={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
+            sfx.turnOver();
             if (onFlip) onFlip();
             else setTurned((t) => !t);
           }}

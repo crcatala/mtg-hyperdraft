@@ -6,6 +6,8 @@ import { Icon } from "../components/Icon";
 import type { DebugCommand } from "../../shared/protocol";
 import { quickstart, SAMPLE_CUBE, STARTER_CUBE } from "../quickstart";
 import { setTheme, THEMES, useTheme } from "../theme";
+import { setSoundPack, SOUND_PACKS, useSoundPack, type PackId } from "../soundPacks";
+import { loadPack, sfx } from "../sfx";
 
 export function DebugConsole() {
   const open = useStore((s) => s.debug.open);
@@ -17,6 +19,13 @@ export function DebugConsole() {
   const send = useStore((s) => s.send);
   const [showState, setShowState] = useState(false);
   const theme = useTheme();
+  const soundPack = useSoundPack();
+
+  // Switching plays a short sample of the new pack, once its files have loaded.
+  const chooseSounds = (p: PackId) => {
+    setSoundPack(p);
+    void loadPack(p).then(() => sfx.preview());
+  };
 
   if (!open) {
     return (
@@ -54,6 +63,21 @@ export function DebugConsole() {
             </button>
           ))}
         </div>
+      </section>
+
+      <section>
+        <div className="label">Sound effects · pick one to hear it</div>
+        <div className="debug-buttons">
+          {SOUND_PACKS.map((p) => (
+            <button key={p.id} className={`btn small${soundPack === p.id ? " primary" : ""}`} title={p.blurb} onClick={() => chooseSounds(p.id)}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <p className="faint debug-note">{SOUND_PACKS.find((p) => p.id === soundPack)?.blurb}</p>
+        <a href="/dev/sound-studio" target="_blank" rel="noreferrer">
+          Open Sound Studio (new tab)
+        </a>
       </section>
 
       {view ? (

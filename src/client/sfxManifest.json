@@ -1,0 +1,141 @@
+[
+ {
+  "name": "pack-land",
+  "count": 1,
+  "seconds": 0.9,
+  "influence": 0.6
+ },
+ {
+  "name": "pack-hover",
+  "count": 2,
+  "seconds": 0.6,
+  "influence": 0.6
+ },
+ {
+  "name": "tear-scrub",
+  "count": 1,
+  "seconds": 1.6,
+  "influence": 0.7,
+  "loop": true
+ },
+ {
+  "name": "tear",
+  "count": 2,
+  "seconds": 1.3,
+  "influence": 0.7
+ },
+ {
+  "name": "pack-burst",
+  "count": 1,
+  "seconds": 1.8,
+  "influence": 0.55
+ },
+ {
+  "name": "cards-slide",
+  "count": 1,
+  "seconds": 0.9,
+  "influence": 0.6
+ },
+ {
+  "name": "deal",
+  "count": 3,
+  "seconds": 0.5,
+  "influence": 0.7
+ },
+ {
+  "name": "flip",
+  "count": 4,
+  "seconds": 0.5,
+  "influence": 0.7
+ },
+ {
+  "name": "uncommon",
+  "count": 1,
+  "seconds": 0.9,
+  "influence": 0.6
+ },
+ {
+  "name": "rare",
+  "count": 1,
+  "seconds": 1.8,
+  "influence": 0.6
+ },
+ {
+  "name": "mythic",
+  "count": 1,
+  "seconds": 3.2,
+  "influence": 0.6
+ },
+ {
+  "name": "select",
+  "count": 2,
+  "seconds": 0.5,
+  "influence": 0.7
+ },
+ {
+  "name": "deselect",
+  "count": 1,
+  "seconds": 0.5,
+  "influence": 0.7
+ },
+ {
+  "name": "pick",
+  "count": 1,
+  "seconds": 1.0,
+  "influence": 0.6
+ },
+ {
+  "name": "burn",
+  "count": 1,
+  "seconds": 1.1,
+  "influence": 0.6
+ },
+ {
+  "name": "pack-arrive",
+  "count": 1,
+  "seconds": 0.8,
+  "influence": 0.6
+ },
+ {
+  "name": "pack-pass",
+  "count": 1,
+  "seconds": 0.7,
+  "influence": 0.6
+ },
+ {
+  "name": "tick",
+  "count": 1,
+  "seconds": 0.5,
+  "influence": 0.6
+ },
+ {
+  "name": "tap",
+  "count": 2,
+  "seconds": 0.5,
+  "influence": 0.7
+ },
+ {
+  "name": "zoom-open",
+  "count": 1,
+  "seconds": 0.7,
+  "influence": 0.6
+ },
+ {
+  "name": "zoom-close",
+  "count": 1,
+  "seconds": 0.6,
+  "influence": 0.6
+ },
+ {
+  "name": "row-hover",
+  "count": 2,
+  "seconds": 0.5,
+  "influence": 0.7
+ },
+ {
+  "name": "turn-over",
+  "count": 2,
+  "seconds": 0.6,
+  "influence": 0.7
+ }
+]
