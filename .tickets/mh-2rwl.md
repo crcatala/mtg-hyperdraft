@@ -88,3 +88,7 @@ Human sign-off, folio (quoted): "ok for folio we can go with emote6-3" (shipped 
 **2026-10-05T15:02:56Z**
 
 Sprout, generated (agent), PENDING human audition. Two wording rounds. v1 ("gentle low-to-mid pitched coos, shy low whimpers with soft leaf rustles and rounded little mumbles ... no peeps, no screams", ~190 gens incl. 4 prune rounds): FAILED, mean treble 41% (max 84%), 21/48 still flagged after rerolls, 0 clean takes for poke3/poke6/poke7/emote6. Rustle/whimper wording is broadband and shrill. v2 (shipped in kit): "A shy chubby little mandrake root with a soft warm plush-toy cartoon voice: low-to-mid pitched coos, woody hums, rounded little mumbles and gentle grunts, mellow and breathy, never shrill, no peeps, no screams, no rustling": 48 gens + 8 rerolls (1 API failure retried), 48/48 pass, every slot 3/3 clean, treble mean 8% (max 29%). v1 takes parked in _sprout-v1-rustles (gitignored). Learning: leaf rustle / whimper / peep words are shrill; humming/grunting/mumbling words are mellow. The ticket's "tiny scream for the finale" is NOT in the wording (kept "no screams"); say if you want it in poke7. Also: test fix (companionVoice no-voice case used gloop). Total so far ~1000+ generations across foil, cinder, folio, gloop, sprout; balance unreadable.
+
+**2026-10-05T15:03:01Z**
+
+Correction to the previous note: running total of generations for this ticket is ~700 (foil ~190, cinder ~75, folio ~75, gloop ~100, sprout ~245), not 1000+. At ~5 credits per 1 s sound that is roughly 3,500 credits if the spike rate holds; balance still unreadable.
