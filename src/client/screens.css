@@ -5258,12 +5258,51 @@ html[data-music-open] .debug-console {
   background: var(--menu-bg, rgba(22, 19, 36, 0.96));
   color: var(--text);
 }
-.emote-line {
+/* Under the ring (over it when .flip): the "Edit lines" pill, then the hovered wedge's line. Outside the ring,
+   so never over a wedge; the centre stays free for Home. */
+.emote-under {
   position: absolute;
   left: 50%;
   top: calc(100% + 8px);
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
   width: max-content;
+  pointer-events: none;
+}
+.emote-wheel.flip .emote-under {
+  top: auto;
+  bottom: calc(100% + 8px);
+  flex-direction: column-reverse;
+}
+.emote-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 999px;
+  background: var(--menu-bg, rgba(22, 19, 36, 0.96));
+  border: 1px solid var(--line-2);
+  color: var(--text);
+  font: 700 12px/18px var(--font-ui);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.emote-edit:hover,
+.emote-edit:focus-visible {
+  border-color: var(--text);
+  outline: none;
+}
+.emote-edit .icon {
+  font-size: 14px;
+}
+.emote-edit kbd {
+  font-size: 10px;
+  opacity: 0.6;
+}
+.emote-line {
   max-width: 320px;
   padding: 6px 12px;
   border-radius: 10px;
@@ -5272,11 +5311,7 @@ html[data-music-open] .debug-console {
   font-size: 13px;
   font-weight: 600;
   text-align: center;
-  pointer-events: none;
-}
-.emote-wheel.flip .emote-line {
-  top: auto;
-  bottom: calc(100% + 8px);
+  overflow-wrap: anywhere;
 }
 @media (prefers-reduced-motion: reduce) {
   .emote-wheel {
@@ -5289,6 +5324,88 @@ html[data-music-open] .debug-console {
   .emote-wedge:hover .emote-face,
   .emote-wedge.active .emote-face {
     transform: translate(-50%, -50%);
+  }
+}
+
+/* "Your emote lines" (table/EmoteLinesDialog.tsx): one row per wheel slot, in its emote's colour (--tint). */
+.modal.emote-lines {
+  width: min(560px, calc(100vw - 32px));
+  padding: 0;
+}
+.emote-lines-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 14px 20px 18px;
+  overflow-y: auto;
+}
+.emote-lines-list {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.emote-lines-row {
+  display: grid;
+  grid-template-columns: 30px 52px minmax(0, 1fr) 44px auto;
+  align-items: center;
+  column-gap: 8px;
+}
+.emote-lines-badge {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--tint);
+  color: #1a1024;
+  font-size: 18px;
+  --icon-stroke: 2.2;
+}
+.emote-lines-label {
+  font-size: 13px;
+  font-weight: 800;
+}
+.emote-lines-row .input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+.emote-lines-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--muted);
+}
+.emote-lines-count.over {
+  color: var(--red);
+  font-weight: 700;
+}
+.emote-lines-error {
+  grid-column: 3 / -1;
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--red);
+}
+@media (max-width: 480px) {
+  .emote-lines-row {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    row-gap: 4px;
+  }
+  .emote-lines-row .input {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .emote-lines-count {
+    grid-row: 1;
+    grid-column: 3;
+  }
+  .emote-lines-row .btn {
+    display: none;
+  }
+  .emote-lines-error {
+    grid-column: 1 / -1;
   }
 }
 
