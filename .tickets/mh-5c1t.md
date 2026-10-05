@@ -53,3 +53,7 @@ WIP (agent): emotes->moves renamed (roster.ts, roster.json, CharacterSelect, REA
 **2026-10-05T12:31:18Z**
 
 Human review (quoted): "i reviewed all speech and look great to me, i approve." All 150 speech lines approved as written, no edits (PR #28). Voice signatures for foil/cinder/folio/sprout/wick/crit were not separately reviewed; mh-2rwl auditions them.
+
+**2026-10-05T12:31:40Z**
+
+Human review of the 150 speech lines (PR #28), quoted: "i reviewed all speech and look great to me, i approve". No edits requested. Voice signatures for foil/cinder/folio/sprout/wick/crit were not separately reviewed; mh-2rwl will audition the sounds.
