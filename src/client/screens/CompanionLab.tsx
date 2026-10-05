@@ -1,8 +1,8 @@
 // /dev/companion-lab: review every companion's 18 reactions on the real table figure (CompanionFigure), on a
 // plain stage. Pick a companion and a colour variant, press a reaction to play it (with its voice, if it has
-// one), slow time down to look closely, interrupt one reaction with another to check the blend, or put four
-// companions on stage at once to check that glyphs stay bounded and the frame rate holds. Linked from the
-// debug console; opens in its own tab.
+// one, and its line in a bubble), slow time down to look closely, interrupt one reaction with another to check
+// the blend, or put four companions on stage at once to check that glyphs stay bounded and the frame rate holds.
+// Linked from the debug console; opens in its own tab.
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
@@ -16,6 +16,7 @@ import { reactionSeconds } from "../table/companionMotion";
 import { bodyStyle, reactionFor, SIGNATURES } from "../table/companionReactions";
 import { playReaction, reactionNow, setReactionTimeScale, stopReaction } from "../table/companionPlayback";
 import { reducedMotion } from "../table/motion";
+import { say } from "../table/companionTalk";
 import { loadVoice, playVoice, type Voice } from "../companionVoice";
 import { isMuted, setMuted, stopAll } from "../sfx";
 
@@ -75,6 +76,8 @@ export function CompanionLab() {
     hush();
     cast.forEach((c, i) => {
       playReaction(LAB_IDS[i], slot);
+      // Only the selected one speaks: four bubbles side by side would cover each other on this small stage.
+      if (i === 0) say(LAB_IDS[i], voiceSlotLine(c, slot), slot.startsWith("emote") ? "large" : "small");
       if (sound && speed === 1 && VOICE_SLOT_IDS.includes(slot)) {
         const v = playVoice(c, slot, { variant: i === 0 ? variant : 0, gain: i === 0 ? 1 : 0.35 });
         if (v) voices.current.push(v);
@@ -313,8 +316,9 @@ function LabScene({ cast, variant }: { cast: string[]; variant: number }) {
   const { camera } = useThree();
   const n = cast.length;
   useEffect(() => {
-    camera.position.set(0, n > 1 ? 6 : 3, n > 1 ? 14 : 6.4);
-    camera.lookAt(0, n > 1 ? 1.3 : 1.45, 0);
+    // Aimed above their heads, leaving room for speech bubbles.
+    camera.position.set(0, n > 1 ? 6.5 : 3.6, n > 1 ? 15 : 7.6);
+    camera.lookAt(0, 2.2, 0);
   }, [camera, n]);
   return (
     <>

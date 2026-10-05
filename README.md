@@ -149,6 +149,10 @@ reveals the character behind it.
   signature moves drawn from its `moves` (`table/companionReactions.ts`). `playReaction(playerId, slot)`
   (`table/companionPlayback.ts`) plays one on anyone's companion. **Companion Lab** (`/dev/companion-lab`,
   linked from the debug console) plays every reaction of every companion, slowed down or four at once.
+- **Poking**: anyone can tap any companion at the table. Each tap climbs a 7-step ladder of reactions and
+  speech-bubble lines, ending in a cheeky finale and a sulk (`table/pokeLadder.ts`); the room relays pokes to
+  the other players like pings and stores nothing (`table/companionPoke.ts`). Bubbles and table voices go
+  through `say`/`voice` in `table/companionTalk.ts`.
 - To add a character, add an entry to `roster.ts` and its images; `tests/roster.test.ts` checks that
   every entry has its files. The prompts and style notes used to generate the current art are in
   `scripts/roster/roster.json`.
