@@ -10,6 +10,7 @@ import { bodyStyle, reactionFor } from "./companionReactions";
 import { reactionSeconds } from "./companionMotion";
 import { clearReactions, playReaction } from "./companionPlayback";
 import { clearBubbles, say, voice } from "./companionTalk";
+import { resetEmotes } from "./companionEmote";
 import { tableApi } from "./drag";
 import { clearLadder, newLadder, observePoke, tapLadder } from "./pokeLadder";
 import { table } from "./tableUi";
@@ -36,7 +37,7 @@ export function receivePoke(target: string, step: number) {
 }
 
 /**
- * Leaving the table: forget the ladders, pending sulks, reactions and bubbles. Player ids ("u1", "u2"...) are
+ * Leaving the table: forget the ladders, pending sulks, reactions, bubbles and the emote wheel. Player ids ("u1", "u2"...) are
  * reused by every room, so otherwise the next table's companions would inherit this one's sulks and bubbles.
  */
 export function resetCompanions() {
@@ -45,6 +46,7 @@ export function resetCompanions() {
   sulks.clear();
   clearReactions();
   clearBubbles();
+  resetEmotes();
 }
 
 /** The poke itself, as everyone sees it: the companion's voice for that step, its reaction and its line. */

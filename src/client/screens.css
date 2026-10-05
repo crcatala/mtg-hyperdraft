@@ -5181,3 +5181,113 @@ html[data-music-open] .debug-console {
     height: 46vh;
   }
 }
+
+/* The emote wheel (table/EmoteWheel.tsx): six wedges round the cursor, each in its emote's colour (--tint).
+   Each wedge is a full-size button clipped to its wedge, so its hit area is exactly the wedge. */
+.emote-wheel {
+  position: fixed;
+  z-index: 900;
+  border-radius: 50%;
+  outline: none;
+  user-select: none;
+  animation: emote-wheel-in 0.14s ease-out;
+  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.55));
+}
+@keyframes emote-wheel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+.emote-wedge {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--menu-bg, rgba(22, 19, 36, 0.96));
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.emote-wedge:hover,
+.emote-wedge.active {
+  background: var(--tint);
+  color: #1a1024;
+}
+.emote-face {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: transform 0.1s;
+}
+.emote-wedge:hover .emote-face,
+.emote-wedge.active .emote-face {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+.emote-face .icon {
+  font-size: 30px;
+  color: var(--tint);
+  --icon-stroke: 2.2;
+}
+.emote-wedge:hover .emote-face .icon,
+.emote-wedge.active .emote-face .icon {
+  color: inherit;
+}
+.emote-label {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.emote-face kbd {
+  font-size: 10px;
+  opacity: 0.6;
+}
+.emote-wheel.cooling .emote-wedge {
+  cursor: default;
+}
+.emote-wheel.cooling .emote-face {
+  opacity: 0.35;
+}
+.emote-wheel.cooling .emote-wedge:hover,
+.emote-wheel.cooling .emote-wedge.active {
+  background: var(--menu-bg, rgba(22, 19, 36, 0.96));
+  color: var(--text);
+}
+.emote-line {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 320px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--menu-bg, rgba(22, 19, 36, 0.96));
+  border: 1px solid var(--line-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+.emote-wheel.flip .emote-line {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .emote-wheel {
+    animation: none;
+  }
+  .emote-face,
+  .emote-wedge {
+    transition: none;
+  }
+  .emote-wedge:hover .emote-face,
+  .emote-wedge.active .emote-face {
+    transform: translate(-50%, -50%);
+  }
+}

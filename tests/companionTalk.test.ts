@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BUBBLE_MS, bubblePop, say, useBubbles } from "../src/client/table/companionTalk";
+import { BUBBLE_MS, bubblePop, LARGE_BUBBLE_MS, say, useBubbles } from "../src/client/table/companionTalk";
 
 describe("speech bubbles", () => {
   afterEach(() => {
@@ -21,7 +21,10 @@ describe("speech bubbles", () => {
     vi.advanceTimersByTime(500);
     expect(useBubbles.getState().bubbles.p1?.text).toBe("Again?");
     expect(useBubbles.getState().bubbles.p2).toBeUndefined();
-    vi.advanceTimersByTime(BUBBLE_MS);
+    // The replacement is large (an emote): it stays up LARGE_BUBBLE_MS (500 ms of it have gone by).
+    vi.advanceTimersByTime(LARGE_BUBBLE_MS - 500 - 1);
+    expect(useBubbles.getState().bubbles.p1?.text).toBe("Again?");
+    vi.advanceTimersByTime(1);
     expect(useBubbles.getState().bubbles).toEqual({});
   });
 
@@ -32,12 +35,22 @@ describe("speech bubbles", () => {
   });
 
   it("pops in, holds, fades out by BUBBLE_MS; reduced motion only fades", () => {
-    expect(bubblePop(0)).toEqual({ scale: 0, alpha: 0 });
+    expect(bubblePop(0)).toEqual({ scale: 0, alpha: 0, rot: 0 });
     expect(Math.max(...[60, 100, 130, 160].map((t) => bubblePop(t).scale))).toBeGreaterThan(1); // a little overshoot
-    expect(bubblePop(1000)).toEqual({ scale: 1, alpha: 1 });
+    expect(bubblePop(1000)).toEqual({ scale: 1, alpha: 1, rot: 0 });
     expect(bubblePop(BUBBLE_MS).alpha).toBe(0);
     expect(bubblePop(BUBBLE_MS + 500).alpha).toBe(0);
     for (const t of [0, 50, 1000, BUBBLE_MS - 100]) expect(bubblePop(t, true).scale).toBe(1);
     expect(bubblePop(1000, true).alpha).toBe(1);
+  });
+
+  it("a large bubble (an emote) pops bigger, wobbles then settles, and lasts LARGE_BUBBLE_MS; reduced motion only fades", () => {
+    const peak = (size: "small" | "large") => Math.max(...Array.from({ length: 40 }, (_, i) => bubblePop(i * 8, false, size).scale));
+    expect(peak("large")).toBeGreaterThan(peak("small") + 0.05);
+    expect(Math.max(...[40, 80, 120, 160].map((t) => Math.abs(bubblePop(t, false, "large").rot)))).toBeGreaterThan(0.03);
+    expect(bubblePop(600, false, "large")).toEqual({ scale: 1, alpha: 1, rot: 0 });
+    expect(bubblePop(BUBBLE_MS, false, "large").alpha).toBe(1);
+    expect(bubblePop(LARGE_BUBBLE_MS, false, "large").alpha).toBe(0);
+    for (const t of [0, 60, 120, 1000]) expect(bubblePop(t, true, "large")).toMatchObject({ scale: 1, rot: 0 });
   });
 });
