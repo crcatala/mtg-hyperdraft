@@ -3,7 +3,7 @@
     "suffix": "Short, no words, no music, dry, close-up.",
     "slots": {
       "hello": {
-        "emotion": "a friendly little greeting chirp, warm and bright, rising at the end",
+        "emotion": "a warm low burbling babble in the rhythm of a friendly 'heh-lloo!', mumbled creature chatter that almost sounds like saying hello, rising slightly at the end",
         "seconds": 1,
         "influence": 0.6
       },
@@ -13,7 +13,7 @@
         "influence": 0.6
       },
       "poke2": {
-        "emotion": "a happy delighted squeak",
+        "emotion": "a happy delighted low chuff and soft burbling giggle, rounded and mellow",
         "seconds": 0.7,
         "influence": 0.6
       },
@@ -33,27 +33,27 @@
         "influence": 0.6
       },
       "poke6": {
-        "emotion": "a fed-up whiny complaint, a protesting moan, increasingly annoyed",
+        "emotion": "a fed-up grumbly protesting moan, increasingly annoyed, rounded and mellow, in the creature's own natural voice",
         "seconds": 1.2,
         "influence": 0.6
       },
       "poke7": {
-        "emotion": "an indignant cheeky outburst, a sharp huffy protest ending in a defiant raspberry",
+        "emotion": "an indignant cheeky outburst, a deep huffy grunting protest ending in a defiant raspberry",
         "seconds": 1.8,
         "influence": 0.6
       },
       "pickup": {
-        "emotion": "a surprised yelp as if suddenly lifted into the air, 'whoa!'",
+        "emotion": "a startled low gasp and grunt as if suddenly lifted into the air, a quick surprised creature noise, not a human voice, no words",
         "seconds": 0.8,
         "influence": 0.6
       },
       "drop": {
-        "emotion": "a soft landing 'oof' followed by a relieved happy sigh",
+        "emotion": "a soft landing thump with a low animal grunt and a relieved purring sigh, a chubby furry creature, not a human voice",
         "seconds": 1,
         "influence": 0.6
       },
       "emote1": {
-        "emotion": "a triumphant excited cheer, bright and bouncy",
+        "emotion": "a triumphant excited cheer made of deep bouncy chuffs and a happy rumbling burble, low and round, not high-pitched",
         "seconds": 1.2,
         "influence": 0.6
       },
@@ -78,7 +78,7 @@
         "influence": 0.6
       },
       "emote6": {
-        "emotion": "a teasing sing-song taunt, cheeky 'nyah nyah', playful mockery",
+        "emotion": "a smug teasing taunt in animal sounds only, a playful mocking lilt of cheeky creature noises, not a human voice, no words",
         "seconds": 1.5,
         "influence": 0.6
       }
@@ -86,7 +86,7 @@
   },
   "companions": {
     "foil": {
-      "voice": "A plump little pack rat with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched squeaks, happy chitters and rounded little trills, mellow, never shrill, no piercing squeals",
+      "voice": "A chubby sleepy pack rat with a soft warm plush-toy cartoon voice: low-to-mid pitched chuffs, burbling chatter and rounded little grunts, like a purring hamster, mellow and breathy, never shrill, no squeaks, no squeals",
       "lines": {
         "poke": [
           "Squeak? Is that a foil?",
@@ -110,7 +110,7 @@
       }
     },
     "cinder": {
-      "voice": "A chubby baby dragon with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched chirrs, rumbly purring growls and small snorting puffs, rounded and mellow, never shrill, no screeches",
+      "voice": "A chubby baby dragon with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched burbling coos, rumbly purring growls and small snorting puffs with tiny fire sputters, rounded and mellow, never shrill, no chirps, no screeches",
       "lines": {
         "poke": [
           "Hm? Did something poke me?",
@@ -134,7 +134,7 @@
       }
     },
     "folio": {
-      "voice": "A friendly living storybook creature with a plush-toy cartoon voice: soft papery flutters, warm low chirpy babbles and gentle rounded clicks, mellow, never shrill",
+      "voice": "A friendly living storybook creature with a soft warm plush-toy cartoon voice: soft papery page flutters, warm low burbling babbles, gentle growly gasps and rounded little snaps, mellow, never shrill, no chirps",
       "lines": {
         "poke": [
           "Hm? A reader approaches.",
@@ -158,7 +158,7 @@
       }
     },
     "gloop": {
-      "voice": "A cute squishy blob of mana slime with a plush-toy cartoon voice: soft round bubbly blorps, gurgles and happy wet squeaks, warm and mellow, never shrill",
+      "voice": "A cute squishy blob of mana slime with a plush-toy cartoon voice: soft round bubbly blorps, deep gurgles and happy wet burbles, warm and mellow, never shrill, no squeaks",
       "lines": {
         "poke": [
           "Blorp? Hm? Who's there?",
@@ -182,7 +182,7 @@
       }
     },
     "sprout": {
-      "voice": "A shy little mandrake sapling with a soft plush-toy cartoon voice: gentle low-to-mid pitched coos, tiny rustling whimpers and soft rounded peeps, mellow, never shrill, no screams",
+      "voice": "A shy chubby little mandrake root with a soft warm plush-toy cartoon voice: low-to-mid pitched coos, woody hums, rounded little mumbles and gentle grunts, mellow and breathy, never shrill, no peeps, no screams, no rustling",
       "lines": {
         "poke": [
           "Oh! H-hello?",
@@ -206,7 +206,7 @@
       }
     },
     "wick": {
-      "voice": "A cozy candle wisp with a soft plush-toy cartoon voice: gentle low breathy hums, warm flickering whistles and soft rounded sighs, mellow, never shrill",
+      "voice": "A cozy candle wisp with a soft warm plush-toy cartoon voice: low warm hums, gentle murmuring coos and rounded little sighs, like a purring candle flame, mellow, never shrill, no whistles, no hissing, no whispering",
       "lines": {
         "poke": [
           "Oh! A visitor? How cozy.",
@@ -230,7 +230,7 @@
       }
     },
     "crit": {
-      "voice": "A chunky friendly stone golem with a plush-toy cartoon voice: warm low rumbly grunts, soft clacking rolls and goofy rounded hums, mellow, never shrill",
+      "voice": "A chunky friendly stone golem with a soft warm plush-toy cartoon voice: warm low rumbly grunts, deep stony hums and goofy rounded mumbles, mellow, never shrill, no clacking, no screeching",
       "lines": {
         "poke": [
           "Roll for... hello?",
@@ -254,7 +254,7 @@
       }
     },
     "nimbus": {
-      "voice": "A gentle baby whale calf with a soft plush-toy cartoon voice: warm low airy coos, dreamy hummed sighs and soft rounded squeaks, mellow, never shrill",
+      "voice": "A gentle baby whale calf with a soft plush-toy cartoon voice: warm low airy coos, dreamy hummed sighs and soft rounded whale-calf warbles, mellow, never shrill, no squeaks",
       "lines": {
         "poke": [
           "Mm? A little star calls?",
@@ -302,7 +302,7 @@
       }
     },
     "ribbit": {
-      "voice": "A chunky little frog knight with a plush-toy cartoon voice: warm low croaks, soft ribbits and bubbly throat chirps, mellow and rounded, never shrill",
+      "voice": "A chunky little frog knight with a plush-toy cartoon voice: warm low croaks, soft ribbits and bubbly throat burbles, mellow and rounded, never shrill, no chirps",
       "lines": {
         "poke": [
           "Halt! Who goes there? ...Oh.",

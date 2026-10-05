@@ -102,11 +102,11 @@ describe("the shipped voice files", () => {
 
   it("are reported by the helpers", () => {
     expect(hasVoice("hex")).toBe(true);
-    expect(hasVoice("gloop")).toBe(false);
+    expect(hasVoice("not-a-companion")).toBe(false);
     expect(hasVoice(undefined)).toBe(false);
     expect(takeCount("hex", "hello")).toBe(2);
     expect(takeCount("hex", "poke3")).toBe(1);
-    expect(takeCount("gloop", "hello")).toBe(0);
+    expect(takeCount("not-a-companion", "hello")).toBe(0);
   });
 });
 
