@@ -1,9 +1,9 @@
 // Sound packs: which set of sound-effect samples plays (public/sfx/<pack>/). Like UI themes they can be
-// switched at any time (for now from the debug console) and the choice is remembered; ?sounds=<id>
+// switched at any time (from Settings) and the choice is remembered; ?sounds=<id>
 // previews one for a visit without saving it.
 //
-// This is deliberately only about *sound effects*. Background music, when it comes, is its own thing
-// (its own tracks, its own volume and mute) that shares nothing but the page's audio context.
+// This is deliberately only about *sound effects*. Background music is its own thing (music.ts: its own
+// tracks, volume and on/off).
 
 import { useSyncExternalStore } from "react";
 

@@ -78,7 +78,11 @@ src/
     soundPacks.ts    which sound pack plays (switchable, remembered, ?sounds= previews)
     soundStudio.ts   the Sound Studio's sequences and per-sound mix (/dev/sound-studio)
     table/           3D scene, textures, drag & drop, HUD, dialogs
-    debug/           debug console
+    volume.ts        master and sound-effects volume (music keeps its own in music.ts)
+    music.ts         background music: one playlist (public/music/) that plays across every screen
+    components/SettingsDialog.tsx   player settings modal (tabs: Appearance, Sound)
+    components/MusicPlayer.tsx      the music player: corner pill, expands to a bar along the bottom
+    debug/           debug console (bug icon, bottom right)
     theme.ts         UI themes: which one is active and remembered, ?theme= previews, Alt+Shift+T
     themes/          theme overrides (Game Night, Signal) on top of styles.css + screens.css (Arcane)
 ```
@@ -125,7 +129,7 @@ src/
 
 The screens and the table HUD (not the 3D table itself) come in three themes. **Game Night** (walnut,
 brass and oxblood) is the default, **Signal** is graphite with a lime accent, and **Arcane** is the
-original violet-and-gold look. Players pick one at the bottom of the home page, from the debug console, or
+original violet-and-gold look. Players pick one in Settings (the gear in the top bar, or beside Help on the table), at the bottom of the home page, or
 cycle with <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>; the choice is remembered per browser. Visitors who never
 choose follow the default. `?theme=gamenight|signal|arcane` previews a theme for one visit without changing
 the saved choice.
@@ -284,6 +288,10 @@ copies the Comprehensive Rules. HyperDraft is unofficial Fan
 Content permitted under the Wizards of the Coast Fan Content Policy. Not approved/endorsed by Wizards.
 Keep it free — don't paywall or monetize anything built on this data.
 
+Background music (`public/music/`) was generated with [Suno](https://suno.com) (the files carry Suno's C2PA
+provenance metadata). Suno's terms for generated tracks depend on the plan they were made under, so check the
+current terms before using them commercially or redistributing them outside this free project.
+
 ## Pack opening and sound
 
 On the Draft screen a fresh pack is a real 3D foil booster (`src/client/pack/`). It drops in, catches
@@ -295,7 +303,7 @@ instead; add `?pack=css` to the URL to force it. Reduced-motion skips the openin
 
 Sound effects come in switchable **sound packs**, like the UI themes: **Tabletop** (the default: wood,
 cardstock and soft chimes), **Arcane** (crystal chimes, harp), **Library** (parchment, leather, a music box)
-and **Grove** (leaves, twigs, kalimba). Pick one in the debug console (it plays a short sample); the choice is remembered, and
+and **Grove** (leaves, twigs, kalimba). Pick one in Settings (it plays a short sample); the choice is remembered, and
 `?sounds=<pack>` previews one for a visit. Each pack is a folder of short samples in `public/sfx/<pack>/`,
 generated with the [ElevenLabs sound-effects API](https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert)
 (the files are committed, so you only need this to change or add one):
@@ -316,6 +324,20 @@ node scripts/build-sfx.mjs --force              # regenerate everything
 - `sfx.ts` trims each sample's leading silence, matches loudness (capped, and silent takes are skipped), varies pitch
   slightly and never repeats the same take back to back. Packs load on demand; until a sample is ready (or if it's
   missing) an effect falls back to the Tabletop sample, then to a small synth.
+
+## Background music
+
+Seven tracks (`public/music/*.m4a`, listed in `TRACKS` in `src/client/music.ts`) play in order, on a loop, from the
+title screen through drafting to the table: the audio element lives in `music.ts`, not in a screen, so navigating
+never interrupts it. Browsers don't allow audio before the player has interacted, so with music on it starts on the
+first click or key press. The player is a small pill in the bottom-right corner (play/pause, and a button that opens
+it); open, it's a bar along the bottom with a scrubber, previous/next, volume and a popup of all tracks, and the
+screens end above it so it never covers the game. On/off, volume and open/minimized are remembered (`hd.music`);
+the Settings dialog's Sound tab has the on/off and volume too. On load it tries to start straight away (browsers
+allow that only sometimes; otherwise the first click does), unless it was paused last time. The speaker next to the
+volume slider mutes the music without pausing it. Volumes: **Master** (default 70%) scales everything, **Music**
+(50%) and **Effects** (100%) sit under it, all three in Settings → Sound (`volume.ts`, `hd.volume`). Muting effects
+leaves the music alone. A new track is a file in `public/music/` plus an entry in `TRACKS` (a test checks they match).
 
 ## Roadmap
 

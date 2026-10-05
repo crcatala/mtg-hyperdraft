@@ -1,4 +1,4 @@
-// The visible way to switch UI themes (the debug console and Alt+Shift+T are the others).
+// The visible way to switch UI themes (Settings and Alt+Shift+T are the others).
 
 import { setTheme, THEMES, useTheme } from "../theme";
 

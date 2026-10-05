@@ -7,8 +7,11 @@ import { IconGallery } from "./screens/IconGallery";
 import { SoundStudio } from "./screens/SoundStudio";
 import { Toasts } from "./components/Toasts";
 import { ContextMenu } from "./components/ContextMenu";
+import { MusicPlayer } from "./components/MusicPlayer";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { DebugConsole } from "./debug/DebugConsole";
 import { useStore } from "./store";
+import { shortcutsBlocked } from "./shortcuts";
 
 export function App() {
   const path = usePath();
@@ -17,6 +20,7 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "`" || e.key === "~") {
+        if (shortcutsBlocked()) return;
         e.preventDefault();
         const s = useStore.getState();
         s.setDebug({ open: !s.debug.open });
@@ -31,6 +35,8 @@ export function App() {
       {path === "/solo" ? <SoloScreen /> : path === "/dev/icons" ? <IconGallery /> : path === "/dev/sound-studio" ? <SoundStudio /> : code ? <RoomScreen code={code} /> : <Home />}
       <Toasts />
       <ContextMenu />
+      <MusicPlayer />
+      <SettingsDialog />
       <DebugConsole />
     </>
   );

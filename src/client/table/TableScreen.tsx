@@ -22,6 +22,7 @@ import { activePeek } from "../../shared/table";
 import type { IconName } from "../icons";
 import type { CardData, Color, LogEntry, LogKind, LogMark, TableCard, TokenDef, ZoneName } from "../../shared/types";
 import { COLORS, ZONE_LABELS } from "../../shared/types";
+import { isControl, shortcutsBlocked } from "../shortcuts";
 
 export function TableScreen() {
   useTableShortcuts();
@@ -64,6 +65,8 @@ function useTableShortcuts() {
       const el = e.target as HTMLElement;
       if (el.closest("input, textarea, select")) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Settings owns the keyboard while open; and Space on a focused button presses it (the music player's, say).
+      if (shortcutsBlocked() || (e.key === " " && isControl(el))) return;
       const ui = useTableUi.getState();
       // Dialogs and the zoom carousels own the keyboard while open.
       if (ui.ask || ui.handZoom || ui.logZoom) return;
@@ -362,6 +365,7 @@ function ActionBar() {
       </div>
       <span className="dock-sep" aria-hidden />
       <DockButton icon="help" label="Help" tip="Table controls" keys="?" onClick={() => set({ help: true })} />
+      <DockButton icon="gear" label="Settings" tip="Settings: theme and sound" onClick={() => useStore.getState().setSettingsOpen(true)} />
     </div>
   );
 }
@@ -1248,7 +1252,7 @@ const SHORTCUTS: [string, string][] = [
   ["Arrows · Q/E · wheel", "Pan · rotate · zoom the camera (or drag empty table / middle mouse)"],
   ["1–4 · V", "View from a seat (1 is yours) · look down on the whole table"],
   ["Home", "Reset the camera"],
-  ["Alt+Shift+T", "Switch UI theme (or pick one on the home page)"],
+  ["Alt+Shift+T", "Switch UI theme (or open Settings, next to Help)"],
   ["` (backtick)", "Debug console"],
 ];
 

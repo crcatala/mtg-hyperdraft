@@ -5,16 +5,19 @@
 // falls back to another pack's sample or a small WebAudio synth, so the UI is never silent.
 // Muted state persists per browser.
 //
-// The audio graph is: effects → sfxBus → compressor → master → speakers. Background music, when it
-// comes, joins at `master` with its own gain, so it never passes through the effects compressor and
-// can have its own volume and mute.
+// The audio graph is: effects → sfxBus → compressor → master → speakers. Background music is separate
+// (music.ts): its own <audio> element, volume and on/off, so it never passes through the effects
+// compressor and muting effects leaves it alone.
 
+import { useSyncExternalStore } from "react";
 import manifest from "./sfxManifest.json";
 import { analyze, isAudible, jitter, normalizeGain, pickTake } from "./sfxMath";
 import { activePack, FALLBACK_PACK, type PackId } from "./soundPacks";
+import { getVolumes, onVolumes, setSfxVolume } from "./volume";
 
 let ctx: AudioContext | null = null;
 let bus: AudioNode | null = null;
+let busGain: GainNode | null = null;
 let muted = (() => {
   try {
     return localStorage.getItem("hyperdraft:muted") === "1";
@@ -86,6 +89,12 @@ function takesOf(name: string): { takes: Take[]; pack: PackId } | undefined {
   return fallback?.length ? { takes: fallback, pack: FALLBACK_PACK } : undefined;
 }
 
+/** The player's sound effects volume × the master volume. */
+function applyLevel() {
+  const v = getVolumes();
+  if (busGain) busGain.gain.value = v.sfx * v.master;
+}
+
 function audio(): AudioContext | null {
   if (muted) return null;
   if (!ctx) {
@@ -102,7 +111,9 @@ function audio(): AudioContext | null {
       comp.release.value = 0.22;
       const sfxBus = ctx.createGain();
       sfxBus.connect(comp).connect(master);
-      bus = sfxBus;
+      bus = busGain = sfxBus;
+      applyLevel();
+      onVolumes(applyLevel);
     } catch {
       return null;
     }
@@ -163,14 +174,34 @@ export function isMuted() {
   return muted;
 }
 
+const muteListeners = new Set<() => void>();
+
+/** Re-renders when sound is muted or unmuted from anywhere (the draft's quick toggle, Settings). */
+export function useMuted(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      muteListeners.add(cb);
+      return () => muteListeners.delete(cb);
+    },
+    () => muted,
+  );
+}
+
 export function setMuted(m: boolean) {
   muted = m;
+  muteListeners.forEach((l) => l());
   if (m) tearVoice?.end(false);
   try {
     localStorage.setItem("hyperdraft:muted", m ? "1" : "0");
   } catch {
     /* ignore */
   }
+}
+
+/** The effects volume slider: raising it from a mute un-mutes, like the music one (and like every volume control). */
+export function setEffectsVolume(v: number) {
+  setSfxVolume(v);
+  if (v > 0 && muted) setMuted(false);
 }
 
 interface PlayOptions {

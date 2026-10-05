@@ -121,6 +121,11 @@ export const ICONS = {
   crown: [soft("M4 17.5L3 7.5l5 3.8L12 4.5l4 6.8 5-3.8-1 10z"), stroke("M4.5 21h15")],
 
   // --- general UI ---
+  /** Music: a pair of beamed eighth notes. */
+  music: [stroke("M9 18V5.5l11-2V16"), stroke("M9 9.5l11-2"), solid(circle(6.5, 18, 2.5)), solid(circle(17.5, 16, 2.5))],
+  pause: [soft(roundRect(6, 5, 4, 14, 1)), soft(roundRect(14, 5, 4, 14, 1))],
+  /** Previous track: the mirror of `skip`. */
+  prev: [soft("M19 5.5v13l-9-6.5z"), stroke("M5.5 5.5v13")],
   volume: [stroke("M3.5 9.5H7l4.5-4v13l-4.5-4H3.5z"), stroke("M15 9a4.2 4.2 0 0 1 0 6"), stroke("M18 6.3a8 8 0 0 1 0 11.4")],
   "volume-off": [stroke("M3.5 9.5H7l4.5-4v13l-4.5-4H3.5z"), stroke("M15.5 9.5l5 5"), stroke("M20.5 9.5l-5 5")],
   pencil: [stroke("M4 20l1.1-4.5L15.6 5a2.1 2.1 0 0 1 3 0l.4.4a2.1 2.1 0 0 1 0 3L8.5 18.9z"), stroke("M13.6 7l3.4 3.4")],
@@ -134,6 +139,20 @@ export const ICONS = {
   /** Turn a card over: counter-clockwise arrow (the old ⟲). */
   flip: [stroke("M4.5 12A7.5 7.5 0 1 0 12 4.5"), stroke("M14.8 1.7L12 4.5l2.8 2.8")],
   gear: [stroke(gear(8, 7.3, 10)), stroke(circle(12, 12, 3))],
+  /** Debug tools: a beetle seen from above, antennae up and three legs a side. */
+  bug: [
+    stroke("M7.5 15a4.5 5.5 0 1 0 9 0a4.5 5.5 0 1 0 -9 0z"),
+    stroke("M12 9.5v11"),
+    stroke(circle(12, 7.2, 2.2)),
+    stroke("M10.6 5.5L8.5 3"),
+    stroke("M13.4 5.5L15.5 3"),
+    stroke("M8 12.5L4 10.5"),
+    stroke("M7.5 15.5H3.5"),
+    stroke("M8.2 18L4.5 20.5"),
+    stroke("M16 12.5L20 10.5"),
+    stroke("M16.5 15.5H20.5"),
+    stroke("M15.8 18L19.5 20.5"),
+  ],
   /** Disconnected: signal arcs, struck through. */
   offline: [stroke("M5 10.2a10 10 0 0 1 14 0"), stroke("M8.2 13.6a5.5 5.5 0 0 1 7.6 0"), solid(circle(12, 17.5, 1.4)), stroke("M4 4l16 16")],
   /** View all: a 2×2 grid of cards. */

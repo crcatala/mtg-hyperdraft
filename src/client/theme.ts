@@ -1,7 +1,7 @@
 // UI themes: the look of the screens and the table HUD (not the 3D table itself). The theme lives on
 // <html data-theme>: styles.css + screens.css are the base (and the Arcane look), and each other
-// theme layers its overrides on top from themes/<id>.css. Players pick one on Home (ThemePicker),
-// from the debug console, or cycle with Alt+Shift+T; that choice is remembered. ?theme=<id> previews
+// theme layers its overrides on top from themes/<id>.css. Players pick one in Settings (the gear), on Home
+// (ThemePicker), or cycle with Alt+Shift+T; that choice is remembered. ?theme=<id> previews
 // a theme for one visit without changing it.
 
 import { useSyncExternalStore } from "react";
