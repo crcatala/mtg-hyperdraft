@@ -64,3 +64,9 @@ Shared, one time: 6 emote icons, ~12 effect glyphs, radial wheel UI, bubble UI (
 ## Ticket order
 spike (voices) -> kit/content schema -> {voice bank runtime, generate other 9 voices, animation engine} -> poke -> emote wheel -> pick up/drop -> polish. Stretch: bot chatter, expression frames.
 
+
+## Notes
+
+**2026-10-05T19:21:56Z**
+
+New child mh-lhxh (customize your emote wheel lines, this tab only, in memory, no content filter), filed at the human's request: it comes after mh-kqys and before mh-5mz2 (mh-5mz2 now depends on it). Ticket order: ... mh-kqys -> mh-lhxh -> mh-5mz2 -> mh-ntsj.
