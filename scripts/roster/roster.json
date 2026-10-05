@@ -141,7 +141,7 @@
    "color": "#c9a0ff",
    "desc": "A plump brown pack rat wearing a shiny holographic booster-pack wrapper as a little cape, tiny whiskers, buck teeth, clutching a single trading card like treasure.",
    "personality": "Hoarder, optimist, tiny gambler. Squeaks with delight at foil cards.",
-   "emotes": [
+   "moves": [
     "Hug the card",
     "Cape flourish",
     "Nibble the pack",
@@ -155,7 +155,7 @@
    "color": "#ff7a3d",
    "desc": "A chubby baby dragon with a round belly, stubby wings and tiny horns, warm orange scales with a glowing ember-colored belly, a small flame at the tip of its tail, big curious golden eyes, a wisp of smoke from one nostril.",
    "personality": "Overeager, easily offended, loyal. Sneezes small fireballs when excited.",
-   "emotes": [
+   "moves": [
     "Sneeze (fire puff)",
     "Flap hover",
     "Pout with smoke",
@@ -169,7 +169,7 @@
    "color": "#8f6bff",
    "desc": "A small leather-bound spellbook that has grown stubby legs, with a big toothy page-mouth, one big expressive eye on the cover, ribbon bookmark hanging like a tongue, brass corners, floating pages fluttering around it.",
    "personality": "Know-it-all, curious, bites when ignored. Whispers rules trivia.",
-   "emotes": [
+   "moves": [
     "Flip open and gasp",
     "Snap shut (hide)",
     "Page-flutter dance",
@@ -183,7 +183,7 @@
    "color": "#45e0ff",
    "desc": "A translucent jelly slime, wobbly dome-shaped, glowing cyan-teal with a small glowing glass-like mana gem floating inside it, two big shiny dot eyes, a tiny happy mouth, little bubbles inside the body.",
    "personality": "Sleepy, affectionate, absorbs things by accident. Glows brighter when you tap mana.",
-   "emotes": [
+   "moves": [
     "Wobble",
     "Squish flat",
     "Absorb a token",
@@ -197,7 +197,7 @@
    "color": "#7dd957",
    "desc": "A tiny mandrake root-creature sitting in a little terracotta pot, plump pale-green body, a leafy sprout on its head with a small flower bud, stubby root arms, round dark eyes, a shy smile.",
    "personality": "Shy, gentle, dramatic when uprooted. Screams (cutely) when you shuffle.",
-   "emotes": [
+   "moves": [
     "Bloom the flower",
     "Hide in the pot",
     "Wave leaf",
@@ -211,7 +211,7 @@
    "color": "#f4c55b",
    "desc": "A small melted candle ghost with a warm friendly face, a tiny flame on the top, little wax drips forming stubby arms and a wavy base instead of feet, big soft eyes, a wisp of smoke.",
    "personality": "Cozy, spooky-but-sweet, afraid of drafts. Flame flickers with mood.",
-   "emotes": [
+   "moves": [
     "Flicker (nervous)",
     "Flame flare (excited)",
     "Drip melt",
@@ -225,7 +225,7 @@
    "color": "#ff5d6c",
    "desc": "A small stone golem whose body is a chunky twenty-sided die with glowing rune-numbers on its faces, stubby rocky arms and legs, a carved friendly face on the front face, moss on one shoulder.",
    "personality": "Steady, goofy, takes everything as a roll. Insists a natural 20 is always imminent.",
-   "emotes": [
+   "moves": [
     "Roll tumble",
     "Nat-20 cheer",
     "Nat-1 sad slump",
@@ -239,7 +239,7 @@
    "color": "#6cc8ff",
    "desc": "A tiny floating baby whale-shaped cloud creature in soft indigo with a belly full of glittering constellation dots, little cloud-puff fins, a crescent moon shaped smile, large gentle eyes, small sparkles trailing behind it.",
    "personality": "Dreamy, wise beyond its size, drifts toward whoever is having a bad day.",
-   "emotes": [
+   "moves": [
     "Drift in a circle",
     "Sing (sparkles)",
     "Rain a little",
@@ -253,7 +253,7 @@
    "color": "#ffd24a",
    "desc": "A round fluffy black cat with big yellow eyes, a tiny crooked purple witch hat sitting between its ears, a small gold star-shaped patch on its chest, white paws like little socks, and a tail ending in a tiny glowing star spark.",
    "personality": "Aloof, curious, loves sitting on whichever card you were about to read. Knocks tokens off the table on purpose.",
-   "emotes": [
+   "moves": [
     "Loaf (sit on the card)",
     "Knock a token off",
     "Tail-star twirl",
@@ -267,7 +267,7 @@
    "color": "#7dd957",
    "desc": "A tiny plump green frog knight wearing an acorn-cap helmet, carrying a leaf-shaped shield and a twig sword with a small cross-guard, big round eyes, a puffed-out throat bubble, pale yellow belly, wide brave grin, a little red ribbon tied around one arm.",
    "personality": "Brave, wobbly and very dramatic. Challenges every creature to a duel, then hides behind the shield.",
-   "emotes": [
+   "moves": [
     "Throat-bubble croak",
     "Shield up",
     "Sword salute",

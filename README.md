@@ -144,7 +144,7 @@ reveals the character behind it.
 - `setLook` (lobby only) sets or clears either choice; the room engine in `shared/room.ts` does all the
   bookkeeping, so solo mode behaves the same.
 - Companions are flat pictures for now (`CompanionFigure` in `table/TableScene.tsx`); each has a list of
-  planned `emotes` for when they become 3D models.
+  planned `moves` for when they become 3D models.
 - To add a character, add an entry to `roster.ts` and its images; `tests/roster.test.ts` checks that
   every entry has its files. The prompts and style notes used to generate the current art are in
   `scripts/roster/roster.json`.
@@ -358,7 +358,7 @@ node scripts/build-companion-sfx.mjs hex hello poke1    # only these slots (--ca
 node scripts/build-voice-audition.mjs hex               # checks them (audible, clipping, treble) and writes the audition page
 ```
 
-`scripts/roster/voices.json` holds each companion's voice signature and the shared per-slot emotions. With `npm run dev`
+`src/shared/companionKit.json` holds each companion's voice signature, the shared per-slot emotions and the speech lines (`companionKit.ts` types it and defines the slots: 7 poke steps, pickup, drop, 6 emote tones). With `npm run dev`
 running, open `/scripts/roster/voice-candidates/audition`, tick the picks and copy them. Copy the keepers to
 `public/sfx/companions/<id>/<slot>.mp3` (`<slot>-1/-2.mp3` when a slot has several takes). Wording that sounds cute rather
 than shrill: "plush-toy cartoon, low-to-mid pitched, mellow, never shrill", not "small, high-pitched" (needs ffmpeg).

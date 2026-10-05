@@ -1,6 +1,6 @@
 ---
 id: mh-5c1t
-status: open
+status: closed
 deps: [mh-ciu5]
 links: []
 created: 2026-10-05T03:43:31Z
@@ -43,3 +43,21 @@ All later tickets (voice bank, animation engine, poke, emotes, drag) need one ag
 - Slot helpers exported with unit tests (index validation, counts: 7 poke, 6 emote).
 - `npm run typecheck` and `rtk vitest run` pass.
 
+
+## Notes
+
+**2026-10-05T05:14:08Z**
+
+WIP (agent): emotes->moves renamed (roster.ts, roster.json, CharacterSelect, README). Kit source of truth is now src/shared/companionKit.json (voice suffix+slot descriptors, per-companion voice signature + 15 lines); typed wrapper src/shared/companionKit.ts (POKE_STEPS=7, EMOTE_SLOTS, validators, VOICE_SLOT_IDS(16), REACTION_IDS(18)). scripts/roster/voices.json deleted; build-companion-sfx.mjs and build-voice-audition.mjs read the kit (Hex/nimbus/gloop/ribbit wording byte-identical to the spike). Signatures for foil/cinder/folio/sprout/wick/crit are NEW (same plush-toy template) and untested against the API: mh-2rwl will audition them. 150 lines written; human review of the line table in the PR is pending.
+
+**2026-10-05T12:31:18Z**
+
+Human review (quoted): "i reviewed all speech and look great to me, i approve." All 150 speech lines approved as written, no edits (PR #28). Voice signatures for foil/cinder/folio/sprout/wick/crit were not separately reviewed; mh-2rwl auditions them.
+
+**2026-10-05T12:31:40Z**
+
+Human review of the 150 speech lines (PR #28), quoted: "i reviewed all speech and look great to me, i approve". No edits requested. Voice signatures for foil/cinder/folio/sprout/wick/crit were not separately reviewed; mh-2rwl will audition the sounds.
+
+**2026-10-05T12:35:09Z**
+
+Post-approval edits (human OK'd: "sure go ahead"), from review feedback: (1) Hex emote slots were shifted by one (no silly line; sass/taunt held the wrong tones): silly now "Chased my tail. Forgot why.", sass "Mm. Almost impressive.", taunt "Ten lives. You have one." ("Is that your best? Yawn." dropped). (2) Silly slot varied: folio "Footnotes walk. Look it up.", gloop "Blorp. It means everything.", crit "I'm 20 sides of pure vibes.", ribbit "I knighted a fly. It left.". Added a test capping question-shaped silly lines at 4 of 10.
