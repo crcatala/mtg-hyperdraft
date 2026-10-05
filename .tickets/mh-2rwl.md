@@ -92,3 +92,7 @@ Sprout, generated (agent), PENDING human audition. Two wording rounds. v1 ("gent
 **2026-10-05T15:03:01Z**
 
 Correction to the previous note: running total of generations for this ticket is ~700 (foil ~190, cinder ~75, folio ~75, gloop ~100, sprout ~245), not 1000+. At ~5 credits per 1 s sound that is roughly 3,500 credits if the spike rate holds; balance still unreadable.
+
+**2026-10-05T15:08:32Z**
+
+Human sign-off, sprout (quoted): picks pasted with "verdict": "GO" ("Go picks for sprout"). Picks (shipped <- candidate): hello-1<-hello-3, hello-2<-hello-1, poke1-1<-poke1-2, poke1-2<-poke1-1, poke2-1<-poke2-2, poke2-2<-poke2-3, poke3<-poke3-1, poke4<-poke4-1, poke5<-poke5-3, poke6<-poke6-2, poke7<-poke7-3, pickup<-pickup-1, drop<-drop-2, emote1<-emote1-2, emote2<-emote2-3, emote3<-emote3-2, emote4<-emote4-2, emote5<-emote5-1, emote6<-emote6-2 (19 files, public/sfx/companions/sprout/). No comment on the omitted finale scream. Done: hex, foil, cinder, folio, gloop, sprout. Next: wick.
