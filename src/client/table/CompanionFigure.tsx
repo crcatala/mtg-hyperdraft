@@ -212,8 +212,8 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
 
 /**
  * Where its speech bubble points: just above its head as the picture is drawn (along the screen's up, not the
- * world's: from overhead those differ), in viewport pixels, every frame. The bubble itself is DOM
- * (SpeechBubbles.tsx), so it draws over the HUD too.
+ * world's: from overhead those differ), and where its feet are (for a bubble that has to go underneath), in
+ * viewport pixels, every frame. The bubble itself is DOM (SpeechBubbles.tsx), so it draws over the HUD too.
  */
 function BubbleAnchor({ playerId, height }: { playerId: string; height: number }) {
   const ref = useRef<THREE.Group>(null);
@@ -222,12 +222,20 @@ function BubbleAnchor({ playerId, height }: { playerId: string; height: number }
   useFrame(({ camera }) => {
     const g = ref.current;
     if (!g) return;
-    g.getWorldPosition(head).addScaledVector(up.setFromMatrixColumn(camera.matrixWorld, 1), height);
-    head.project(camera);
     const r = gl.domElement.getBoundingClientRect();
-    bubbleAnchors.set(playerId, { x: r.left + ((head.x + 1) / 2) * r.width, y: r.top + ((1 - head.y) / 2) * r.height, on: head.z < 1 });
+    g.getWorldPosition(foot);
+    head.copy(foot).addScaledVector(up.setFromMatrixColumn(camera.matrixWorld, 1), height);
+    foot.project(camera);
+    head.project(camera);
+    bubbleAnchors.set(playerId, {
+      x: r.left + ((head.x + 1) / 2) * r.width,
+      y: r.top + ((1 - head.y) / 2) * r.height,
+      footY: r.top + ((1 - foot.y) / 2) * r.height,
+      on: head.z < 1,
+    });
   });
   return <group ref={ref} />;
 }
 
 const head = new THREE.Vector3();
+const foot = new THREE.Vector3();

@@ -55,14 +55,28 @@ describe("speech bubbles", () => {
   });
 
   it("centres a bubble over its companion, sliding it inside the window near an edge with the tail still on the companion", () => {
-    expect(placeBubble(500, 200, 1280)).toEqual({ left: 400, tail: 100 });
+    const at = (x: number) => ({ x, y: 400, footY: 470 });
+    const place = (x: number, w: number, viewW = 1280) => placeBubble(at(x), w, 50, 10, viewW, 800);
+    expect(place(500, 200)).toEqual({ left: 400, top: 340, tail: 100, below: false });
     // Near the left edge: the body slides right, the tail moves left to keep pointing at x = 60.
-    expect(placeBubble(60, 200, 1280)).toEqual({ left: BUBBLE_MARGIN, tail: 60 - BUBBLE_MARGIN });
+    expect(place(60, 200)).toMatchObject({ left: BUBBLE_MARGIN, tail: 60 - BUBBLE_MARGIN });
     // Near the right edge.
-    expect(placeBubble(1270, 200, 1280)).toEqual({ left: 1280 - 200 - BUBBLE_MARGIN, tail: 200 - 22 });
+    expect(place(1270, 200)).toMatchObject({ left: 1280 - 200 - BUBBLE_MARGIN, tail: 200 - 22 });
     // The tail never runs into the rounded corners, even for a companion right at the edge.
-    expect(placeBubble(0, 200, 1280).tail).toBe(22);
+    expect(place(0, 200).tail).toBe(22);
     // Wider than the window: centred.
-    expect(placeBubble(100, 400, 300).left).toBe(-50);
+    expect(place(100, 400, 300).left).toBe(-50);
+  });
+
+  it("goes under the companion, tail up, when the top of the window would cut it off; pinned to the top if neither fits", () => {
+    const place = (y: number, footY: number, viewH = 800) => placeBubble({ x: 500, y, footY }, 200, 50, 10, 1280, viewH);
+    // Just enough room above: stays above.
+    expect(place(BUBBLE_MARGIN + 60, 130)).toMatchObject({ top: BUBBLE_MARGIN, below: false });
+    // One pixel short: under the feet, the tail's length below them.
+    expect(place(BUBBLE_MARGIN + 59, 130)).toMatchObject({ top: 140, below: true });
+    // A head off the top of the window (the feet still in view).
+    expect(place(-30, 40)).toMatchObject({ top: 50, below: true });
+    // A tiny window where it fits neither way: above, pinned to the top edge.
+    expect(place(20, 60, 100)).toMatchObject({ top: BUBBLE_MARGIN, below: false });
   });
 });

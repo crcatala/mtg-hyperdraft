@@ -56,26 +56,42 @@ export function say(playerId: string, text: string | undefined, size: BubbleSize
 }
 
 /**
- * Where each companion's bubble points, in viewport pixels: the top of its head, as drawn this frame. The 3D
- * figure writes it (it knows the camera); the bubbles themselves are DOM (SpeechBubbles.tsx), drawn over the
- * whole table screen, HUD panels included, so a companion in a corner of the screen can still be read.
- * `on` is false while the head is behind the camera.
+ * Where each companion's bubble points, in viewport pixels: the top of its head (x, y) and its feet (footY), as
+ * drawn this frame. The 3D figure writes it (it knows the camera); the bubbles themselves are DOM
+ * (SpeechBubbles.tsx), drawn over the whole table screen, HUD panels included, so a companion in a corner of the
+ * screen can still be read. `on` is false while the head is behind the camera.
  */
-export const bubbleAnchors = new Map<string, { x: number; y: number; on: boolean }>();
+export const bubbleAnchors = new Map<string, { x: number; y: number; footY: number; on: boolean }>();
 
 /** Gap kept between a bubble and the edges of the window. */
 export const BUBBLE_MARGIN = 8;
 
+export interface BubblePlace {
+  /** Top-left corner of the bubble's body. */
+  left: number;
+  top: number;
+  /** Where the tail sits along the body (px from its left edge). */
+  tail: number;
+  /** Under the companion (its tail pointing up), when there's no room above its head. */
+  below: boolean;
+}
+
 /**
- * A bubble `width` px wide pointing at `anchorX`: its left edge, slid sideways to stay inside a `viewW` window,
- * and where its tail sits along it (px from its left edge), so the tail still points at the companion.
+ * Where a bubble `width` × `height` px (body only; its tail reaches `tailSize` further) goes for a companion whose
+ * head is at (x, y) and feet at footY, in a `viewW` × `viewH` window. Above the head, slid sideways to stay
+ * inside the window with the tail still on the companion; under the feet when the top of the window would cut it
+ * off (a companion near the top edge); above, pinned to the top edge, if it fits neither way.
  */
-export function placeBubble(anchorX: number, width: number, viewW: number): { left: number; tail: number } {
+export function placeBubble(at: { x: number; y: number; footY: number }, width: number, height: number, tailSize: number, viewW: number, viewH: number): BubblePlace {
   const max = viewW - width - BUBBLE_MARGIN;
-  const left = max < BUBBLE_MARGIN ? (viewW - width) / 2 : Math.min(Math.max(anchorX - width / 2, BUBBLE_MARGIN), max);
+  const left = max < BUBBLE_MARGIN ? (viewW - width) / 2 : Math.min(Math.max(at.x - width / 2, BUBBLE_MARGIN), max);
   // The tail keeps clear of the rounded corners.
-  const tail = Math.min(Math.max(anchorX - left, 22), width - 22);
-  return { left, tail };
+  const tail = Math.min(Math.max(at.x - left, 22), width - 22);
+  const above = at.y - tailSize - height;
+  if (above >= BUBBLE_MARGIN) return { left, top: above, tail, below: false };
+  const under = at.footY + tailSize;
+  if (under + height <= viewH - BUBBLE_MARGIN) return { left, top: under, tail, below: true };
+  return { left, top: BUBBLE_MARGIN, tail, below: false };
 }
 
 /** Takes every bubble down at once (leaving the table: the next room reuses player ids). */

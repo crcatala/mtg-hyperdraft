@@ -5369,3 +5369,16 @@ html[data-music-open] .debug-console {
 .speech-text {
   flex: 1;
 }
+/* Too near the top of the window: under the companion, its tail pointing up. */
+.speech-bubble.below::before {
+  top: auto;
+  bottom: 100%;
+  border-width: 0 calc(var(--tail-size) * 0.85) var(--tail-size);
+  border-color: transparent transparent var(--ink);
+}
+.speech-bubble.below::after {
+  top: auto;
+  bottom: calc(100% - var(--line) * 1.2);
+  border-width: 0 calc((var(--tail-size) - var(--line)) * 0.85) calc(var(--tail-size) - var(--line));
+  border-color: transparent transparent var(--tint, #fff7e8);
+}

@@ -1,6 +1,7 @@
 // Companions' speech bubbles (companionTalk.ts): plain DOM over the whole screen, HUD panels included, so a
 // companion standing in a corner of the view can still be read. Each one points at its companion's head, where
-// the 3D figure last saw it (bubbleAnchors), and slides sideways to stay inside the window. Small for pokes,
+// the 3D figure last saw it (bubbleAnchors), slides sideways to stay inside the window, and goes under the
+// companion instead when it's too near the top. Small for pokes,
 // large and in the emote's colour for emotes. Text is rendered by React, never as HTML.
 
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
@@ -66,12 +67,14 @@ function place(el: HTMLDivElement, playerId: string, b: Bubble, still: boolean) 
     el.style.opacity = "0";
     return;
   }
-  const w = el.offsetWidth;
   const h = el.offsetHeight;
-  const { left, tail } = placeBubble(at.x, w, window.innerWidth);
+  const tailSize = TAIL[b.size];
+  const spot = placeBubble(at, el.offsetWidth, h, tailSize, window.innerWidth, window.innerHeight);
   const pop = bubblePop(performance.now() - b.at, still, b.size);
-  el.style.setProperty("--tail", `${tail}px`);
-  el.style.transformOrigin = `${tail}px ${h + TAIL[b.size]}px`;
-  el.style.transform = `translate(${left}px, ${at.y - h - TAIL[b.size]}px) rotate(${pop.rot}rad) scale(${pop.scale})`;
+  el.classList.toggle("below", spot.below);
+  el.style.setProperty("--tail", `${spot.tail}px`);
+  // It pops from its tail's tip.
+  el.style.transformOrigin = `${spot.tail}px ${spot.below ? -tailSize : h + tailSize}px`;
+  el.style.transform = `translate(${spot.left}px, ${spot.top}px) rotate(${pop.rot}rad) scale(${pop.scale})`;
   el.style.opacity = String(pop.alpha);
 }
