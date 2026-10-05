@@ -21,20 +21,13 @@ export function CompanionVoices() {
     return companionDef(asked ?? undefined)?.id ?? COMPANIONS.find((c) => filled(c.id) > 0)?.id ?? COMPANIONS[0].id;
   });
   const [variant, setVariant] = useState(0);
-  const [ready, setReady] = useState(false);
   const [lit, setLit] = useState<string | null>(null);
   const voice = useRef<Voice | null>(null);
   const def = companionDef(id)!;
   const present = filled(id);
 
-  useEffect(() => {
-    setReady(false);
-    let current = true;
-    void loadVoice(id).then(() => current && setReady(true));
-    return () => {
-      current = false;
-    };
-  }, [id]);
+  // Fetch the voice as soon as it's picked (it waits for the first click, which unlocks audio).
+  useEffect(() => void loadVoice(id), [id]);
 
   // Light the row while its sound plays.
   useEffect(
@@ -48,9 +41,14 @@ export function CompanionVoices() {
   );
   useEffect(() => () => stopAll(), []);
 
+  const asked = useRef(0);
   const play = (slot: string, take?: number) => {
     voice.current?.stop();
-    voice.current = playVoice(id, slot, { variant, take });
+    const mine = ++asked.current;
+    // The click that gets here has already unlocked audio; the first play of a voice waits for its files.
+    void loadVoice(id).then(() => {
+      if (mine === asked.current) voice.current = playVoice(id, slot, { variant, take });
+    });
   };
 
   return (
@@ -103,7 +101,7 @@ export function CompanionVoices() {
         </div>
         {present === 0 && <p className="pill warn ss-muted">{def.name} has no voice files yet (see scripts/build-companion-sfx.mjs).</p>}
         <div className="panel ss-table-wrap scroll">
-          <table className="ss-table">
+          <table className="ss-table cv-table">
             <thead>
               <tr>
                 <th scope="col">Slot</th>
@@ -121,19 +119,19 @@ export function CompanionVoices() {
                       <code>{slot}</code>
                       <span className="faint">{voiceSlotLabel(slot)}</span>
                     </th>
-                    <td>{line ? <span className="cv-line">“{line}”</span> : <span className="faint">—</span>}</td>
-                    <td>
+                    <td className="cv-cell">{line ? <span className="cv-line">“{line}”</span> : <span className="faint">—</span>}</td>
+                    <td className="cv-cell">
                       {n === 0 ? (
                         <span className="pill warn">missing</span>
                       ) : (
                         <span className="cv-takes">
-                          <button className="btn small" disabled={!ready} onClick={() => play(slot)} aria-label={`Play ${slot}`}>
+                          <button className="btn small" onClick={() => play(slot)} aria-label={`Play ${slot}`}>
                             <Icon name="play" />
                             Play
                           </button>
                           {n > 1 &&
                             Array.from({ length: n }, (_, i) => (
-                              <button key={i} className="btn small ghost" disabled={!ready} onClick={() => play(slot, i)} aria-label={`Play take ${i + 1} of ${slot}`}>
+                              <button key={i} className="btn small ghost" onClick={() => play(slot, i)} aria-label={`Play take ${i + 1} of ${slot}`}>
                                 {i + 1}
                               </button>
                             ))}

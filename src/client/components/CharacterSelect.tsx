@@ -40,6 +40,8 @@ export function CharacterSelect({ initialTab = "avatar", onClose }: { initialTab
   const [hop, setHop] = useState({ id: "", n: 0 });
   const myCompanion = useRef({ id: me?.companion, variant: me?.companionVariant ?? 0 });
   myCompanion.current = { id: me?.companion, variant: me?.companionVariant ?? 0 };
+  /** A companion just clicked: it says hello once the room confirms it (and which colour variant you got, which sets its pitch). */
+  const helloOnArrival = useRef<string | null>(null);
   const gate = useRef<ReturnType<typeof createHelloGate>>(null);
   gate.current ??= createHelloGate({
     say: (id) => {
@@ -62,6 +64,12 @@ export function CharacterSelect({ initialTab = "avatar", onClose }: { initialTab
   useEffect(() => {
     gate.current?.rest(tab === "companion" && peek && peek !== NONE ? peek : null);
   }, [tab, peek]);
+  useEffect(() => {
+    if (helloOnArrival.current && helloOnArrival.current === me?.companion) {
+      helloOnArrival.current = null;
+      gate.current?.pick(me.companion);
+    }
+  }, [me?.companion, me?.companionVariant]);
   useEffect(
     () => () => {
       gate.current?.cancel();
@@ -94,8 +102,13 @@ export function CharacterSelect({ initialTab = "avatar", onClose }: { initialTab
   /** `id` null clears the choice. */
   const choose = (id: string | null) => {
     if (tab === "companion") {
-      if (id) gate.current?.pick(id);
-      else silenceHello();
+      helloOnArrival.current = null;
+      if (!id) silenceHello();
+      else if (id === current) gate.current?.pick(id);
+      else {
+        gate.current?.cancel();
+        helloOnArrival.current = id;
+      }
     }
     if ((id ?? NONE) === current) return;
     send({ t: "setLook", [tab]: id });
