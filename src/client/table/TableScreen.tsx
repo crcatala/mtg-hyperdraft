@@ -14,6 +14,7 @@ import { beginDrag, tableApi } from "./drag";
 import { handLayout } from "./handLayout";
 import { reducedMotion, startTableMotion, useMotion } from "./motion";
 import { resetCompanions } from "./companionPoke";
+import { EmoteLinesDialog } from "./EmoteLinesDialog";
 import { EmoteWheel } from "./EmoteWheel";
 import { SpeechBubbles } from "./SpeechBubbles";
 import { relativeTime, RELATIVE_TIME_REFRESH_MS } from "../relativeTime";
@@ -37,6 +38,7 @@ export function TableScreen() {
       <TableCanvas />
       <SpeechBubbles />
       <EmoteWheel />
+      <EmoteLinesDialog />
       <PlayersHud />
       <TurnBar />
       <TableDock />

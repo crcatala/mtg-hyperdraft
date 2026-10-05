@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cooldownLeft, EMOTE_COOLDOWN_MS, emoteBadge, stepWedge, wedgeAngle, wedgeAt, wedgeCenter, wedgePath, wheelCenter, WHEEL_HOLE, WHEEL_R } from "../src/client/table/emoteWheel";
+import { cooldownLeft, EMOTE_COOLDOWN_MS, emoteBadge, stepWedge, wedgeAngle, wedgeAt, wedgeCenter, wedgePath, wheelCenter, wheelExtrasAbove, UNDER_WHEEL_PX, WHEEL_HOLE, WHEEL_R } from "../src/client/table/emoteWheel";
 import { EMOTE_COUNT } from "../src/shared/companionKit";
 import { EMOTE_COOLDOWN_MS as SERVER_COOLDOWN_MS } from "../src/shared/room";
 import { ICONS } from "../src/client/icons";
@@ -58,6 +58,23 @@ describe("emote wheel", () => {
     expect(wheelCenter(1279, 5, 1280, 800)).toEqual({ x: 1280 - edge, y: edge });
     // A screen too small for it: centred.
     expect(wheelCenter(10, 10, 200, 200)).toEqual({ x: 100, y: 100 });
+  });
+
+  it("puts Edit lines and the line under the ring, over it only when there's less room below than above", () => {
+    // Plenty of room below.
+    expect(wheelExtrasAbove(400, 800)).toBe(false);
+    // Near the bottom of a tall window: over.
+    const atBottom = wheelCenter(600, 790, 1280, 800).y;
+    expect(wheelExtrasAbove(atBottom, 800)).toBe(true);
+    expect(wheelExtrasAbove(800 - WHEEL_R - UNDER_WHEEL_PX, 800)).toBe(false);
+    expect(wheelExtrasAbove(800 - WHEEL_R - UNDER_WHEEL_PX + 1, 800)).toBe(true);
+    // A short window (a landscape phone), ring pushed to the top: 80 px below beats 8 px above, so it stays
+    // under (it used to go over, off the top of the screen).
+    const atTop = wheelCenter(400, 100, 1280, 360).y;
+    expect(atTop).toBe(WHEEL_R + 8);
+    expect(wheelExtrasAbove(atTop, 360)).toBe(false);
+    // Same window, ring pushed to the bottom: over, where the room is.
+    expect(wheelExtrasAbove(wheelCenter(400, 350, 1280, 360).y, 360)).toBe(true);
   });
 
   it("arrow keys walk round the wheel, starting at the top", () => {

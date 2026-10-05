@@ -76,6 +76,20 @@ export function wheelCenter(x: number, y: number, viewW: number, viewH: number, 
   return { x: clamp(x, viewW), y: clamp(y, viewH) };
 }
 
+/** Room the "Edit lines" pill and the hovered line need next to the ring, in px. */
+export const UNDER_WHEEL_PX = 104;
+
+/**
+ * Whether the pill and the line go over the ring instead of under it (for a ring centred at `centerY` in a
+ * window `viewH` tall): only when there's too little room below and more above, so in a short window they
+ * stay on whichever side shows the most of them.
+ */
+export function wheelExtrasAbove(centerY: number, viewH: number): boolean {
+  const below = viewH - (centerY + WHEEL_R);
+  const above = centerY - WHEEL_R;
+  return below < UNDER_WHEEL_PX && above > below;
+}
+
 /** The wedge an arrow key moves to: clockwise (+1) or anticlockwise (-1), starting at the top from nothing. */
 export function stepWedge(current: number | null, dir: 1 | -1): number {
   if (current === null) return dir === 1 ? 0 : EMOTE_COUNT - 1;

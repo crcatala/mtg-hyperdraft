@@ -165,7 +165,7 @@ function open() {
         receivePoke(msg.target, msg.step);
         break;
       case "emote":
-        receiveEmote(msg.by, msg.slot);
+        receiveEmote(msg.by, msg.slot, msg.text);
         break;
       case "error":
         if (!welcomed) {

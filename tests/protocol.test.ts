@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EMOTE_TEXT_MAX, EMOTE_TEXT_RAW_MAX } from "../src/shared/emoteText";
 import { clientMessageSchema } from "../src/shared/protocol";
 
 const ok = (m: unknown) => clientMessageSchema.safeParse(m).success;
@@ -28,5 +29,15 @@ describe("client message schema: emote", () => {
     for (const slot of [-1, 6, 2.5, "1", null, undefined]) expect(ok({ t: "emote", slot })).toBe(false);
     // `by` isn't part of the message: zod strips it, and the server stamps the sender itself.
     expect(clientMessageSchema.parse({ t: "emote", slot: 2, by: "u2" })).toEqual({ t: "emote", slot: 2 });
+  });
+
+  it("takes an optional text of the player's own, raw up to EMOTE_TEXT_RAW_MAX (the room's cleaner has the last word)", () => {
+    expect(ok({ t: "emote", slot: 0, text: "Get wrecked" })).toBe(true);
+    // Raw, so whitespace and markup get through the schema for the room to clean (and React to escape).
+    expect(ok({ t: "emote", slot: 0, text: "  <b>hi</b>\n" })).toBe(true);
+    expect(ok({ t: "emote", slot: 0, text: "x".repeat(EMOTE_TEXT_RAW_MAX) })).toBe(true);
+    expect(EMOTE_TEXT_RAW_MAX).toBeGreaterThanOrEqual(EMOTE_TEXT_MAX * 2);
+    expect(ok({ t: "emote", slot: 0, text: "x".repeat(EMOTE_TEXT_RAW_MAX + 1) })).toBe(false);
+    for (const text of [42, null, ["hi"], { s: "hi" }, true]) expect(ok({ t: "emote", slot: 0, text })).toBe(false);
   });
 });

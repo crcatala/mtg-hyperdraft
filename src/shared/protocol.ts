@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { isAvatarId, isCompanionId } from "./roster";
 import { EMOTE_COUNT, POKE_STEPS } from "./companionKit";
+import { EMOTE_TEXT_RAW_MAX } from "./emoteText";
 import type {
   CardInstance,
   CardMap,
@@ -105,8 +106,11 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("point"), x: coord, y: coord }),
   /** A tap on a seated player's companion: `step` is the poke ladder step (0-based) the tapper is showing. */
   z.object({ t: z.literal("poke"), target: id, step: z.number().int().min(0).max(POKE_STEPS - 1) }),
-  /** The sender's own companion does an emote from the wheel: `slot` is its index in EMOTE_SLOTS. */
-  z.object({ t: z.literal("emote"), slot: z.number().int().min(0).max(EMOTE_COUNT - 1) }),
+  /**
+   * The sender's own companion does an emote from the wheel: `slot` is its index in EMOTE_SLOTS; `text` is the
+   * player's own line for it, if they rewrote it (the room cleans it with cleanEmoteText before relaying it).
+   */
+  z.object({ t: z.literal("emote"), slot: z.number().int().min(0).max(EMOTE_COUNT - 1), text: z.string().max(EMOTE_TEXT_RAW_MAX).optional() }),
   z.object({ t: z.literal("debug"), cmd: z.enum(DEBUG_COMMANDS) }),
 ]);
 
@@ -182,7 +186,8 @@ export type ServerMessage =
   | { t: "drag"; by: string; id: string; x: number; y: number }
   | { t: "point"; by: string; x: number; y: number }
   | { t: "poke"; by: string; target: string; step: number }
-  | { t: "emote"; by: string; slot: number }
+  /** `text`: the sender's own line for that slot, already cleaned by the room; absent means the kit's line. */
+  | { t: "emote"; by: string; slot: number; text?: string }
   | { t: "error"; message: string }
   | { t: "pong" };
 

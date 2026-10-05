@@ -1,9 +1,10 @@
 // Guards for the window-level keyboard shortcuts (the table's hotkeys and camera keys, the draft's
 // Space, the debug backtick). Two situations should keep them from firing:
-//   - a modal is open (Settings): the keys belong to the dialog, not the game behind it;
+//   - a modal is open (Settings, the emote line editor): the keys belong to the dialog, not the game behind it;
 //   - the key lands on a control that has its own use for it (Space presses a focused button).
 
 import { useStore } from "./store";
+import { useEmoteLines } from "./table/emoteLines";
 
 /** What a focused element can be that handles Space/Enter itself. */
 const CONTROL = "button, a[href], input, textarea, select, summary, [role=button], [role=tab], [role=slider], [contenteditable=true], [contenteditable='']";
@@ -16,5 +17,5 @@ export function isControl(target: EventTarget | null): boolean {
 
 /** True while a modal owns the keyboard, so global shortcuts must stand down. */
 export function shortcutsBlocked(): boolean {
-  return useStore.getState().settingsOpen;
+  return useStore.getState().settingsOpen || useEmoteLines.getState().editing;
 }

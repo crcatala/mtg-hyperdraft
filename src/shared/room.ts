@@ -11,6 +11,7 @@ import { randomCode, type Rng } from "./rng";
 import type { RoomSummary } from "./invites";
 import { PUBLIC_LIMITS } from "./publicRooms";
 import { AVATAR_IDS, COMPANION_IDS, isAvatarId, isCompanionId, lowestFreeVariant, pickFree } from "./roster";
+import { cleanEmoteText } from "./emoteText";
 
 export interface RoomDeps {
   now: () => number;
@@ -505,10 +506,14 @@ export class Room {
         // Also cosmetic and ephemeral: the sender's own companion, so they must be at the table with one.
         const table = this.state.table;
         if (this.state.phase !== "playing" || !table || !table.seats.includes(playerId) || !this.player(playerId)?.companion) return;
+        // A player's own line is cleaned here too (the sender's tab can't be trusted to have); text that doesn't
+        // survive drops the whole emote, before it can use up the cooldown.
+        const text = msg.text === undefined ? undefined : cleanEmoteText(msg.text);
+        if (text === null) return;
         const now = this.deps.now();
         if (now - (this.lastEmote.get(playerId) ?? -Infinity) < EMOTE_COOLDOWN_MS) return;
         this.lastEmote.set(playerId, now);
-        result.outbound.push({ to: "others", msg: { t: "emote", by: playerId, slot: msg.slot } });
+        result.outbound.push({ to: "others", msg: { t: "emote", by: playerId, slot: msg.slot, ...(text !== undefined && { text }) } });
         return;
       }
 
