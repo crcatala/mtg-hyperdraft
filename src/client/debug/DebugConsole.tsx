@@ -139,6 +139,9 @@ export function DebugConsole() {
           <a href="/dev/sound-studio" target="_blank" rel="noreferrer">
             Open Sound Studio (new tab)
           </a>
+          <a href="/dev/companion-lab" target="_blank" rel="noreferrer">
+            Open Companion Lab (new tab)
+          </a>
         </div>
       </section>
 

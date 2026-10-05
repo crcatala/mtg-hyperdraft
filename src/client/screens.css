@@ -5080,3 +5080,104 @@ html[data-music-open] .debug-console {
     animation: none;
   }
 }
+
+/* Companion Lab (/dev/companion-lab): the sound studio's roster, with a 3D stage and a board of reactions */
+.cl-main {
+  grid-template-rows: minmax(260px, 1fr) auto minmax(0, 1fr);
+}
+.cl-stage {
+  position: relative;
+  min-height: 260px;
+  padding: 0;
+  overflow: hidden;
+  background: radial-gradient(90% 120% at 50% 100%, color-mix(in srgb, var(--c) 16%, transparent), transparent 70%), #0d0b16;
+}
+.cl-canvas {
+  position: absolute !important;
+  inset: 0;
+}
+.cl-caption {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  max-width: calc(100% - 28px);
+  pointer-events: none;
+  font-size: 13px;
+}
+.cl-caption b {
+  font-family: var(--font-display);
+  color: var(--gold-2);
+}
+.cl-caption i {
+  flex-basis: 100%;
+  font-family: var(--font-flavor, var(--font-card));
+  font-size: 15px;
+}
+.cl-sig {
+  color: var(--c, var(--gold-2));
+  font-weight: 600;
+}
+.cl-fps {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.cl-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+  padding: 10px 16px;
+}
+.cl-who {
+  display: grid;
+  gap: 1px;
+}
+.cl-who .faint,
+.cl-style {
+  font-size: 12px;
+}
+.cl-style {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cl-variant {
+  display: grid;
+  gap: 4px;
+  min-width: 170px;
+}
+.cl-variant .label {
+  margin: 0;
+}
+.cl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.cl-gap {
+  width: 8px;
+}
+.cl-speeds {
+  display: flex;
+  gap: 2px;
+}
+.cl-pads {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+.cl-pads .cv-pad-main > span:last-child {
+  font-size: 13px;
+}
+@media (max-width: 1000px) {
+  .cl-stage {
+    height: 46vh;
+  }
+}

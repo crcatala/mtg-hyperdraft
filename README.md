@@ -72,13 +72,13 @@ src/
     invite.ts        invite key storage, magic links, invite API calls
     publicRooms.ts   public pool status/create calls, Turnstile widget
     recentRooms.ts   rooms this browser hosted or joined, merged with the invite's for "Your rooms"
-    screens/         Home (+ Your rooms), Solo, Lobby, Draft (pack opening), Deckbuilder, Sound Studio
+    screens/         Home (+ Your rooms), Solo, Lobby, Draft (pack opening), Deckbuilder, Sound Studio, Companion Lab
     pack/            the 3D foil booster on the Draft screen: pillowed/crimped geometry, tear-and-peel
                      math (pure, unit tested), canvas-drawn per-theme foil art, the R3F scene
     sfx.ts           sound effects: generated samples (public/sfx/<pack>/) on one compressed bus, synth fallback
     soundPacks.ts    which sound pack plays (switchable, remembered, ?sounds= previews)
     soundStudio.ts   the Sound Studio's sequences and per-sound mix (/dev/sound-studio)
-    table/           3D scene, textures, drag & drop, HUD, dialogs
+    table/           3D scene, textures, drag & drop, HUD, dialogs, companion motion (companionMotion.ts)
     volume.ts        master and sound-effects volume (music keeps its own in music.ts)
     music.ts         background music: one playlist (public/music/) that plays across every screen
     components/SettingsDialog.tsx   player settings modal (tabs: Appearance, Sound)
@@ -143,8 +143,12 @@ reveals the character behind it.
   portrait background, and for the companion's picture. The first holder keeps the original.
 - `setLook` (lobby only) sets or clears either choice; the room engine in `shared/room.ts` does all the
   bookkeeping, so solo mode behaves the same.
-- Companions are flat pictures for now (`CompanionFigure` in `table/TableScene.tsx`); each has a list of
-  planned `moves` for when they become 3D models.
+- A companion is one flat picture (`table/CompanionFigure.tsx`) brought to life by procedural motion: 18
+  reactions (hello, the 7-step poke ladder, sulk, pickup, carry, drop, 6 emotes) built from shared motion
+  primitives and effect glyphs (`table/companionMotion.ts`, pure and tested), a body style per companion and
+  signature moves drawn from its `moves` (`table/companionReactions.ts`). `playReaction(playerId, slot)`
+  (`table/companionPlayback.ts`) plays one on anyone's companion. **Companion Lab** (`/dev/companion-lab`,
+  linked from the debug console) plays every reaction of every companion, slowed down or four at once.
 - To add a character, add an entry to `roster.ts` and its images; `tests/roster.test.ts` checks that
   every entry has its files. The prompts and style notes used to generate the current art are in
   `scripts/roster/roster.json`.
