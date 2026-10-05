@@ -60,6 +60,8 @@ export interface JoinOptions {
 export const PING_COOLDOWN_MS = 300;
 /** Minimum gap between two companion pokes from the same player (a little under the client's own 300 ms throttle). */
 export const POKE_COOLDOWN_MS = 250;
+/** Minimum gap between two emotes from the same player (a little under the client's own 1.5 s cooldown). */
+export const EMOTE_COOLDOWN_MS = 1200;
 
 const BOT_NAMES = ["Ava", "Blix", "Cogsworth", "Dross", "Echo", "Fizz", "Gloom", "Hex"];
 
@@ -93,6 +95,7 @@ export class Room {
   /** Last ping per player (not persisted — it only throttles spam). */
   private lastPing = new Map<string, number>();
   private lastPoke = new Map<string, number>();
+  private lastEmote = new Map<string, number>();
 
   constructor(
     public state: RoomState,
@@ -495,6 +498,17 @@ export class Room {
         if (now - (this.lastPoke.get(playerId) ?? -Infinity) < POKE_COOLDOWN_MS) return;
         this.lastPoke.set(playerId, now);
         result.outbound.push({ to: "others", msg: { t: "poke", by: playerId, target: msg.target, step: msg.step } });
+        return;
+      }
+
+      case "emote": {
+        // Also cosmetic and ephemeral: the sender's own companion, so they must be at the table with one.
+        const table = this.state.table;
+        if (this.state.phase !== "playing" || !table || !table.seats.includes(playerId) || !this.player(playerId)?.companion) return;
+        const now = this.deps.now();
+        if (now - (this.lastEmote.get(playerId) ?? -Infinity) < EMOTE_COOLDOWN_MS) return;
+        this.lastEmote.set(playerId, now);
+        result.outbound.push({ to: "others", msg: { t: "emote", by: playerId, slot: msg.slot } });
         return;
       }
 
