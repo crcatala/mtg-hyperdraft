@@ -60,6 +60,29 @@ export function saveName(name: string) {
   safeSet(aliasedKey(NAME_KEY), name);
 }
 
+const LOOK_KEY = "hyperdraft:look";
+
+/** The avatar and companion the player chose for themselves (nothing saved until they pick one). */
+export interface LookPref {
+  avatar?: string;
+  companion?: string;
+}
+
+export function loadLook(): LookPref {
+  const raw = safeGet(aliasedKey(LOOK_KEY));
+  if (!raw) return {};
+  try {
+    const v = JSON.parse(raw) as LookPref;
+    return { avatar: typeof v.avatar === "string" ? v.avatar : undefined, companion: typeof v.companion === "string" ? v.companion : undefined };
+  } catch {
+    return {};
+  }
+}
+
+export function saveLook(look: LookPref) {
+  safeSet(aliasedKey(LOOK_KEY), JSON.stringify(look));
+}
+
 export function withAlias(path: string): string {
   const a = alias();
   return a ? `${path}?as=${encodeURIComponent(a)}` : path;

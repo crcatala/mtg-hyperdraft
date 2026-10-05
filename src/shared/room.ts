@@ -10,6 +10,7 @@ import { applyTableAction, createTable, handDragId, realIdsFor, resolveTableActi
 import { randomCode, type Rng } from "./rng";
 import type { RoomSummary } from "./invites";
 import { PUBLIC_LIMITS } from "./publicRooms";
+import { AVATAR_IDS, COMPANION_IDS, isAvatarId, isCompanionId, lowestFreeVariant, pickFree } from "./roster";
 
 export interface RoomDeps {
   now: () => number;
@@ -39,7 +40,7 @@ export class RoomError extends Error {}
 
 /** Joining a game in progress without a valid seat secret: the player must pick an empty seat. */
 export class SeatClaimNeeded extends RoomError {
-  constructor(public seats: { id: string; name: string }[]) {
+  constructor(public seats: { id: string; name: string; avatar?: string }[]) {
     super("This game has already started. Pick your seat to rejoin.");
   }
 }
@@ -48,6 +49,9 @@ export interface JoinOptions {
   playerId?: string;
   secret?: string;
   name?: string;
+  /** Avatar and companion the player chose earlier (ids). Without them, a human starts with neither. */
+  avatar?: string;
+  companion?: string;
   /** Take over this disconnected seat (trust-based rejoin from a new device or browser). */
   claim?: string;
 }
@@ -94,6 +98,44 @@ export class Room {
   ) {
     // Games saved before stand-in ids existed get them now.
     if (state.table) syncStandIns(state.table, deps.rng);
+    this.normalizeLooks();
+  }
+
+  /** Tidies looks after loading a saved room: drops retired ids, deals bots theirs, and sorts out variants. */
+  private normalizeLooks() {
+    for (const p of this.state.players) {
+      if (p.avatar && !isAvatarId(p.avatar)) delete p.avatar;
+      if (p.companion && !isCompanionId(p.companion)) delete p.companion;
+      if (p.isBot) Object.assign(p, this.dealLook(p));
+    }
+    for (const p of this.state.players) {
+      this.setVariant(p, "avatar");
+      this.setVariant(p, "companion");
+    }
+  }
+
+  /** Gives a bot a random avatar and companion, preferring ones nobody holds yet. */
+  private dealLook(except?: Player): { avatar: string; companion: string } {
+    const others = this.state.players.filter((p) => p !== except);
+    return {
+      avatar: except?.avatar ?? pickFree(AVATAR_IDS, new Set(others.map((p) => p.avatar ?? "")), this.deps.rng),
+      companion: except?.companion ?? pickFree(COMPANION_IDS, new Set(others.map((p) => p.companion ?? "")), this.deps.rng),
+    };
+  }
+
+  /**
+   * Players may share an avatar or companion; whoever holds it second (or third...) gets a different
+   * colour variant so they can be told apart. The lowest variant nobody else holds is used.
+   */
+  private setVariant(p: Player, field: "avatar" | "companion") {
+    const key = field === "avatar" ? "avatarVariant" : "companionVariant";
+    if (!p[field]) {
+      delete p[key];
+      return;
+    }
+    const used = this.state.players.filter((o) => o !== p && o[field] === p[field]).map((o) => o[key] ?? 0);
+    const mine = p[key];
+    if (mine === undefined || used.includes(mine)) p[key] = lowestFreeVariant(used);
   }
 
   // --- helpers --------------------------------------------------------------------------------
@@ -166,21 +208,25 @@ export class Room {
       ready: false,
       connected: true,
       joinedAt: this.deps.now(),
+      ...(opts.avatar && isAvatarId(opts.avatar) ? { avatar: opts.avatar } : {}),
+      ...(opts.companion && isCompanionId(opts.companion) ? { companion: opts.companion } : {}),
     };
     // Humans sit before bots so friends are next to each other.
     const firstBot = this.state.players.findIndex((p) => p.isBot);
     if (firstBot >= 0) this.state.players.splice(firstBot, 0, player);
     else this.state.players.push(player);
     this.state.secrets[playerId] = secret;
+    this.setVariant(player, "avatar");
+    this.setVariant(player, "companion");
     this.syncPresence();
     return { playerId, secret };
   }
 
   /** Humans whose seat nobody is using right now: the seats a late (re)joiner may take over. */
-  claimableSeats(): { id: string; name: string }[] {
+  claimableSeats(): { id: string; name: string; avatar?: string }[] {
     return this.humans()
       .filter((p) => !p.connected)
-      .map((p) => ({ id: p.id, name: p.name }));
+      .map((p) => ({ id: p.id, name: p.name, avatar: p.avatar }));
   }
 
   private claimSeat(claim: string | undefined): { playerId: string; secret: string } {
@@ -292,6 +338,20 @@ export class Room {
         return;
       }
 
+      case "setLook": {
+        this.requirePhase("lobby");
+        for (const field of ["avatar", "companion"] as const) {
+          const value = msg[field];
+          if (value === undefined) continue;
+          if (value === null) delete me[field];
+          else me[field] = value;
+          delete me[field === "avatar" ? "avatarVariant" : "companionVariant"];
+          this.setVariant(me, field);
+        }
+        result.changed = true;
+        return;
+      }
+
       case "setReady": {
         this.requirePhase("lobby");
         me.ready = msg.ready;
@@ -329,7 +389,10 @@ export class Room {
         if (this.state.players.length >= MAX_SEATS) throw new RoomError(`At most ${MAX_SEATS} seats (including bots).`);
         const used = new Set(this.state.players.map((p) => p.name));
         const name = BOT_NAMES.map((n) => `Bot ${n}`).find((n) => !used.has(n)) ?? `Bot ${this.state.players.length + 1}`;
-        this.state.players.push({ id: this.nextId("bot"), name, isBot: true, isHost: false, ready: true, connected: true, joinedAt: this.deps.now() });
+        const bot: Player = { id: this.nextId("bot"), name, isBot: true, isHost: false, ready: true, connected: true, joinedAt: this.deps.now(), ...this.dealLook() };
+        this.state.players.push(bot);
+        this.setVariant(bot, "avatar");
+        this.setVariant(bot, "companion");
         result.changed = true;
         this.maybeStartDraft();
         return;

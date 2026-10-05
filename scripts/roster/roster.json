@@ -1,0 +1,283 @@
+{
+ "avatar_style": "Guilty Gear Strive inspired fighting-game character art: stylized 2D-looking 3D rendering, crisp hard-edged cel shading with angular shadow shapes, sharp confident linework, dramatic rock-and-roll swagger, high contrast, saturated punchy colors, slightly exaggerated sharp features and dynamic attitude. Framing is a strict head-and-shoulders bust: character facing camera turned slightly three-quarter to the viewer's right, eyes on the upper-third line, head filling about 60% of the image height, shoulders cropped by the bottom edge, centered. Isolated subject on a fully transparent background, no backdrop, no glow, no frame, no text.",
+ "companion_style": "Cute collectible vinyl-toy / stylized 3D-render look suitable for a 3D tabletop figurine: chunky simplified forms, soft rounded shapes, clean readable silhouette, soft studio lighting, saturated friendly colors, big expressive eyes, small enough to sit on a game table. Full body, standing three-quarter front view, neutral happy idle pose, centered, whole creature visible with a small margin. Isolated subject on a fully transparent background, no ground shadow, no glow, no text.",
+ "avatars": [
+  {
+   "id": "sable",
+   "name": "Sable Quenby",
+   "title": "The Cardsharp",
+   "race": "Tiefling",
+   "color": "#e0344a",
+   "mana": "B",
+   "desc": "Young tiefling rogue, violet skin, small curved horns, gold cat-like eyes, a sly smirk, dark hooded cloak with a silver clasp, one playing card held between two fingers by her cheek.",
+   "backstory": "Raised in the undercity card-halls of Vexmoor, Sable never lost a hand she was allowed to finish. She joined the cube circuit for the one thing she can't steal: a pack nobody has seen yet.",
+   "personality": "Sly, teasing, secretly loyal. Narrates her own picks like a heist.",
+   "quote": "\"I'll take that. Thanks for holding it.\"",
+   "archetype": "Aggro / tempo trickster"
+  },
+  {
+   "id": "cassian",
+   "name": "Cassian Vale",
+   "title": "The Gallant Duelist",
+   "race": "Human",
+   "color": "#ff6a2b",
+   "mana": "RW",
+   "desc": "Dashing young swashbuckler, tousled auburn hair, confident grin, scar across one eyebrow, open-collared crimson coat with gold braid, feathered hat tipped back, a rapier hilt visible at the shoulder.",
+   "backstory": "Disinherited prince of a kingdom that doesn't want him back, Cassian turned every duel into a stage and every stage into a following. He drafts the way he fences: loudly, beautifully, and at maximum risk.",
+   "personality": "Theatrical, generous, a terrible loser who loses gracefully anyway.",
+   "quote": "\"A flourish, friends — pass the pack, I'll make it count.\"",
+   "archetype": "Boros-style aggro"
+  },
+  {
+   "id": "mirabel",
+   "name": "Archivist Ondrak",
+   "title": "Keeper of the Long Shelf",
+   "race": "Human",
+   "color": "#45e0ff",
+   "mana": "U",
+   "desc": "Elderly woman scholar-mage, sharp silver bob haircut, round brass spectacles with a monocle lens flipped up, high-collared deep blue robe with floating glowing rune-glyphs, wry amused expression.",
+   "backstory": "Ondrak has catalogued every card ever printed and holds a quiet grudge against the ones she can't find. She joined the table to see if the cube is as balanced as the rumors say. (It isn't.)",
+   "personality": "Dry, precise, devastatingly polite. Corrects your pronunciation of card names.",
+   "quote": "\"It's pronounced 'Jace.' Do try to keep up.\"",
+   "archetype": "Control / card advantage"
+  },
+  {
+   "id": "brannoch",
+   "name": "Brannoch Ashgrove",
+   "title": "The Hearth-Forged",
+   "race": "Dwarf",
+   "color": "#ff9d2e",
+   "mana": "R",
+   "desc": "Broad, jolly dwarven forgemaster, enormous braided russet beard with glowing ember-beads, soot-smudged cheeks, thick welding goggles pushed up on his forehead, huge warm laugh, leather apron straps and a hammer-head at the shoulder.",
+   "backstory": "Brannoch forged his first deck out of a broken anvil and a bet. He believes every problem is a nail, and every nail has a good-natured explanation.",
+   "personality": "Boisterous, big-hearted, unshakeably optimistic. Treats every bad pick as a 'rustic charm'.",
+   "quote": "\"Burn it down and build it better!\"",
+   "archetype": "Red burn / artifacts"
+  },
+  {
+   "id": "aurelio",
+   "name": "Aurelio Sunmantle",
+   "title": "The Dawn Oath",
+   "race": "Human",
+   "color": "#f4c55b",
+   "mana": "W",
+   "desc": "Warm, radiant young paladin, deep brown skin, short close-cropped hair, kind confident smile, polished white-and-gold plate pauldron with a sunburst crest, a soft golden halo-like glint of light in the hair.",
+   "backstory": "Aurelio took a vow to never leave a table with a sad face at it. He came to the cube to learn what the players love — and stayed because he lost the first game on purpose to cheer someone up.",
+   "personality": "Warm, earnest, relentlessly encouraging. Secretly extremely competitive.",
+   "quote": "\"Good game — wait, no, great game. Again?\"",
+   "archetype": "White weenie / lifegain"
+  },
+  {
+   "id": "pip",
+   "name": "Pip Gearhollow",
+   "title": "The Tinker-Prodigy",
+   "race": "Goblin",
+   "color": "#4be29a",
+   "mana": "UR",
+   "desc": "Excited young goblin artificer, lime-green skin, huge pointed ears with tiny brass rings, oversized flip-up goggles with multiple lenses, a manic delighted toothy grin, scorch marks on a patched leather collar, a tiny spinning cog floating beside his head.",
+   "backstory": "Pip has been banned from three workshops and one moon. He builds contraptions that almost work, and drafts combos that definitely shouldn't. Somehow they both keep winning.",
+   "personality": "Hyperactive, inventive, easily distracted by shiny things. Has never once read the rulings.",
+   "quote": "\"What does this button — oh. Oh no. OH YES.\"",
+   "archetype": "Izzet combo / artifacts"
+  },
+  {
+   "id": "odalys",
+   "name": "Odalys Fenmoor",
+   "title": "Warden of the Greenmere",
+   "race": "Elf",
+   "color": "#7dd957",
+   "mana": "G",
+   "desc": "Calm, serene elven druid, long braided moss-green hair threaded with small leaves and tiny white flowers, pale freckled skin, bark-patterned antler-like circlet, half-lidded knowing eyes, a quiet gentle smile, a ladybug resting on her shoulder.",
+   "backstory": "Odalys speaks to the forest and the forest, politely, speaks back. She came to the table because a dying mana tree told her 'it's where the rest of the green decks are.'",
+   "personality": "Unhurried, kind, quietly savage. Will ramp, wait, and then end the game in one turn.",
+   "quote": "\"The seed was planted three turns ago. You just weren't looking.\"",
+   "archetype": "Green ramp / big creatures"
+  },
+  {
+   "id": "grusha",
+   "name": "Grusha Ironlute",
+   "title": "The Rowdy Skald",
+   "race": "Orc",
+   "color": "#ff5fa2",
+   "mana": "GW",
+   "desc": "Big-hearted orc bard, grey-green skin, two short ivory tusks, a wide roaring laugh, thick black braids with small brass bells and ribbons, bold white tribal face-paint stripes, leather and fur mantle, the carved headstock of an enormous lute over one shoulder.",
+   "backstory": "Grusha toured forty taverns and lost every hand of cards on purpose, because the songs were better when the table was happy. She joined the cube circuit after hearing it had a draft, and assumed that meant a band.",
+   "personality": "Loud, warm, impossible to embarrass. Turns every game into a ballad and every opponent into an honorary bandmate.",
+   "quote": "\"Sing it with me! Tap three lands for the chorus!\"",
+   "archetype": "Selesnya go-wide / tokens"
+  },
+  {
+   "id": "lucien",
+   "name": "Lucien Morvane",
+   "title": "The Midnight Patron",
+   "race": "Vampire",
+   "color": "#b8b0ff",
+   "mana": "WB",
+   "desc": "Elegant aristocratic vampire, pale skin, slicked-back silver-white hair with one long loose lock, crimson eyes, a subtle fanged smile, high-collared black coat with a white lace cravat and a silver brooch with a red gem, one gloved hand resting under his chin, tasteful bored amusement.",
+   "backstory": "Lucien has attended every great tournament for three centuries as a patron, never a player. He finally sat down because the last cube was frankly beneath him, then lost to a goblin. He has been back every week since.",
+   "personality": "Courtly, droll, secretly thrilled to be an underdog. Compliments opponents right before taking their life total.",
+   "quote": "\"Do go on. I so enjoy watching a plan fall apart.\"",
+   "archetype": "Orzhov drain / lifelink"
+  },
+  {
+   "id": "mizuki",
+   "name": "Mizuki Tsukikage",
+   "title": "The Moonlit Trickster",
+   "race": "Kitsune",
+   "color": "#b45bff",
+   "mana": "UB",
+   "desc": "Playful young woman kitsune trickster, white fox ears with dark tips, long silver-white hair with a single violet streak, narrow amber eyes with red eyeliner, a mischievous closed-lip smile, a half fox-mask pushed up on the side of her head, loose indigo kimono-style collar with white trim, two fox tails curling behind her shoulders.",
+   "backstory": "Mizuki has been a shrine guardian, a card dealer and a rumor, sometimes on the same night. Nobody remembers inviting her to the cube, but her name is on the sign-up sheet in everyone's handwriting.",
+   "personality": "Teasing, evasive, impossibly well-informed. Bluffs even when holding nothing, which is its own bluff.",
+   "quote": "\"Was that my card? Was it ever?\"",
+   "archetype": "Dimir illusions / tempo"
+  }
+ ],
+ "companions": [
+  {
+   "id": "foil",
+   "name": "Foil",
+   "species": "Pack Rat",
+   "color": "#c9a0ff",
+   "desc": "A plump brown pack rat wearing a shiny holographic booster-pack wrapper as a little cape, tiny whiskers, buck teeth, clutching a single trading card like treasure.",
+   "personality": "Hoarder, optimist, tiny gambler. Squeaks with delight at foil cards.",
+   "emotes": [
+    "Hug the card",
+    "Cape flourish",
+    "Nibble the pack",
+    "Faint on a bad pick"
+   ]
+  },
+  {
+   "id": "cinder",
+   "name": "Cinder",
+   "species": "Ember Drakeling",
+   "color": "#ff7a3d",
+   "desc": "A chubby baby dragon with a round belly, stubby wings and tiny horns, warm orange scales with a glowing ember-colored belly, a small flame at the tip of its tail, big curious golden eyes, a wisp of smoke from one nostril.",
+   "personality": "Overeager, easily offended, loyal. Sneezes small fireballs when excited.",
+   "emotes": [
+    "Sneeze (fire puff)",
+    "Flap hover",
+    "Pout with smoke",
+    "Curl up and sleep on the card"
+   ]
+  },
+  {
+   "id": "folio",
+   "name": "Folio",
+   "species": "Tome Mimic",
+   "color": "#8f6bff",
+   "desc": "A small leather-bound spellbook that has grown stubby legs, with a big toothy page-mouth, one big expressive eye on the cover, ribbon bookmark hanging like a tongue, brass corners, floating pages fluttering around it.",
+   "personality": "Know-it-all, curious, bites when ignored. Whispers rules trivia.",
+   "emotes": [
+    "Flip open and gasp",
+    "Snap shut (hide)",
+    "Page-flutter dance",
+    "Ribbon tongue"
+   ]
+  },
+  {
+   "id": "gloop",
+   "name": "Gloop",
+   "species": "Mana Slime",
+   "color": "#45e0ff",
+   "desc": "A translucent jelly slime, wobbly dome-shaped, glowing cyan-teal with a small glowing glass-like mana gem floating inside it, two big shiny dot eyes, a tiny happy mouth, little bubbles inside the body.",
+   "personality": "Sleepy, affectionate, absorbs things by accident. Glows brighter when you tap mana.",
+   "emotes": [
+    "Wobble",
+    "Squish flat",
+    "Absorb a token",
+    "Glow pulse"
+   ]
+  },
+  {
+   "id": "sprout",
+   "name": "Sprout",
+   "species": "Mandrake Sapling",
+   "color": "#7dd957",
+   "desc": "A tiny mandrake root-creature sitting in a little terracotta pot, plump pale-green body, a leafy sprout on its head with a small flower bud, stubby root arms, round dark eyes, a shy smile.",
+   "personality": "Shy, gentle, dramatic when uprooted. Screams (cutely) when you shuffle.",
+   "emotes": [
+    "Bloom the flower",
+    "Hide in the pot",
+    "Wave leaf",
+    "Tiny scream"
+   ]
+  },
+  {
+   "id": "wick",
+   "name": "Wick",
+   "species": "Candle Wisp",
+   "color": "#f4c55b",
+   "desc": "A small melted candle ghost with a warm friendly face, a tiny flame on the top, little wax drips forming stubby arms and a wavy base instead of feet, big soft eyes, a wisp of smoke.",
+   "personality": "Cozy, spooky-but-sweet, afraid of drafts. Flame flickers with mood.",
+   "emotes": [
+    "Flicker (nervous)",
+    "Flame flare (excited)",
+    "Drip melt",
+    "Blow out (sleep)"
+   ]
+  },
+  {
+   "id": "crit",
+   "name": "Crit",
+   "species": "d20 Golem",
+   "color": "#ff5d6c",
+   "desc": "A small stone golem whose body is a chunky twenty-sided die with glowing rune-numbers on its faces, stubby rocky arms and legs, a carved friendly face on the front face, moss on one shoulder.",
+   "personality": "Steady, goofy, takes everything as a roll. Insists a natural 20 is always imminent.",
+   "emotes": [
+    "Roll tumble",
+    "Nat-20 cheer",
+    "Nat-1 sad slump",
+    "Stomp"
+   ]
+  },
+  {
+   "id": "nimbus",
+   "name": "Nimbus",
+   "species": "Star Whale Calf",
+   "color": "#6cc8ff",
+   "desc": "A tiny floating baby whale-shaped cloud creature in soft indigo with a belly full of glittering constellation dots, little cloud-puff fins, a crescent moon shaped smile, large gentle eyes, small sparkles trailing behind it.",
+   "personality": "Dreamy, wise beyond its size, drifts toward whoever is having a bad day.",
+   "emotes": [
+    "Drift in a circle",
+    "Sing (sparkles)",
+    "Rain a little",
+    "Yawn"
+   ]
+  },
+  {
+   "id": "hex",
+   "name": "Hex",
+   "species": "Witch's Cat",
+   "color": "#ffd24a",
+   "desc": "A round fluffy black cat with big yellow eyes, a tiny crooked purple witch hat sitting between its ears, a small gold star-shaped patch on its chest, white paws like little socks, and a tail ending in a tiny glowing star spark.",
+   "personality": "Aloof, curious, loves sitting on whichever card you were about to read. Knocks tokens off the table on purpose.",
+   "emotes": [
+    "Loaf (sit on the card)",
+    "Knock a token off",
+    "Tail-star twirl",
+    "Slow blink"
+   ]
+  },
+  {
+   "id": "ribbit",
+   "name": "Sir Ribbit",
+   "species": "Frog Knight",
+   "color": "#7dd957",
+   "desc": "A tiny plump green frog knight wearing an acorn-cap helmet, carrying a leaf-shaped shield and a twig sword with a small cross-guard, big round eyes, a puffed-out throat bubble, pale yellow belly, wide brave grin, a little red ribbon tied around one arm.",
+   "personality": "Brave, wobbly and very dramatic. Challenges every creature to a duel, then hides behind the shield.",
+   "emotes": [
+    "Throat-bubble croak",
+    "Shield up",
+    "Sword salute",
+    "Tongue-snatch a token"
+   ]
+  }
+ ],
+ "mystery": {
+  "id": "mystery",
+  "note": "Shown for players with no avatar. Same style block and framing as the avatars.",
+  "desc": "a friendly anonymous adventurer in a deep navy-slate hooded cloak with an amber scarf bunched at the neck, a small warm gold four-pointed star pin at the collar, and a warm lantern glow from below softly lighting the hood's edge. The hood's inner shadow hides the face entirely: no eyes, nose, mouth, skin or hair are visible, so nothing reveals gender, age or identity. Calm, friendly, quietly curious mood; not scary, no glowing eyes, no weapons. Generated by editing an earlier 'lantern glow' version to darken the cloak and swap its wooden toggle for the star pin."
+ }
+}

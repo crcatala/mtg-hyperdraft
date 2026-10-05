@@ -8,6 +8,7 @@ import { initMusic } from "./music";
 import { initVolumes } from "./volume";
 import "./styles.css";
 import "./screens.css";
+import "./persona.css";
 import "./themes/gamenight.css";
 import "./themes/signal.css";
 

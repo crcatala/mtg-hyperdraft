@@ -8,13 +8,14 @@ import { useStore } from "../store";
 import { handDragId } from "../../shared/table";
 import type { PublicLook, TableCard, TableState } from "../../shared/types";
 import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
-import { backTexture, feltTexture, glowTexture, labelTexture, lookTagTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, type LabelVariant } from "./textures";
+import { backTexture, feltTexture, glowTexture, labelTexture, lookTagTexture, matTexture, pingTagTexture, roundedRectGeometry, hueTexture, shadowTexture, SHADOW_PAD, spriteTexture, useCardTexture, useImage, type LabelVariant } from "./textures";
 import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
 import { DRAG_LIFT, livePoses, motionScale, reducedMotion, useMotion } from "./motion";
 import { easeInOutCubic, Flights } from "./Flights";
 import type { IconName } from "../icons";
 import { shortcutsBlocked } from "../shortcuts";
+import { accentOf, avatarFace, companionArt, companionDef, variantHue } from "../roster";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
 const OUTLINE_GEO = roundedRectGeometry(CARD_W + 0.22, CARD_H + 0.22, 0.24);
@@ -267,7 +268,10 @@ function TableSurface({ seatCount }: { seatCount: number }) {
 function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { table: TableState; playerId: string; seat: number; seatCount: number; isMe: boolean; viewerAngle: number }) {
   const name = useStore((s) => s.view?.players.find((p) => p.id === playerId)?.name ?? "Player");
   const offline = useStore((s) => s.view?.players.find((p) => p.id === playerId)?.connected === false);
-  const tex = useMemo(() => matTexture(name, seatHue(seat), isMe), [name, seat, isMe]);
+  const look = useStore((s) => s.view?.players.find((p) => p.id === playerId));
+  const face = useImage(look ? avatarFace(look.avatar) : null);
+  const accent = look ? accentOf(look) : undefined;
+  const tex = useMemo(() => matTexture(name, seatHue(seat), isMe, face, accent), [name, seat, isMe, face, accent]);
   const center = localToTable({ x: 0, y: 0 }, seat, seatCount);
   // In the empty strip left of the battlefield, below the sideboard, so it never covers their cards.
   const offlineAt = localToTable({ x: PILE_LOCAL.sideboard.x, y: -1.5 }, seat, seatCount);
@@ -276,7 +280,7 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
   const arriving = useMotion((s) => s.arriving);
   const handCount = player?.zones.hand.filter((id) => !arriving[id]).length ?? 0;
   // Someone who dropped out isn't looking at anything (their look waits for them to come back).
-  const look = offline ? undefined : table.looks?.[playerId];
+  const peek = offline ? undefined : table.looks?.[playerId];
 
   return (
     <group>
@@ -293,8 +297,52 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
       {(["library", "graveyard", "exile", "sideboard"] as PileZone[]).map((zone) => (
         <Pile key={zone} table={table} ownerId={playerId} zone={zone} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />
       ))}
-      {look && <LibraryLook look={look} libraryCount={player?.zones.library.length ?? 0} seat={seat} seatCount={seatCount} />}
+      {peek && <LibraryLook look={peek} libraryCount={player?.zones.library.length ?? 0} seat={seat} seatCount={seatCount} />}
       {!isMe && handCount > 0 && <OpponentHand count={handCount} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />}
+      {look?.companion && <CompanionFigure companion={look.companion} variant={look.companionVariant ?? 0} seat={seat} seatCount={seatCount} active={table.turn.playerId === playerId} offline={offline} />}
+    </group>
+  );
+}
+
+const PET_SIZE = 4.2;
+
+/** The player's companion standing in front of their mat: a picture for now, until it becomes a 3D model. It hops on its player's turn. */
+function CompanionFigure({ companion, variant, seat, seatCount, active, offline }: { companion: string; variant: number; seat: number; seatCount: number; active: boolean; offline: boolean }) {
+  const def = companionDef(companion);
+  const url = companionArt(companion);
+  const img = useImage(variant > 0 ? url : null);
+  const hue = variantHue(variant);
+  const tex = useMemo(() => (img && hue ? hueTexture(img, hue) : spriteTexture(url)), [url, img, hue]);
+  const at = localToTable({ x: MAT_W / 2 - 8, y: MAT_D / 2 + 1.9 }, seat, seatCount);
+  const body = useRef<THREE.Group>(null);
+  const phase = useMemo(() => Math.random() * Math.PI * 2, []);
+  useFrame(({ clock }) => {
+    const g = body.current;
+    if (!g) return;
+    const t = clock.elapsedTime + phase;
+    if (reducedMotion() || offline) {
+      g.position.y = 0;
+      g.scale.set(1, 1, 1);
+      return;
+    }
+    // Idle: a slow breath. On their turn: little hops.
+    const hop = active ? Math.abs(Math.sin(t * 3.2)) * 0.55 : 0;
+    const breath = 1 + Math.sin(t * 1.6) * 0.018;
+    g.position.y = hop;
+    g.scale.set(1 / breath, breath, 1);
+  });
+  if (!def) return null;
+  return (
+    <group position={[at.x, 0.04, at.y]}>
+      <mesh rotation-x={FLAT} position-y={0.02} renderOrder={2} raycast={() => null}>
+        <planeGeometry args={[PET_SIZE * 0.78, PET_SIZE * 0.34]} />
+        <meshBasicMaterial map={glowTexture()} color="#000000" transparent opacity={0.55} depthWrite={false} />
+      </mesh>
+      <group ref={body}>
+        <sprite scale={[PET_SIZE, PET_SIZE, 1]} center={[0.5, 0.06]} renderOrder={6} raycast={() => null}>
+          <spriteMaterial map={tex} transparent toneMapped={false} depthWrite={false} color={offline ? "#7a7a88" : "#ffffff"} />
+        </sprite>
+      </group>
     </group>
   );
 }

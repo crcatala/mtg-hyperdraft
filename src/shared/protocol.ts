@@ -2,6 +2,7 @@
 // Client messages are validated with zod on the server; server messages are trusted by the client.
 
 import { z } from "zod";
+import { isAvatarId, isCompanionId } from "./roster";
 import type {
   CardInstance,
   CardMap,
@@ -84,6 +85,12 @@ export type DebugCommand = (typeof DEBUG_COMMANDS)[number];
 export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("ping") }),
   z.object({ t: z.literal("setName"), name: z.string().trim().min(1).max(24) }),
+  z.object({
+    t: z.literal("setLook"),
+    // An id picks one; null clears it (back to the hooded stranger / no companion).
+    avatar: z.string().max(32).refine(isAvatarId).nullable().optional(),
+    companion: z.string().max(32).refine(isCompanionId).nullable().optional(),
+  }),
   z.object({ t: z.literal("setReady"), ready: z.boolean() }),
   z.object({ t: z.literal("config"), draft: draftConfigPatch.optional(), game: gameConfigPatch.optional() }),
   z.object({ t: z.literal("import"), source: z.string().min(1).max(200_000) }),
@@ -158,7 +165,7 @@ export interface RoomView {
 export type ServerMessage =
   | { t: "welcome"; you: string; secret: string; code: string }
   /** Sent before closing with CLOSE.claim: the game has started, pick a free seat to rejoin. */
-  | { t: "claim"; seats: { id: string; name: string }[] }
+  | { t: "claim"; seats: { id: string; name: string; avatar?: string }[] }
   /**
    * The server is ending this session for good (e.g. the room was deleted). Sent right before the
    * close so the client can stop at once: the close event itself can lag behind by seconds while the

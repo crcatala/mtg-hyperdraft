@@ -59,6 +59,7 @@ src/
     invites.ts       invite codes, quotas, "My rooms" ledger, idle expiry
     publicRooms.ts   public room pool: slots, per-visitor rule, IPv6 /64 grouping
     rateLimit.ts     token buckets for flood control in rooms
+    roster.ts        the avatars and table companions (names, backstories, colours, ids)
   worker/        Cloudflare Worker + Durable Objects
     index.ts         routing, invite checks, room-code verification, kill switch
     roomObject.ts    one DO per room: hibernating websockets, storage, pick-timer alarms, imports
@@ -124,6 +125,29 @@ src/
   made-up codes without touching a Durable Object; the draft clock pauses (no alarms) while no humans are
   connected, so an abandoned draft waits for you; alarms are only rewritten when the deadline changes, and
   an overdue deadline that doesn't advance backs off instead of re-firing in a loop.
+
+## Avatars and companions
+
+Players can give themselves an **avatar** (a character portrait) and a **companion** (a little creature
+that stands in front of their mat). Both are optional: a human starts with neither, shows up as a hooded
+stranger, and can pick in the lobby (**Avatar…**, **Companion…** or **Surprise me** on the Players panel).
+Bots are dealt a random pair. A choice is remembered in the browser for the next room. The player's name
+stays their main identity everywhere; hovering anyone's face (lobby, draft ring, deckbuilder, table HUD)
+reveals the character behind it.
+
+- The cast lives in `src/shared/roster.ts`, and the art in `public/roster/{avatars,companions}/`
+  (`<id>.webp` plus a face crop or small icon; `mystery*.webp` is the hooded default). Ids are stored on
+  each `Player`, so never rename or reuse one. Rooms saved before this existed load fine.
+- Several players may pick the same avatar or companion. Whoever holds it second (or third...) gets a
+  different colour variant, stored as `avatarVariant` / `companionVariant`: a turned hue for the ring and
+  portrait background, and for the companion's picture. The first holder keeps the original.
+- `setLook` (lobby only) sets or clears either choice; the room engine in `shared/room.ts` does all the
+  bookkeeping, so solo mode behaves the same.
+- Companions are flat pictures for now (`CompanionFigure` in `table/TableScene.tsx`); each has a list of
+  planned `emotes` for when they become 3D models.
+- To add a character, add an entry to `roster.ts` and its images; `tests/roster.test.ts` checks that
+  every entry has its files. The prompts and style notes used to generate the current art are in
+  `scripts/roster/roster.json`.
 
 ## UI themes
 

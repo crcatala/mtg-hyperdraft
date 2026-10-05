@@ -6,6 +6,10 @@ import { Icon } from "../components/Icon";
 import { AnchoredPreview } from "../components/AnchoredPreview";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { CubeBrowser } from "../components/CubeBrowser";
+import { CharacterSelect, type PickTab } from "../components/CharacterSelect";
+import { CompanionIcon, PlayerFace, petFilter } from "../components/Persona";
+import { accentOf, avatarArt, avatarDef, companionDef, companionSmall, surprise } from "../roster";
+import { saveLook } from "../identity";
 import { cubeCards } from "../cubeList";
 import type { CardData, DraftConfig, GameConfig, Player } from "../../shared/types";
 import { MAX_HUMANS, MAX_SEATS } from "../../shared/types";
@@ -30,6 +34,8 @@ export function Lobby() {
   const humans = view.players.filter((p) => !p.isBot);
   const waitingOn = humans.filter((p) => !p.ready);
   const importing = view.importStatus.state === "running";
+  const [picking, setPicking] = useState<PickTab | null>(null);
+  const closePicker = useCallback(() => setPicking(null), []);
 
   return (
     <div className="screen lobby">
@@ -72,9 +78,10 @@ export function Lobby() {
               {solo ? `${view.players.length}/${MAX_SEATS} seats` : `${humans.length}/${MAX_HUMANS} friends · ${view.players.length}/${MAX_SEATS} seats`}
             </span>
           </div>
+          {me && <CharacterCard me={me} onPick={setPicking} />}
           <ul className="seat-list">
-            {view.players.map((p, i) => (
-              <SeatRow key={p.id} player={p} seat={i} isMe={p.id === view.you} canKick={isHost && p.id !== view.you} />
+            {view.players.map((p) => (
+              <SeatRow key={p.id} player={p} isMe={p.id === view.you} canKick={isHost && p.id !== view.you} onPick={setPicking} />
             ))}
           </ul>
           {isHost && (
@@ -109,18 +116,81 @@ export function Lobby() {
         <CubePanel isHost={isHost} />
         <SettingsPanel isHost={isHost} />
       </div>
+      {picking && <CharacterSelect initialTab={picking} onClose={closePicker} />}
     </div>
   );
 }
 
-function SeatRow({ player, seat, isMe, canKick }: { player: Player; seat: number; isMe: boolean; canKick: boolean }) {
+/** Your avatar and companion at a glance, with the ways to change them. Both are optional. */
+function CharacterCard({ me, onPick }: { me: Player; onPick: (tab: PickTab) => void }) {
+  const players = useStore((s) => s.view!.players);
   const send = useStore((s) => s.send);
-  const hue = (seat * 67 + 260) % 360;
+  const a = avatarDef(me.avatar);
+  const c = companionDef(me.companion);
+  const reroll = () => {
+    const next = surprise(players, me.id);
+    send({ t: "setLook", ...next });
+    saveLook(next);
+  };
+  return (
+    <div className="char-card" style={{ "--c": accentOf(me) } as React.CSSProperties}>
+      <button className="char-portrait" onClick={() => onPick("avatar")} title={a ? "Change avatar" : "Choose an avatar"} aria-label={a ? `Your avatar is ${a.name}. Change avatar` : "You haven't chosen an avatar. Choose one"}>
+        <img src={avatarArt(me.avatar)} alt="" />
+      </button>
+      <div className="char-info">
+        <span className="char-kicker">Your avatar</span>
+        {a ? (
+          <>
+            <b className="char-name">{a.name}</b>
+            <span className="char-title">
+              {a.title} · {a.race}
+            </span>
+          </>
+        ) : (
+          <>
+            <b className="char-name">Mystery guest</b>
+            <span className="char-title">Optional: pick a character, or stay hooded.</span>
+          </>
+        )}
+        <span className="char-pet" title={c ? `${c.name} the ${c.species}` : "No companion"}>
+          {c ? (
+            <>
+              <img src={companionSmall(c.id)} alt="" style={petFilter(me.companionVariant)} />
+              <span className="char-pet-name">
+                {c.name} <span className="faint">· {c.species}</span>
+              </span>
+            </>
+          ) : (
+            <span className="char-pet-name faint">No companion</span>
+          )}
+        </span>
+      </div>
+      <div className="char-actions">
+        <button className="btn small" onClick={() => onPick("avatar")}>
+          Avatar…
+        </button>
+        <button className="btn small" onClick={() => onPick("companion")}>
+          Companion…
+        </button>
+        <button className="btn small icon-only" onClick={reroll} title="Surprise me: a random avatar and companion" aria-label="Surprise me">
+          <Icon name="dice" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SeatRow({ player, isMe, canKick, onPick }: { player: Player; isMe: boolean; canKick: boolean; onPick: (tab: PickTab) => void }) {
+  const send = useStore((s) => s.send);
   return (
     <li className={`seat-row${isMe ? " me" : ""}`}>
-      <span className="avatar" style={{ background: `hsl(${hue} 70% 55%)` }}>
-        {player.isBot ? <Icon name="bot" /> : player.name.slice(0, 1).toUpperCase()}
-      </span>
+      {isMe ? (
+        <button className="seat-face-btn" onClick={() => onPick("avatar")} title={player.avatar ? "Change avatar" : "Choose an avatar"} aria-label="Change your avatar">
+          <PlayerFace player={player} size={40} tip={false} />
+        </button>
+      ) : (
+        <PlayerFace player={player} size={40} focusable />
+      )}
       <span className="seat-name">
         {player.name}
         {isMe && <span className="faint"> (you)</span>}
@@ -133,6 +203,7 @@ function SeatRow({ player, seat, isMe, canKick }: { player: Player; seat: number
         </span>
       )}
       {player.isBot ? <span className="pill">bot</span> : player.ready ? <span className="pill ok">ready</span> : <span className="pill">not ready</span>}
+      <CompanionIcon player={player} size={34} />
       {canKick && (
         <button className="btn ghost small icon-only" title="Remove" aria-label={`Remove ${player.name}`} onClick={() => send({ t: "kick", playerId: player.id })}>
           <Icon name="x" />

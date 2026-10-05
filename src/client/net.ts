@@ -1,7 +1,7 @@
 // WebSocket connection to the room Durable Object with automatic reconnect.
 
 import { CLOSE, type ClientMessage, type ServerMessage } from "../shared/protocol";
-import { loadIdentity, loadName, saveIdentity } from "./identity";
+import { loadIdentity, loadLook, loadName, saveIdentity } from "./identity";
 import { useStore } from "./store";
 import { showPing } from "./table/tableUi";
 import { rememberExpiry } from "./publicRooms";
@@ -63,6 +63,9 @@ function open() {
   if (!code) return;
   const id = loadIdentity(code);
   const params = new URLSearchParams({ name: loadName() });
+  const look = loadLook();
+  if (look.avatar) params.set("avatar", look.avatar);
+  if (look.companion) params.set("companion", look.companion);
   if (id) {
     params.set("pid", id.pid);
     params.set("secret", id.secret);

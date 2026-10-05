@@ -11,6 +11,7 @@ import { Deckbuilder } from "./Deckbuilder";
 import { TableScreen } from "../table/TableScreen";
 import { presenceChanges } from "../presence";
 import { Icon } from "../components/Icon";
+import { PlayerFace } from "../components/Persona";
 import { forgetMine, knownExpiry } from "../publicRooms";
 import { useExpiryWarnings } from "../components/PublicRoomChip";
 import { clockTime } from "../expiry";
@@ -147,7 +148,7 @@ export function PhaseScreen() {
 }
 
 /** Rejoining a started game without this browser's seat secret: pick which player you are. */
-function SeatPicker({ code, seats }: { code: string; seats: { id: string; name: string }[] }) {
+function SeatPicker({ code, seats }: { code: string; seats: { id: string; name: string; avatar?: string }[] }) {
   return (
     <div className="screen">
       <div className="center-stage">
@@ -156,7 +157,8 @@ function SeatPicker({ code, seats }: { code: string; seats: { id: string; name: 
           <p className="muted">This game has already started. If you were playing on another device or browser, pick your seat to continue.</p>
           <div className="seat-choices">
             {seats.map((s) => (
-              <button key={s.id} className="btn primary" onClick={() => connect(code, s.id)}>
+              <button key={s.id} className="btn primary seat-choice" onClick={() => connect(code, s.id)}>
+                <PlayerFace player={{ avatar: s.avatar, name: s.name }} size={26} tip={false} />
                 I'm {s.name}
               </button>
             ))}
