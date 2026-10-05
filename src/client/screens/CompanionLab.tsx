@@ -12,6 +12,7 @@ import { COMPANIONS, companionDef, companionSmall } from "../roster";
 import { variantColor } from "../../shared/roster";
 import { emoteSound, EMOTE_SLOTS, REACTION_IDS, VOICE_SLOT_IDS, voiceSlotLabel, voiceSlotLine } from "../../shared/companionKit";
 import { CompanionFigure } from "../table/CompanionFigure";
+import { SpeechBubbles } from "../table/SpeechBubbles";
 import { reactionSeconds } from "../table/companionMotion";
 import { bodyStyle, reactionFor, SIGNATURES } from "../table/companionReactions";
 import { playReaction, reactionNow, setReactionTimeScale, stopReaction } from "../table/companionPlayback";
@@ -223,6 +224,7 @@ export function CompanionLab() {
               <Canvas className="cl-canvas" dpr={[1, 2]} camera={{ fov: 34, near: 0.5, far: 200, position: [0, 4, 9] }} gl={{ antialias: true }}>
                 <LabScene cast={cast} variant={variant} />
               </Canvas>
+              <SpeechBubbles />
               <div className="cl-caption" aria-live="polite">
                 {shown && r ? (
                   <>

@@ -55,6 +55,29 @@ export function say(playerId: string, text: string | undefined, size: BubbleSize
   );
 }
 
+/**
+ * Where each companion's bubble points, in viewport pixels: the top of its head, as drawn this frame. The 3D
+ * figure writes it (it knows the camera); the bubbles themselves are DOM (SpeechBubbles.tsx), drawn over the
+ * whole table screen, HUD panels included, so a companion in a corner of the screen can still be read.
+ * `on` is false while the head is behind the camera.
+ */
+export const bubbleAnchors = new Map<string, { x: number; y: number; on: boolean }>();
+
+/** Gap kept between a bubble and the edges of the window. */
+export const BUBBLE_MARGIN = 8;
+
+/**
+ * A bubble `width` px wide pointing at `anchorX`: its left edge, slid sideways to stay inside a `viewW` window,
+ * and where its tail sits along it (px from its left edge), so the tail still points at the companion.
+ */
+export function placeBubble(anchorX: number, width: number, viewW: number): { left: number; tail: number } {
+  const max = viewW - width - BUBBLE_MARGIN;
+  const left = max < BUBBLE_MARGIN ? (viewW - width) / 2 : Math.min(Math.max(anchorX - width / 2, BUBBLE_MARGIN), max);
+  // The tail keeps clear of the rounded corners.
+  const tail = Math.min(Math.max(anchorX - left, 22), width - 22);
+  return { left, tail };
+}
+
 /** Takes every bubble down at once (leaving the table: the next room reuses player ids). */
 export function clearBubbles() {
   for (const t of timers.values()) clearTimeout(t);

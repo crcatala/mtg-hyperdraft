@@ -1,18 +1,19 @@
 // A player's companion on the table (and in the lab, /dev/companion-lab): its picture on a soft shadow, an idle
 // breath, hops when its player's turn starts, and on top of that whatever reaction it is playing
-// (companionPlayback.ts), with its effect glyphs and its speech bubble (companionTalk.ts). At the table it can be
-// tapped (a poke), and its owner can right-click it for the emote wheel. The motion itself is pure (companionMotion.ts); this file only turns poses into sprite transforms.
+// (companionPlayback.ts), with its effect glyphs. It tells its speech bubble (SpeechBubbles.tsx) where its head
+// is. At the table it can be tapped (a poke), and its owner can right-click it for the emote wheel. The motion
+// itself is pure (companionMotion.ts); this file only turns poses into sprite transforms.
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { bubbleTexture, glowTexture, glyphTexture, hueTexture, spriteTexture, useImage } from "./textures";
+import { glowTexture, glyphTexture, hueTexture, spriteTexture, useImage } from "./textures";
 import { reducedMotion } from "./motion";
 import { hopFade } from "./petMotion";
 import { advanceTrack, fxSpawns, glyphPose, newTrack, REST, type Fx, type GlyphMotion } from "./companionMotion";
 import { bodyStyle, reactionFor } from "./companionReactions";
 import { reactionNow, reactionOf } from "./companionPlayback";
-import { bubblePop, useBubbles } from "./companionTalk";
+import { bubbleAnchors } from "./companionTalk";
 import { loadVoice } from "../companionVoice";
 import { companionArt, companionDef, variantHue } from "../roster";
 
@@ -191,7 +192,7 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
           <spriteMaterial transparent opacity={0} depthWrite={false} />
         </sprite>
       )}
-      <SpeechBubble playerId={playerId} height={PET_SIZE * (style.head + 0.16)} />
+      <BubbleAnchor playerId={playerId} height={PET_SIZE * (style.head + 0.16)} />
       {Array.from({ length: FX_SLOTS }, (_, i) => (
         <sprite
           key={i}
@@ -209,29 +210,24 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
   );
 }
 
-/** Its speech bubble (if it's saying something): a constant size on screen, above its head, over everything else. */
-function SpeechBubble({ playerId, height }: { playerId: string; height: number }) {
-  const bubble = useBubbles((s) => s.bubbles[playerId]);
-  const art = useMemo(() => (bubble ? bubbleTexture(bubble.text, bubble.size, bubble.badge) : null), [bubble]);
-  useEffect(() => () => art?.texture.dispose(), [art]);
-  const ref = useRef<THREE.Sprite>(null);
-  useFrame(({ camera, size }) => {
-    const s = ref.current;
-    if (!s || !bubble || !art) return;
-    // sizeAttenuation off: a scale of 1 spans 2 / (focal length) of the screen's height, whatever the distance.
-    const focal = 1 / Math.tan(THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov) / 2);
-    const perPx = 2 / (focal * size.height);
-    const pop = bubblePop(performance.now() - bubble.at, reducedMotion(), bubble.size);
-    // Above its head as the picture is drawn: along the screen's up, not the world's (from overhead those differ).
-    s.position.setFromMatrixColumn(camera.matrixWorld, 1).multiplyScalar(height);
-    s.scale.set(art.width * perPx * pop.scale, art.height * perPx * pop.scale, 1);
-    s.material.opacity = pop.alpha;
-    s.material.rotation = pop.rot;
+/**
+ * Where its speech bubble points: just above its head as the picture is drawn (along the screen's up, not the
+ * world's: from overhead those differ), in viewport pixels, every frame. The bubble itself is DOM
+ * (SpeechBubbles.tsx), so it draws over the HUD too.
+ */
+function BubbleAnchor({ playerId, height }: { playerId: string; height: number }) {
+  const ref = useRef<THREE.Group>(null);
+  const gl = useThree((s) => s.gl);
+  useEffect(() => () => void bubbleAnchors.delete(playerId), [playerId]);
+  useFrame(({ camera }) => {
+    const g = ref.current;
+    if (!g) return;
+    g.getWorldPosition(head).addScaledVector(up.setFromMatrixColumn(camera.matrixWorld, 1), height);
+    head.project(camera);
+    const r = gl.domElement.getBoundingClientRect();
+    bubbleAnchors.set(playerId, { x: r.left + ((head.x + 1) / 2) * r.width, y: r.top + ((1 - head.y) / 2) * r.height, on: head.z < 1 });
   });
-  if (!bubble || !art) return null;
-  return (
-    <sprite ref={ref} center={[0.5, 0]} scale={[0, 0, 1]} renderOrder={30} raycast={() => null}>
-      <spriteMaterial map={art.texture} transparent depthTest={false} depthWrite={false} sizeAttenuation={false} toneMapped={false} opacity={0} />
-    </sprite>
-  );
+  return <group ref={ref} />;
 }
+
+const head = new THREE.Vector3();

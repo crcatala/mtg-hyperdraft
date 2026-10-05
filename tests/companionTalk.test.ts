@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BUBBLE_MS, bubblePop, LARGE_BUBBLE_MS, say, useBubbles } from "../src/client/table/companionTalk";
+import { BUBBLE_MARGIN, BUBBLE_MS, bubblePop, LARGE_BUBBLE_MS, placeBubble, say, useBubbles } from "../src/client/table/companionTalk";
 
 describe("speech bubbles", () => {
   afterEach(() => {
@@ -52,5 +52,17 @@ describe("speech bubbles", () => {
     expect(bubblePop(BUBBLE_MS, false, "large").alpha).toBe(1);
     expect(bubblePop(LARGE_BUBBLE_MS, false, "large").alpha).toBe(0);
     for (const t of [0, 60, 120, 1000]) expect(bubblePop(t, true, "large")).toMatchObject({ scale: 1, rot: 0 });
+  });
+
+  it("centres a bubble over its companion, sliding it inside the window near an edge with the tail still on the companion", () => {
+    expect(placeBubble(500, 200, 1280)).toEqual({ left: 400, tail: 100 });
+    // Near the left edge: the body slides right, the tail moves left to keep pointing at x = 60.
+    expect(placeBubble(60, 200, 1280)).toEqual({ left: BUBBLE_MARGIN, tail: 60 - BUBBLE_MARGIN });
+    // Near the right edge.
+    expect(placeBubble(1270, 200, 1280)).toEqual({ left: 1280 - 200 - BUBBLE_MARGIN, tail: 200 - 22 });
+    // The tail never runs into the rounded corners, even for a companion right at the edge.
+    expect(placeBubble(0, 200, 1280).tail).toBe(22);
+    // Wider than the window: centred.
+    expect(placeBubble(100, 400, 300).left).toBe(-50);
   });
 });
