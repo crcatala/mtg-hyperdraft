@@ -14,6 +14,7 @@ import { beginDrag, tableApi } from "./drag";
 import { handLayout } from "./handLayout";
 import { reducedMotion, startTableMotion, useMotion } from "./motion";
 import { resetCompanions } from "./companionPoke";
+import { openMyEmoteWheel } from "./companionEmote";
 import { EmoteLinesDialog } from "./EmoteLinesDialog";
 import { EmoteWheel } from "./EmoteWheel";
 import { SpeechBubbles } from "./SpeechBubbles";
@@ -128,6 +129,10 @@ function useTableShortcuts() {
           break;
         case "v":
           ui.set({ overview: !ui.overview });
+          break;
+        case "w":
+          // The emote wheel, on this player's own companion (right-click it does the same).
+          if (!e.repeat) openMyEmoteWheel();
           break;
         case "1":
         case "2":
@@ -1256,6 +1261,9 @@ const SHORTCUTS: [string, string][] = [
   ["F", "Turn face down / face up"],
   ["R", "Transform a double-faced card (on the table, or turn it over in your hand)"],
   ["Tab", "Ping the spot under the pointer — everyone sees and hears it"],
+  ["Click a companion", "Poke it — anyone's; keep poking and it gets cheeky"],
+  ["Hold your companion", "Pick it up and put it down anywhere off the other mats"],
+  ["W · right-click yours", "Your companion's emote wheel (1–6 to pick, E edit lines, S settings, H sends it home)"],
   ["G / X / H", "Send to graveyard / exile / hand"],
   ["C / Shift+C", "Add / remove a +1/+1 counter"],
   ["D / Shift+D", "Draw a card / draw X"],
