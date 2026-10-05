@@ -16,6 +16,7 @@ import { easeInOutCubic, Flights } from "./Flights";
 import type { IconName } from "../icons";
 import { shortcutsBlocked } from "../shortcuts";
 import { hopFade } from "./petMotion";
+import { loadVoice } from "../companionVoice";
 import { accentOf, avatarFace, companionArt, companionDef, variantHue } from "../roster";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
@@ -317,6 +318,8 @@ function CompanionFigure({ companion, variant, seat, seatCount, active, turnNumb
   const at = localToTable({ x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 }, seat, seatCount);
   const body = useRef<THREE.Group>(null);
   const phase = useMemo(() => Math.random() * Math.PI * 2, []);
+  // Its voice loads when it arrives at the table (once per companion, however many copies there are).
+  useEffect(() => void loadVoice(companion), [companion]);
   // When this player's turn started (or the table opened on it), so the hopping can wind down. The turn
   // number is a dependency too: with one player at the table (solo) it's their turn again, and `active`
   // never changes, so only the number says a new turn began.

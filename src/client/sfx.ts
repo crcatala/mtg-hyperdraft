@@ -31,7 +31,7 @@ const FILES: Record<string, number> = Object.fromEntries(manifest.map((s) => [s.
 /** Loops are used whole: trimming their head would move the seam. */
 const LOOPS = new Set(manifest.filter((s) => "loop" in s && s.loop).map((s) => s.name));
 
-interface Take {
+export interface Take {
   buffer: AudioBuffer;
   /** Seconds of room tone to skip so the sound starts on its first audible sample. */
   offset: number;
@@ -52,14 +52,17 @@ export function setPackOverride(fn: ((name: string) => PackId | undefined) | nul
   packOverride = fn;
 }
 
-/** A sample started (`pack` is the one it came from, after any fallback), or had nothing to play. */
-export type SfxEvent = { name: string; pack: PackId | null };
+/**
+ * A sample started (`pack` is the one it came from, after any fallback), or had nothing to play. A
+ * companion's voice (companionVoice.ts) has no pack: `voice` says whose, and whether anything sounded.
+ */
+export type SfxEvent = { name: string; pack: PackId | null; voice?: { companion: string; played: boolean } };
 const sfxListeners = new Set<(e: SfxEvent) => void>();
 export function onSfx(listener: (e: SfxEvent) => void): () => void {
   sfxListeners.add(listener);
   return () => sfxListeners.delete(listener);
 }
-const emit = (e: SfxEvent) => sfxListeners.forEach((l) => l(e));
+export const emit = (e: SfxEvent) => sfxListeners.forEach((l) => l(e));
 
 /** Every sample still sounding, so stopAll() can cut them. */
 const live = new Set<AudioBufferSourceNode>();
@@ -95,6 +98,19 @@ function applyLevel() {
   if (busGain) busGain.gain.value = v.sfx * v.master;
 }
 
+/** Things waiting for the first user interaction to unlock audio (see whenAudioReady). */
+const readyWaiters: (() => void)[] = [];
+
+/** Resolves once audio is unlocked (the first interaction, while not muted); immediately if it already is. */
+export function whenAudioReady(): Promise<AudioContext> {
+  return ctx ? Promise.resolve(ctx) : new Promise((resolve) => readyWaiters.push(() => resolve(ctx!)));
+}
+
+/** The audio context if audio has been unlocked, else null: unlike audio() it never starts one by itself. */
+export function audioIfUnlocked(): AudioContext | null {
+  return ctx ? audio() : null;
+}
+
 function audio(): AudioContext | null {
   if (muted) return null;
   if (!ctx) {
@@ -114,6 +130,7 @@ function audio(): AudioContext | null {
       bus = busGain = sfxBus;
       applyLevel();
       onVolumes(applyLevel);
+      readyWaiters.splice(0).forEach((go) => go());
     } catch {
       return null;
     }
@@ -122,6 +139,14 @@ function audio(): AudioContext | null {
   void loadPack(FALLBACK_PACK);
   void loadPack(activePack());
   return ctx;
+}
+
+/** Decodes one file into a take, or null when it is a failed generation (silent): better to fall back than to hiss. */
+export async function decodeTake(a: AudioContext, data: ArrayBuffer, loop = false): Promise<Take | null> {
+  const buffer = await a.decodeAudioData(data);
+  const info = analyze(buffer.getChannelData(0));
+  if (!isAudible(info)) return null;
+  return { buffer, offset: loop ? 0 : info.start / buffer.sampleRate, norm: normalizeGain(info) };
 }
 
 /** Fetches and decodes every sample of a pack (once). Failures just leave those effects on their fallback. */
@@ -140,11 +165,8 @@ export function loadPack(pack: PackId): Promise<void> {
         try {
           const res = await fetch(`${base}sfx/${pack}/${file}`);
           if (!res.ok) return;
-          const buffer = await a.decodeAudioData(await res.arrayBuffer());
-          const info = analyze(buffer.getChannelData(0));
-          if (!isAudible(info)) return; // a failed generation: better to fall back than to hiss
-          const take: Take = { buffer, offset: LOOPS.has(name) ? 0 : info.start / buffer.sampleRate, norm: normalizeGain(info) };
-          mine.set(name, [...(mine.get(name) ?? []), take]);
+          const take = await decodeTake(a, await res.arrayBuffer(), LOOPS.has(name));
+          if (take) mine.set(name, [...(mine.get(name) ?? []), take]);
         } catch {
           /* missing or undecodable: that effect stays on its fallback */
         }
@@ -191,6 +213,9 @@ export function setMuted(m: boolean) {
   muted = m;
   muteListeners.forEach((l) => l());
   if (m) tearVoice?.end(false);
+  // A page that loaded muted never unlocked audio (audio() refuses while muted, and the first-interaction warm-up
+  // has already run), and voices wait for it rather than starting it themselves: unmuting, inside the click, does it.
+  else audio();
   try {
     localStorage.setItem("hyperdraft:muted", m ? "1" : "0");
   } catch {
@@ -204,13 +229,33 @@ export function setEffectsVolume(v: number) {
   if (v > 0 && muted) setMuted(false);
 }
 
-interface PlayOptions {
+export interface PlayOptions {
   gain?: number;
   rate?: number;
   /** Seconds from now. */
   when?: number;
   /** -1 (left) … 1 (right). */
   pan?: number;
+}
+
+/** Starts one decoded take through the effects bus (so mute and the volume sliders apply); returns it so the caller can cut it short. */
+export function startTake(a: AudioContext, take: Take, { gain = 1, rate = 1, when = 0, pan = 0 }: PlayOptions = {}): AudioBufferSourceNode | null {
+  if (!bus) return null;
+  const src = a.createBufferSource();
+  src.buffer = take.buffer;
+  src.playbackRate.value = rate;
+  const g = a.createGain();
+  g.gain.value = gain * take.norm;
+  let out: AudioNode = src.connect(g);
+  if (pan) {
+    const p = a.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    out = out.connect(p);
+  }
+  out.connect(bus);
+  src.start(a.currentTime + when, take.offset);
+  track(src);
+  return src;
 }
 
 /**
@@ -229,21 +274,7 @@ function play(name: string, { gain = 1, rate = 1, when = 0, pan = 0 }: PlayOptio
   const key = `${pack}/${name}`;
   const i = pickTake(takes.length, lastTake.get(key) ?? -1);
   lastTake.set(key, i);
-  const take = takes[i];
-  const src = a.createBufferSource();
-  src.buffer = take.buffer;
-  src.playbackRate.value = rate;
-  const g = a.createGain();
-  g.gain.value = gain * take.norm;
-  let out: AudioNode = src.connect(g);
-  if (pan) {
-    const p = a.createStereoPanner();
-    p.pan.value = Math.max(-1, Math.min(1, pan));
-    out = out.connect(p);
-  }
-  out.connect(bus);
-  src.start(a.currentTime + when, take.offset);
-  track(src);
+  startTake(a, takes[i], { gain, rate, when, pan });
   emit({ name, pack });
   return true;
 }

@@ -1,13 +1,16 @@
 // Character select: pick your avatar and table companion in the lobby. Both are optional: the first
 // tile clears the choice (other players then see a hooded stranger, or no companion). Hover or focus an
 // entry to read about them; click to take it. Several players may pick the same one: whoever comes
-// later gets a different colour so they can be told apart. Changes apply at once.
+// later gets a different colour so they can be told apart. Changes apply at once. Companions say hello
+// when you pick or linger on them (see helloGate.ts), and their picture hops along.
 
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "../store";
 import type { Player } from "../../shared/types";
 import { loadLook, mergeLook, saveLook } from "../identity";
+import { hasVoice, sayHello, silenceHello } from "../companionVoice";
+import { createHelloGate } from "../helloGate";
 import { AVATARS, COMPANIONS, accentOf, avatarArt, avatarDef, avatarFace, companionArt, companionDef, companionSmall, holders, surprise } from "../roster";
 import { petFilter } from "./Persona";
 import { Icon } from "./Icon";
@@ -33,6 +36,20 @@ export function CharacterSelect({ initialTab = "avatar", onClose }: { initialTab
   const titleId = useId();
   const baseId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  /** Bumped each time a companion says hello, so its picture can hop in time (the hop restarts on a new key). */
+  const [hop, setHop] = useState({ id: "", n: 0 });
+  const myCompanion = useRef({ id: me?.companion, variant: me?.companionVariant ?? 0 });
+  myCompanion.current = { id: me?.companion, variant: me?.companionVariant ?? 0 };
+  /** A companion just clicked: it says hello once the room confirms it (and which colour variant you got, which sets its pitch). */
+  const helloOnArrival = useRef<string | null>(null);
+  const gate = useRef<ReturnType<typeof createHelloGate>>(null);
+  gate.current ??= createHelloGate({
+    say: (id) => {
+      // Your own pick sounds in your colour's pitch; a candidate you're only trying sounds in the original.
+      sayHello(id, myCompanion.current.id === id ? myCompanion.current.variant : 0);
+      setHop((h) => ({ id, n: h.n + 1 }));
+    },
+  });
 
   // Focus moves in on open and back to whatever had it on close.
   useEffect(() => {
@@ -42,6 +59,24 @@ export function CharacterSelect({ initialTab = "avatar", onClose }: { initialTab
       if (before?.isConnected) before.focus();
     };
   }, [baseId, initialTab]);
+
+  // Lingering on a companion tile (pointer or focus) says hello; leaving the picker ends any greeting.
+  useEffect(() => {
+    gate.current?.rest(tab === "companion" && peek && peek !== NONE ? peek : null);
+  }, [tab, peek]);
+  useEffect(() => {
+    if (helloOnArrival.current && helloOnArrival.current === me?.companion) {
+      helloOnArrival.current = null;
+      gate.current?.pick(me.companion);
+    }
+  }, [me?.companion, me?.companionVariant]);
+  useEffect(
+    () => () => {
+      gate.current?.cancel();
+      silenceHello();
+    },
+    [],
+  );
 
   // Esc closes (capture phase, so the screen behind doesn't also react).
   useEffect(() => {
@@ -66,6 +101,15 @@ export function CharacterSelect({ initialTab = "avatar", onClose }: { initialTab
 
   /** `id` null clears the choice. */
   const choose = (id: string | null) => {
+    if (tab === "companion") {
+      helloOnArrival.current = null;
+      if (!id) silenceHello();
+      else if (id === current) gate.current?.pick(id);
+      else {
+        gate.current?.cancel();
+        helloOnArrival.current = id;
+      }
+    }
     if ((id ?? NONE) === current) return;
     send({ t: "setLook", [tab]: id });
     // Built from what is saved, not from `me`: a pick made a moment ago may not be in the room view yet.
@@ -139,7 +183,7 @@ export function CharacterSelect({ initialTab = "avatar", onClose }: { initialTab
           {tab === "avatar" ? (
             <AvatarPreview id={shownId} me={me} sharedWith={shownId !== NONE ? others(shownId) : []} />
           ) : (
-            <CompanionPreview id={shownId} me={me} sharedWith={shownId !== NONE ? others(shownId) : []} />
+            <CompanionPreview id={shownId} me={me} sharedWith={shownId !== NONE ? others(shownId) : []} hop={hop.id === shownId ? hop.n : 0} />
           )}
 
           <div className="charselect-grid scroll" role="group" aria-label={tab === "avatar" ? "Avatars" : "Companions"} onPointerLeave={() => setPeek(null)}>
@@ -256,13 +300,18 @@ function AvatarPreview({ id, me, sharedWith }: { id: string; me: Player; sharedW
   );
 }
 
-function CompanionPreview({ id, me, sharedWith }: { id: string; me: Player; sharedWith: Player[] }) {
+function CompanionPreview({ id, me, sharedWith, hop }: { id: string; me: Player; sharedWith: Player[]; hop: number }) {
   const c = id === NONE ? undefined : companionDef(id);
   const mine = id === (me.companion ?? NONE);
   return (
     <section className="charselect-preview companion" style={{ "--c": c?.color ?? accentOf({}) } as CSSProperties} aria-live="polite">
       <div className="pstage">
-        {c ? <img key={c.id} src={companionArt(c.id)} alt={c.name} style={mine ? petFilter(me.companionVariant) : undefined} /> : <span className="pstage-empty">No companion</span>}
+        {c ? (
+          // Each hello alternates the hop between two identically drawn animations, which restarts it without reloading the picture.
+          <img key={c.id} className={hop ? (hop % 2 ? "hop-a" : "hop-b") : undefined} src={companionArt(c.id)} alt={c.name} style={mine ? petFilter(me.companionVariant) : undefined} />
+        ) : (
+          <span className="pstage-empty">No companion</span>
+        )}
       </div>
       <div className="pinfo">
         {c ? (
@@ -274,7 +323,10 @@ function CompanionPreview({ id, me, sharedWith }: { id: string; me: Player; shar
             <p className="faint">
               <b>Will learn to:</b> {c.moves.join(" · ").toLowerCase()}
             </p>
-            <p className="faint">Your companion stands in front of your mat during the game and hops on your turn. It's a picture for now; 3D versions are planned.</p>
+            <p className="faint">
+              Your companion stands in front of your mat during the game and hops on your turn.
+              {hasVoice(c.id) && " Hover or click it to hear it say hi."}
+            </p>
           </>
         ) : (
           <>
