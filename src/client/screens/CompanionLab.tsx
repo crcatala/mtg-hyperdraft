@@ -83,9 +83,14 @@ export function CompanionLab() {
     setShown((s) => ({ n: (s?.n ?? 0) + 1, slot }));
   };
 
-  const stop = () => {
-    run.current++;
+  /** Cancels whatever reel or interrupt test is running (and with it the reel's Stop button); returns the new run's number. */
+  const cancel = () => {
     setReeling(false);
+    return ++run.current;
+  };
+
+  const stop = () => {
+    cancel();
     hush();
     stopAll();
     LAB_IDS.forEach(stopReaction);
@@ -94,7 +99,7 @@ export function CompanionLab() {
 
   /** Every reaction in order, each given its full length (the carry loop gets two rounds). */
   const reel = async () => {
-    const mine = ++run.current;
+    const mine = cancel();
     setReeling(true);
     for (const g of GROUPS)
       for (const slot of g.slots) {
@@ -109,7 +114,7 @@ export function CompanionLab() {
 
   /** The finale, cut off part-way by an affectionate poke, then the cheer cut off by a pick-up: should blend, never pop. */
   const interrupt = async () => {
-    const mine = ++run.current;
+    const mine = cancel();
     for (const [slot, after] of [["poke7", 450], ["poke3", 600], ["emote1", 350], ["pickup", 0]] as const) {
       if (run.current !== mine) return;
       play(slot);

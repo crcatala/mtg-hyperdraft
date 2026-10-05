@@ -78,6 +78,7 @@ export const SIGNATURES: Readonly<Record<string, Readonly<Record<string, Partial
     sulk: { move: "Curl up and sleep on the card", motions: [m("flatten", 0, 2.2, { a: 0.55 }), m("nod", 0.4, 1.6, { n: 2, a: 0.3 })], fx: [f("zzz", "rise", 0.5, { n: 2, dur: 1.2 })] },
     emote1: { move: "Flap hover", motions: [m("float", 0, 1.35, { n: 3, a: 1.4 }), m("vibrate", 0, 1.35, { n: 20, a: 0.9 })], fx: [f("flame", "rise", 0.3, { n: 3 })] },
     emote5: { move: "Pout with smoke", motions: [m("lean", 0, 1.3, { a: 0.7, dir: -1 }), m("puff", 0.2, 0.5, { a: 0.5 })], fx: [f("smoke", "puff", 0.3, { n: 2 })] },
+    drop: { move: "Flap hover (flutters down)", motions: [m("float", 0, 0.6, { n: 2, a: 0.8 }), m("vibrate", 0, 0.6, { n: 16, a: 0.7 }), m("flatten", 0.55, 0.25, { a: 0.5 })], fx: [f("smoke", "puff", 0.55, { y: -0.75, size: 0.8 })] },
   },
   folio: {
     poke1: { move: "Flip open and gasp", motions: [m("turn", 0, 0.45), m("puff", 0.4, 0.4, { a: 0.8 })], fx: [f("bang", "pop", 0.4, { dur: 0.5 })] },
@@ -115,6 +116,7 @@ export const SIGNATURES: Readonly<Record<string, Readonly<Record<string, Partial
     emote1: { move: "Bloom the flower", motions: [m("puff", 0, 0.7, { a: 1 }), m("hop", 0.6, 0.5, { a: 0.6 })], fx: [f("leaf", "burst", 0.25, { n: 5 }), f("sparkle", "pop", 0.4)] },
     emote3: { move: "Hide in the pot", motions: [m("duck", 0, 1.3, { a: 1.3 }), m("vibrate", 0.2, 0.9, { a: 0.5 })], fx: [f("sweat", "drip", 0.15)] },
     sulk: { move: "Hide in the pot", motions: [m("duck", 0, 2.2, { a: 1 }), m("nod", 1.0, 0.6, { a: 0.3 })], fx: [f("tear", "drip", 0.3)] },
+    drop: { move: "Replanted (plops into the pot)", motions: [m("duck", 0, 0.45, { a: 0.9 }), m("boing", 0.4, 0.4)], fx: [f("leaf", "pop", 0.1)] },
   },
   wick: {
     poke5: { move: "Flicker (nervous)", motions: [m("flicker", 0, 0.9, { n: 6 }), m("vibrate", 0, 0.9, { a: 0.8 })], fx: [f("sweat", "drip", 0.1)] },
@@ -127,6 +129,7 @@ export const SIGNATURES: Readonly<Record<string, Readonly<Record<string, Partial
     sulk: { move: "Blow out (sleep)", motions: [m("flicker", 0, 2.2, { n: 3, a: 1.4 }), m("droop", 0, 2.2, { a: 0.8 })], fx: [f("smoke", "puff", 0.2), f("zzz", "rise", 0.8, { n: 2, dur: 1.2 })] },
     emote1: { move: "Flame flare (excited)", motions: [m("puff", 0, 0.6, { a: 1.3 }), m("hop", 0.5, 0.6, { a: 0.8 })], fx: [f("flame", "rise", 0.1, { n: 3 }), f("sparkle", "burst", 0.4, { n: 3 })] },
     emote3: { move: "Drip melt", motions: [m("droop", 0, 1.35, { a: 1.6 }), m("duck", 0.3, 1.0, { a: 0.4 })], fx: [f("tear", "drip", 0.2, { n: 2, tint: "#ffe6a0" })] },
+    drop: { move: "Flicker (the flame gutters on landing)", motions: [m("flatten", 0, 0.3, { a: 0.6 }), m("flicker", 0, 0.8, { n: 4 }), m("boing", 0.25, 0.55)], fx: [f("smoke", "puff", 0.05, { size: 0.7 })] },
   },
   crit: {
     poke4: { move: "Roll tumble", motions: [m("spin", 0, 0.7), m("slide", 0, 0.7, { a: 1.1 }), m("hop", 0, 0.7, { a: 1 })], fx: [f("star", "pop", 0.65, { dur: 0.6 })] },
@@ -165,6 +168,7 @@ export const SIGNATURES: Readonly<Record<string, Readonly<Record<string, Partial
     emote2: { move: "Slow blink", duration: 1.8, motions: [m("nod", 0, 1.6, { a: 0.8 }), m("puff", 0.2, 0.8, { a: 0.3 })], fx: [f("heart", "pop", 0.6, { dur: 1.1 })] },
     emote4: { move: "Tail-star twirl", motions: [m("spin", 0, 0.9, { n: 2 }), m("hop", 0.85, 0.4, { a: 0.6 })], fx: [f("star", "orbit", 0.2, { n: 4, dur: 1.1 })] },
     emote6: { move: "Knock a token off", motions: [m("lean", 0, 0.7, { a: 0.7, dir: -1 }), m("slide", 0.2, 0.4, { a: 0.6, dir: -1 }), m("nod", 0.8, 0.5, { a: 0.6 })], fx: [f("bang", "pop", 0.45, { x: -0.4, dur: 0.6 })] },
+    drop: { move: "Lands on its feet (slow blink, unbothered)", motions: [m("flatten", 0, 0.2, { a: 0.3 }), m("nod", 0.25, 0.55, { a: 0.5 })], fx: [f("sparkle", "pop", 0.25, { x: 0.3, size: 0.8 })] },
   },
   ribbit: {
     hello: { move: "Throat-bubble croak", motions: [m("puff", 0, 0.4, { a: 1 }), m("puff", 0.45, 0.4, { a: 1 })], fx: [f("bubble", "pop", 0.05), f("note", "rise", 0.5)] },
