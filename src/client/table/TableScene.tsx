@@ -8,16 +8,15 @@ import { useStore } from "../store";
 import { handDragId } from "../../shared/table";
 import type { PublicLook, TableCard, TableState } from "../../shared/types";
 import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
-import { backTexture, feltTexture, glowTexture, labelTexture, lookTagTexture, matTexture, pingTagTexture, roundedRectGeometry, hueTexture, shadowTexture, SHADOW_PAD, spriteTexture, useCardTexture, useImage, type LabelVariant } from "./textures";
+import { backTexture, feltTexture, glowTexture, labelTexture, lookTagTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, useImage, type LabelVariant } from "./textures";
 import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
 import { DRAG_LIFT, livePoses, motionScale, reducedMotion, useMotion } from "./motion";
 import { easeInOutCubic, Flights } from "./Flights";
 import type { IconName } from "../icons";
 import { shortcutsBlocked } from "../shortcuts";
-import { hopFade } from "./petMotion";
-import { loadVoice } from "../companionVoice";
-import { accentOf, avatarFace, companionArt, companionDef, variantHue } from "../roster";
+import { CompanionFigure } from "./CompanionFigure";
+import { accentOf, avatarFace } from "../roster";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
 const OUTLINE_GEO = roundedRectGeometry(CARD_W + 0.22, CARD_H + 0.22, 0.24);
@@ -301,63 +300,13 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
       ))}
       {peek && <LibraryLook look={peek} libraryCount={player?.zones.library.length ?? 0} seat={seat} seatCount={seatCount} />}
       {!isMe && handCount > 0 && <OpponentHand count={handCount} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />}
-      {look?.companion && <CompanionFigure companion={look.companion} variant={look.companionVariant ?? 0} seat={seat} seatCount={seatCount} active={table.turn.playerId === playerId} turnNumber={table.turn.number} offline={offline} />}
+      {look?.companion && <CompanionFigure playerId={playerId} companion={look.companion} variant={look.companionVariant ?? 0} at={localToTable(COMPANION_LOCAL, seat, seatCount)} active={table.turn.playerId === playerId} turnNumber={table.turn.number} offline={offline} />}
     </group>
   );
 }
 
-const PET_SIZE = 2.8;
-
-/** The player's companion standing by the back-left corner of their mat: a picture for now, until it becomes a 3D model. It hops when its player's turn starts, then settles. */
-function CompanionFigure({ companion, variant, seat, seatCount, active, turnNumber, offline }: { companion: string; variant: number; seat: number; seatCount: number; active: boolean; turnNumber: number; offline: boolean }) {
-  const def = companionDef(companion);
-  const url = companionArt(companion);
-  const img = useImage(variant > 0 ? url : null);
-  const hue = variantHue(variant);
-  const tex = useMemo(() => (img && hue ? hueTexture(img, hue) : spriteTexture(url)), [url, img, hue]);
-  const at = localToTable({ x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 }, seat, seatCount);
-  const body = useRef<THREE.Group>(null);
-  const phase = useMemo(() => Math.random() * Math.PI * 2, []);
-  // Its voice loads when it arrives at the table (once per companion, however many copies there are).
-  useEffect(() => void loadVoice(companion), [companion]);
-  // When this player's turn started (or the table opened on it), so the hopping can wind down. The turn
-  // number is a dependency too: with one player at the table (solo) it's their turn again, and `active`
-  // never changes, so only the number says a new turn began.
-  const turnStart = useRef<number | null>(null);
-  useEffect(() => {
-    turnStart.current = active ? performance.now() : null;
-  }, [active, turnNumber]);
-  useFrame(({ clock }) => {
-    const g = body.current;
-    if (!g) return;
-    const t = clock.elapsedTime + phase;
-    if (reducedMotion() || offline) {
-      g.position.y = 0;
-      g.scale.set(1, 1, 1);
-      return;
-    }
-    // Idle: a slow breath. Just after their turn starts: hops that ease off to rest.
-    const fade = hopFade(turnStart.current === null ? null : (performance.now() - turnStart.current) / 1000);
-    const hop = Math.abs(Math.sin(t * 3.2)) * 0.4 * fade;
-    const breath = 1 + Math.sin(t * 1.6) * 0.018;
-    g.position.y = hop;
-    g.scale.set(1 / breath, breath, 1);
-  });
-  if (!def) return null;
-  return (
-    <group position={[at.x, 0.04, at.y]}>
-      <mesh rotation-x={FLAT} position-y={0.02} renderOrder={2} raycast={() => null}>
-        <planeGeometry args={[PET_SIZE * 0.78, PET_SIZE * 0.34]} />
-        <meshBasicMaterial map={glowTexture()} color="#000000" transparent opacity={0.55} depthWrite={false} />
-      </mesh>
-      <group ref={body}>
-        <sprite scale={[PET_SIZE, PET_SIZE, 1]} center={[0.5, 0.06]} renderOrder={6} raycast={() => null}>
-          <spriteMaterial map={tex} transparent toneMapped={false} depthWrite={false} color={offline ? "#7a7a88" : "#ffffff"} />
-        </sprite>
-      </group>
-    </group>
-  );
-}
+/** Where a player's companion stands: by the back-left corner of their mat (seat-local coordinates). */
+const COMPANION_LOCAL = { x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 };
 
 function Pile({ table, ownerId, zone, seat, seatCount, viewerAngle }: { table: TableState; ownerId: string; zone: PileZone; seat: number; seatCount: number; viewerAngle: number }) {
   // Cards still flying in don't count yet (and don't spoil the top of the graveyard early).

@@ -9,6 +9,7 @@ import { useStore } from "../store";
 import { whenLoaded } from "../imageCache";
 import { cardTypeIcon, drawIcon, type IconName } from "../icons";
 import { MAT_D, MAT_W, PILE_LOCAL, BATTLEFIELD_LOCAL, CARD_W, CARD_H } from "../../shared/tableLayout";
+import type { GlyphId } from "./companionMotion";
 
 const TW = 488;
 const TH = 680;
@@ -584,4 +585,181 @@ export function glowTexture(): THREE.Texture {
   ctx.fillRect(0, 0, 128, 128);
   glow = finish(new THREE.CanvasTexture(c));
   return glow;
+}
+
+// --- companion effect glyphs ------------------------------------------------------------------
+
+const glyphCache = new Map<GlyphId, THREE.Texture>();
+const GLYPH_PX = 128;
+const INK = "#1a1024";
+
+/** Fills the current path with a dark outline round it, so a glyph reads on felt and on art alike. */
+function inked(ctx: CanvasRenderingContext2D, fill: string, width = 9) {
+  ctx.lineJoin = "round";
+  ctx.lineWidth = width;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function glyphLetter(ctx: CanvasRenderingContext2D, text: string, fill: string, size: number, x = 64, y = 68) {
+  ctx.font = `900 ${size}px "Arial Black", Arial, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = INK;
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = fill;
+  ctx.fillText(text, x, y);
+}
+
+function star(ctx: CanvasRenderingContext2D, cx: number, cy: number, points: number, outer: number, inner: number) {
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 ? inner : outer;
+    const a = -Math.PI / 2 + (i * Math.PI) / points;
+    ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+  }
+  ctx.closePath();
+}
+
+function drop(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - r * 2.1);
+  ctx.bezierCurveTo(cx + r * 0.4, cy - r * 1.2, cx + r, cy - r * 0.6, cx + r, cy);
+  ctx.arc(cx, cy, r, 0, Math.PI);
+  ctx.bezierCurveTo(cx - r, cy - r * 0.6, cx - r * 0.4, cy - r * 1.2, cx, cy - r * 2.1);
+  ctx.closePath();
+}
+
+const DRAW_GLYPH: Record<GlyphId, (ctx: CanvasRenderingContext2D) => void> = {
+  heart: (ctx) => {
+    ctx.beginPath();
+    ctx.moveTo(64, 108);
+    ctx.bezierCurveTo(20, 78, 10, 52, 22, 34);
+    ctx.bezierCurveTo(36, 14, 60, 22, 64, 42);
+    ctx.bezierCurveTo(68, 22, 92, 14, 106, 34);
+    ctx.bezierCurveTo(118, 52, 108, 78, 64, 108);
+    ctx.closePath();
+    inked(ctx, "#ff5fa2");
+    ctx.beginPath();
+    ctx.ellipse(40, 44, 9, 6, -0.6, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fill();
+  },
+  sparkle: (ctx) => {
+    star(ctx, 64, 64, 4, 54, 14);
+    inked(ctx, "#fff3b0", 8);
+  },
+  sweat: (ctx) => {
+    drop(ctx, 64, 82, 26);
+    inked(ctx, "#9fe0ff");
+  },
+  tear: (ctx) => {
+    drop(ctx, 64, 84, 22);
+    inked(ctx, "#5fb2ff");
+  },
+  anger: (ctx) => {
+    // The cartoon "cross vein": four bent strokes round a centre.
+    ctx.lineCap = "round";
+    for (let i = 0; i < 4; i++) {
+      ctx.save();
+      ctx.translate(64, 64);
+      ctx.rotate((i * Math.PI) / 2);
+      ctx.beginPath();
+      ctx.moveTo(12, -40);
+      ctx.quadraticCurveTo(12, -12, 40, -12);
+      for (const [w, c] of [[24, INK], [12, "#ff4d5e"]] as const) {
+        ctx.lineWidth = w;
+        ctx.strokeStyle = c;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  },
+  zzz: (ctx) => {
+    glyphLetter(ctx, "Z", "#c8b8ff", 54, 46, 82);
+    glyphLetter(ctx, "z", "#c8b8ff", 40, 86, 42);
+  },
+  note: (ctx) => {
+    ctx.beginPath();
+    ctx.ellipse(46, 94, 20, 14, -0.4, 0, Math.PI * 2);
+    ctx.rect(58, 22, 10, 72);
+    ctx.moveTo(62, 22);
+    ctx.quadraticCurveTo(100, 30, 98, 62);
+    ctx.quadraticCurveTo(90, 44, 66, 44);
+    inked(ctx, "#b9a6ff");
+  },
+  star: (ctx) => {
+    star(ctx, 64, 68, 5, 54, 24);
+    inked(ctx, "#ffd24a");
+  },
+  smoke: (ctx) => {
+    ctx.beginPath();
+    ctx.arc(44, 74, 26, 0, Math.PI * 2);
+    ctx.arc(80, 70, 30, 0, Math.PI * 2);
+    ctx.arc(62, 46, 26, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(214,208,226,0.9)";
+    ctx.fill();
+  },
+  bang: (ctx) => glyphLetter(ctx, "!", "#ffd24a", 104),
+  question: (ctx) => glyphLetter(ctx, "?", "#7fe3ff", 100),
+  flame: (ctx) => {
+    ctx.beginPath();
+    ctx.moveTo(64, 10);
+    ctx.bezierCurveTo(84, 40, 106, 58, 100, 86);
+    ctx.bezierCurveTo(94, 112, 72, 120, 64, 120);
+    ctx.bezierCurveTo(56, 120, 34, 112, 28, 86);
+    ctx.bezierCurveTo(24, 64, 44, 52, 50, 32);
+    ctx.bezierCurveTo(58, 46, 60, 54, 64, 10);
+    ctx.closePath();
+    inked(ctx, "#ff7a3d");
+    drop(ctx, 64, 96, 16);
+    ctx.fillStyle = "#ffd24a";
+    ctx.fill();
+  },
+  leaf: (ctx) => {
+    ctx.beginPath();
+    ctx.moveTo(20, 108);
+    ctx.bezierCurveTo(20, 50, 60, 18, 112, 16);
+    ctx.bezierCurveTo(110, 70, 76, 108, 20, 108);
+    ctx.closePath();
+    inked(ctx, "#7dd957");
+    ctx.beginPath();
+    ctx.moveTo(26, 102);
+    ctx.quadraticCurveTo(60, 70, 98, 30);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#3f8a2a";
+    ctx.stroke();
+  },
+  bubble: (ctx) => {
+    ctx.beginPath();
+    ctx.arc(64, 64, 44, 0, Math.PI * 2);
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(140,230,255,0.35)";
+    ctx.fill();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#bff2ff";
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(48, 46, 12, 7, -0.7, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fill();
+  },
+};
+
+/** A companion effect glyph (heart, sweat drop, zzz...), drawn once and shared by every figure. */
+export function glyphTexture(id: GlyphId): THREE.Texture {
+  let tex = glyphCache.get(id);
+  if (!tex) {
+    const [c, ctx] = canvas(GLYPH_PX, GLYPH_PX);
+    DRAW_GLYPH[id](ctx);
+    tex = finish(new THREE.CanvasTexture(c));
+    glyphCache.set(id, tex);
+  }
+  return tex;
 }
