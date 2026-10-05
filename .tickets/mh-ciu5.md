@@ -1,6 +1,6 @@
 ---
 id: mh-ciu5
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-05T03:43:31Z
@@ -49,3 +49,9 @@ File layout decided for the epic: candidates (gitignored) scripts/roster/voice-c
 - Findings note includes per-slot hit rate and what prompt wording worked, so the other 9 companions can reuse it.
 - No API key in any committed file or output. `npm run typecheck` and `rtk vitest run` still pass.
 
+
+## Notes
+
+**2026-10-05T04:04:05Z**
+
+WIP (agent): tooling + 48 Hex candidates done, PENDING human audition/go-no-go. Credits: key lacks user_read so the balance can't be read (GET /v1/user/subscription -> missing_permissions; usage get returns nothing). Cost measured from the character-cost response header: 5 credits for a 1 s sound-generation, so 48 candidates ~ 250-500 credits (~63 generations incl. regenerations); not an unreasonable share of any paid tier. Tooling: scripts/build-companion-sfx.mjs (generate), scripts/build-voice-audition.mjs (objective checks + audition page, --prune deletes flagged files; needs ffmpeg, FFMPEG=/path if not on PATH), scripts/roster/voices.json (hex signature + 16 slots, WORDING NOT FINAL until audition). Objective checks via analyze()/isAudible(): first pass 48/48 audible, 0 wrong duration, 7/48 had sustained flat-top clipping (poke1-2, poke4-2, poke4-3, pickup-2, drop-1, emote1-2, emote4-2); pruned+regenerated (pickup-2 and drop-1 needed 3 rounds); final 48/48 pass. Calibration finding: ElevenLabs sfx mp3s decode with peaks up to ~1.5 (shipped packs do too), so peak alone is not clipping; flat-top = run of >=8 samples at >=0.98 or >1% of samples. Audition page: <dev server>/scripts/roster/voice-candidates/audition (dev server redirects the .html URL). Subjective hit rate and which wording worked: to be recorded after the human audition.
