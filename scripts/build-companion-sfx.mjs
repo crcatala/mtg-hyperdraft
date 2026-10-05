@@ -68,3 +68,4 @@ async function worker() {
 }
 await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 console.log(`${made} file(s) generated${failed ? `, ${failed} failed (run again to retry)` : ""}`);
+if (failed) process.exitCode = 1;

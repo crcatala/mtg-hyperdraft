@@ -113,7 +113,9 @@ const KEY="voice-audition-v2",saved=JSON.parse(localStorage.getItem(KEY)||"{}");
 const inputs=[...document.querySelectorAll("input[type=radio]")];
 for(const i of inputs){if(saved[i.name]===i.value)i.checked=true;i.onchange=save}
 const notes=document.getElementById("notes");notes.value=saved.notes||"";notes.oninput=save;
-function save(){const o={notes:notes.value};for(const i of inputs)if(i.checked)o[i.name]=i.value;localStorage.setItem(KEY,JSON.stringify(o))}
+const status=document.getElementById("status");
+// Picks for companions that are not on this page (it may have been built for one companion) are kept; only the radio groups shown here are rewritten.
+function save(){const o=JSON.parse(localStorage.getItem(KEY)||"{}");o.notes=notes.value;for(const i of inputs){if(i.checked)o[i.name]=i.value;else if(!inputs.some((j)=>j.name===i.name&&j.checked))delete o[i.name]}localStorage.setItem(KEY,JSON.stringify(o))}
 document.getElementById("copy").onclick=async()=>{save();const t=JSON.stringify(JSON.parse(localStorage.getItem(KEY)),null,1);
  try{await navigator.clipboard.writeText(t);status.textContent="copied"}catch{notes.value=t;status.textContent="copy failed: JSON is in the notes box"}};
 </script>`);
