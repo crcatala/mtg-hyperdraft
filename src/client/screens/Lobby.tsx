@@ -7,6 +7,7 @@ import { AnchoredPreview } from "../components/AnchoredPreview";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { CubeBrowser } from "../components/CubeBrowser";
 import { CharacterSelect, type PickTab } from "../components/CharacterSelect";
+import { ScrollArea } from "../components/ScrollArea";
 import { CompanionIcon, PlayerFace, petFilter } from "../components/Persona";
 import { accentOf, avatarArt, avatarDef, companionDef, companionSmall, surprise } from "../roster";
 import { saveLook } from "../identity";
@@ -36,13 +37,14 @@ export function Lobby() {
   const importing = view.importStatus.state === "running";
   const [picking, setPicking] = useState<PickTab | null>(null);
   const closePicker = useCallback(() => setPicking(null), []);
+  const banners = (solo ? 1 : 0) + (view.expiresAt !== null ? 1 : 0);
 
   return (
     <div className="screen lobby">
       <TopBar title="Lobby">
         <NameEditor />
       </TopBar>
-      <div className="lobby-grid scroll">
+      <div className={`lobby-grid scroll banners-${banners}`}>
         {solo && (
           <section className="panel solo-banner">
             <div>
@@ -79,11 +81,13 @@ export function Lobby() {
             </span>
           </div>
           {me && <CharacterCard me={me} onPick={setPicking} />}
-          <ul className="seat-list">
-            {view.players.map((p) => (
-              <SeatRow key={p.id} player={p} isMe={p.id === view.you} canKick={isHost && p.id !== view.you} onPick={setPicking} />
-            ))}
-          </ul>
+          <ScrollArea className="seat-scroll" itemSelector=".seat-row" noun="player">
+            <ul className="seat-list">
+              {view.players.map((p) => (
+                <SeatRow key={p.id} player={p} isMe={p.id === view.you} canKick={isHost && p.id !== view.you} onPick={setPicking} />
+              ))}
+            </ul>
+          </ScrollArea>
           {isHost && (
             <button className="btn small" onClick={() => send({ t: "addBot" })} disabled={view.players.length >= MAX_SEATS}>
               <Icon name="plus" /> Add bot drafter
@@ -245,83 +249,85 @@ function CubePanel({ isHost }: { isHost: boolean }) {
         )}
       </div>
 
-      {browsing && cube && <CubeBrowser onClose={closeBrowser} />}
-      {cube ? (
-        <div className="cube-summary">
-          <div className="cube-name">{cube.name}</div>
-          <div className="muted">
-            {cube.uniqueCards} unique · {cube.source}
-          </div>
-          <Showcase cards={showcase} paused={browsing} />
-          {cube.notFound.length > 0 && (
-            <div className="notice-box bad">
-              <button className="btn ghost small" onClick={() => setShowMissing((v) => !v)}>
-                <Icon name={showMissing ? "chevron-down" : "chevron-right"} /> {cube.notFound.length} card(s) not found on Scryfall
-              </button>
-              {showMissing && <p className="missing-list">{cube.notFound.join(" · ")}</p>}
+      <ScrollArea className="panel-scroll">
+        {browsing && cube && <CubeBrowser onClose={closeBrowser} />}
+        {cube ? (
+          <div className="cube-summary">
+            <div className="cube-name">{cube.name}</div>
+            <div className="muted">
+              {cube.uniqueCards} unique · {cube.source}
             </div>
-          )}
-          {cube.warnings.length > 0 && (
-            <ul className="warnings">
-              {cube.warnings.slice(0, 6).map((w, i) => (
-                <li key={i}>{w}</li>
-              ))}
-              {cube.warnings.length > 6 && <li>…and {cube.warnings.length - 6} more</li>}
-            </ul>
-          )}
-        </div>
-      ) : (
-        <p className="muted">{isHost ? "Import a cube to draft from." : "Waiting for the host to import a cube…"}</p>
-      )}
-
-      {isHost && !cube && (
-        <div className="starter-cube">
-          <button className="btn violet" disabled={running} onClick={() => send({ t: "import", source: presetSource(STARTER_CUBE.id) })}>
-            <Icon name="bolt" /> Use the {STARTER_CUBE.name}
-          </button>
-          <span className="faint small-print">
-            {STARTER_CUBE.cards} cards, bundled with the site so it loads instantly. Or import any cube below.
-          </span>
-        </div>
-      )}
-
-      {isHost && (
-        <div className="import-box">
-          <label className="label" htmlFor="import">
-            {cube ? "Replace cube" : "Import cube"} — CubeCobra link or a card list
-          </label>
-          <textarea
-            id="import"
-            className="textarea"
-            rows={5}
-            placeholder={"https://cubecobra.com/cube/list/vintage\n\n— or paste a list —\n1 Lightning Bolt\nCounterspell\nBrazen Borrower (ELD) 39"}
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            disabled={running}
-          />
-          <div className="row wrap">
-            <button className="btn primary" disabled={running || !source.trim()} onClick={() => send({ t: "import", source })}>
-              {running ? "Importing…" : "Import & validate"}
-            </button>
-            <span className="faint">Try:</span>
-            {SAMPLE_CUBES.map((s) => (
-              <button key={s.value} className="btn ghost small" disabled={running} onClick={() => setSource(s.value)}>
-                {s.label}
-              </button>
-            ))}
+            <Showcase cards={showcase} paused={browsing} />
+            {cube.notFound.length > 0 && (
+              <div className="notice-box bad">
+                <button className="btn ghost small" onClick={() => setShowMissing((v) => !v)}>
+                  <Icon name={showMissing ? "chevron-down" : "chevron-right"} /> {cube.notFound.length} card(s) not found on Scryfall
+                </button>
+                {showMissing && <p className="missing-list">{cube.notFound.join(" · ")}</p>}
+              </div>
+            )}
+            {cube.warnings.length > 0 && (
+              <ul className="warnings">
+                {cube.warnings.slice(0, 6).map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+                {cube.warnings.length > 6 && <li>…and {cube.warnings.length - 6} more</li>}
+              </ul>
+            )}
           </div>
-          <p className="faint small-print">
-            Accepts CubeCobra URLs, one name per line, "4 Card Name", Arena "(SET) 123" lines and CubeCobra CSV exports. Card data is looked up on Scryfall
-            {solo ? " straight from your browser." : " and saved with the lobby."}
-          </p>
-        </div>
-      )}
-      {running && (
-        <div className="import-progress">
-          <span className="spinner" /> {view.importStatus.message}
-        </div>
-      )}
-      {view.importStatus.state === "error" && <p className="pill bad">{view.importStatus.message}</p>}
+        ) : (
+          <p className="muted">{isHost ? "Import a cube to draft from." : "Waiting for the host to import a cube…"}</p>
+        )}
+
+        {isHost && !cube && (
+          <div className="starter-cube">
+            <button className="btn violet" disabled={running} onClick={() => send({ t: "import", source: presetSource(STARTER_CUBE.id) })}>
+              <Icon name="bolt" /> Use the {STARTER_CUBE.name}
+            </button>
+            <span className="faint small-print">
+              {STARTER_CUBE.cards} cards, bundled with the site so it loads instantly. Or import any cube below.
+            </span>
+          </div>
+        )}
+
+        {isHost && (
+          <div className="import-box">
+            <label className="label" htmlFor="import">
+              {cube ? "Replace cube" : "Import cube"} — CubeCobra link or a card list
+            </label>
+            <textarea
+              id="import"
+              className="textarea"
+              rows={5}
+              placeholder={"https://cubecobra.com/cube/list/vintage\n\n— or paste a list —\n1 Lightning Bolt\nCounterspell\nBrazen Borrower (ELD) 39"}
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              disabled={running}
+            />
+            <div className="row wrap">
+              <button className="btn primary" disabled={running || !source.trim()} onClick={() => send({ t: "import", source })}>
+                {running ? "Importing…" : "Import & validate"}
+              </button>
+              <span className="faint">Try:</span>
+              {SAMPLE_CUBES.map((s) => (
+                <button key={s.value} className="btn ghost small" disabled={running} onClick={() => setSource(s.value)}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <p className="faint small-print">
+              Accepts CubeCobra URLs, one name per line, "4 Card Name", Arena "(SET) 123" lines and CubeCobra CSV exports. Card data is looked up on Scryfall
+              {solo ? " straight from your browser." : " and saved with the lobby."}
+            </p>
+          </div>
+        )}
+        {running && (
+          <div className="import-progress">
+            <span className="spinner" /> {view.importStatus.message}
+          </div>
+        )}
+        {view.importStatus.state === "error" && <p className="pill bad">{view.importStatus.message}</p>}
+      </ScrollArea>
     </section>
   );
 }
@@ -343,63 +349,65 @@ function SettingsPanel({ isHost }: { isHost: boolean }) {
         <h2>Draft settings</h2>
         {!isHost && <span className="faint">host controls these</span>}
       </div>
-      <fieldset disabled={!isHost} className="settings-grid">
-        <NumberField label="Packs per player" value={d.packsPerPlayer} min={1} max={6} onChange={(v) => setDraft({ packsPerPlayer: v })} />
-        <NumberField label="Cards per pack" value={d.cardsPerPack} min={2} max={30} onChange={(v) => setDraft({ cardsPerPack: v })} />
-        <NumberField label="Picks per turn" value={d.picksPerTurn} min={1} max={5} onChange={(v) => setDraft({ picksPerTurn: v })} />
-        <NumberField label="Burns per turn" value={d.burnsPerTurn} min={0} max={5} onChange={(v) => setDraft({ burnsPerTurn: v })} hint="Discard extra cards each pick — speeds up small pods." />
-        <label className="field">
-          <span className="label">Passing</span>
-          <select className="select" value={d.passPattern} onChange={(e) => setDraft({ passPattern: e.target.value as DraftConfig["passPattern"] })}>
-            <option value="alternate">Left, right, left… (standard)</option>
-            <option value="left">Always left</option>
-          </select>
-        </label>
-        <label className="field">
-          <span className="label">Pick timer</span>
-          <div className="row">
-            <select className="select" value={d.pickTimerSec} onChange={(e) => setDraft({ pickTimerSec: Number(e.target.value) })}>
-              {TIMER_OPTIONS.map((t) => (
-                <option key={t} value={t}>
-                  {t === 0 ? "No limit" : `${t}s`}
-                </option>
-              ))}
+      <ScrollArea className="panel-scroll">
+        <fieldset disabled={!isHost} className="settings-grid">
+          <NumberField label="Packs per player" value={d.packsPerPlayer} min={1} max={6} onChange={(v) => setDraft({ packsPerPlayer: v })} />
+          <NumberField label="Cards per pack" value={d.cardsPerPack} min={2} max={30} onChange={(v) => setDraft({ cardsPerPack: v })} />
+          <NumberField label="Picks per turn" value={d.picksPerTurn} min={1} max={5} onChange={(v) => setDraft({ picksPerTurn: v })} />
+          <NumberField label="Burns per turn" value={d.burnsPerTurn} min={0} max={5} onChange={(v) => setDraft({ burnsPerTurn: v })} hint="Discard extra cards each pick — speeds up small pods." />
+          <label className="field">
+            <span className="label">Passing</span>
+            <select className="select" value={d.passPattern} onChange={(e) => setDraft({ passPattern: e.target.value as DraftConfig["passPattern"] })}>
+              <option value="alternate">Left, right, left… (standard)</option>
+              <option value="left">Always left</option>
             </select>
-            {d.pickTimerSec > 0 && (
-              <select className="select" value={d.timerStyle} onChange={(e) => setDraft({ timerStyle: e.target.value as DraftConfig["timerStyle"] })}>
-                <option value="fixed">Same every pick</option>
-                <option value="shrinking">Shrinks with pack</option>
+          </label>
+          <label className="field">
+            <span className="label">Pick timer</span>
+            <div className="row">
+              <select className="select" value={d.pickTimerSec} onChange={(e) => setDraft({ pickTimerSec: Number(e.target.value) })}>
+                {TIMER_OPTIONS.map((t) => (
+                  <option key={t} value={t}>
+                    {t === 0 ? "No limit" : `${t}s`}
+                  </option>
+                ))}
               </select>
-            )}
-          </div>
-        </label>
-        <label className="field check">
-          <input type="checkbox" checked={d.allowDuplicates} onChange={(e) => setDraft({ allowDuplicates: e.target.checked })} />
-          <span>Allow duplicate cards across packs</span>
-        </label>
-        <label className="field">
-          <span className="label">Foil chance per pack: {Math.round(d.foilChance * 100)}%</span>
-          <input type="range" min={0} max={1} step={0.05} value={d.foilChance} onChange={(e) => setDraft({ foilChance: Number(e.target.value) })} />
-        </label>
-      </fieldset>
-      <p className={`pool-check ${view.cube && view.cube.size >= needed ? "ok" : ""}`}>
-        {view.players.length} seat(s) × {d.packsPerPlayer} packs × {d.cardsPerPack} cards = <b>{needed}</b> cards needed
-        {view.cube && (
-          <>
-            {" "}
-            · cube has <b>{view.cube.size}</b> {view.cube.size >= needed || d.allowDuplicates ? <Icon name="check" title="Enough cards" /> : <Icon name="x" title="Not enough cards" />}
-          </>
-        )}
-      </p>
+              {d.pickTimerSec > 0 && (
+                <select className="select" value={d.timerStyle} onChange={(e) => setDraft({ timerStyle: e.target.value as DraftConfig["timerStyle"] })}>
+                  <option value="fixed">Same every pick</option>
+                  <option value="shrinking">Shrinks with pack</option>
+                </select>
+              )}
+            </div>
+          </label>
+          <label className="field check">
+            <input type="checkbox" checked={d.allowDuplicates} onChange={(e) => setDraft({ allowDuplicates: e.target.checked })} />
+            <span>Allow duplicate cards across packs</span>
+          </label>
+          <label className="field">
+            <span className="label">Foil chance per pack: {Math.round(d.foilChance * 100)}%</span>
+            <input type="range" min={0} max={1} step={0.05} value={d.foilChance} onChange={(e) => setDraft({ foilChance: Number(e.target.value) })} />
+          </label>
+        </fieldset>
+        <p className={`pool-check ${view.cube && view.cube.size >= needed ? "ok" : ""}`}>
+          {view.players.length} seat(s) × {d.packsPerPlayer} packs × {d.cardsPerPack} cards = <b>{needed}</b> cards needed
+          {view.cube && (
+            <>
+              {" "}
+              · cube has <b>{view.cube.size}</b> {view.cube.size >= needed || d.allowDuplicates ? <Icon name="check" title="Enough cards" /> : <Icon name="x" title="Not enough cards" />}
+            </>
+          )}
+        </p>
 
-      <div className="section-head">
-        <h2>Game settings</h2>
-      </div>
-      <fieldset disabled={!isHost} className="settings-grid">
-        <NumberField label="Starting life" value={g.startingLife} min={1} max={999} onChange={(v) => setGame({ startingLife: v })} />
-        <NumberField label="Minimum deck size" value={g.minDeckSize} min={1} max={200} onChange={(v) => setGame({ minDeckSize: v })} />
-        <NumberField label="Opening hand" value={g.openingHandSize} min={0} max={20} onChange={(v) => setGame({ openingHandSize: v })} />
-      </fieldset>
+        <div className="section-head">
+          <h2>Game settings</h2>
+        </div>
+        <fieldset disabled={!isHost} className="settings-grid">
+          <NumberField label="Starting life" value={g.startingLife} min={1} max={999} onChange={(v) => setGame({ startingLife: v })} />
+          <NumberField label="Minimum deck size" value={g.minDeckSize} min={1} max={200} onChange={(v) => setGame({ minDeckSize: v })} />
+          <NumberField label="Opening hand" value={g.openingHandSize} min={0} max={20} onChange={(v) => setGame({ openingHandSize: v })} />
+        </fieldset>
+      </ScrollArea>
     </section>
   );
 }

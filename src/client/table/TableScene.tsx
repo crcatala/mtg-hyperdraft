@@ -304,18 +304,26 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
   );
 }
 
-const PET_SIZE = 4.2;
+const PET_SIZE = 2.8;
+/** How long a companion hops after its player's turn starts: full height, then easing off to rest. */
+const HOP_SECONDS = 5;
+const HOP_EASE_SECONDS = 1.5;
 
-/** The player's companion standing in front of their mat: a picture for now, until it becomes a 3D model. It hops on its player's turn. */
+/** The player's companion standing by the back-left corner of their mat: a picture for now, until it becomes a 3D model. It hops when its player's turn starts, then settles. */
 function CompanionFigure({ companion, variant, seat, seatCount, active, offline }: { companion: string; variant: number; seat: number; seatCount: number; active: boolean; offline: boolean }) {
   const def = companionDef(companion);
   const url = companionArt(companion);
   const img = useImage(variant > 0 ? url : null);
   const hue = variantHue(variant);
   const tex = useMemo(() => (img && hue ? hueTexture(img, hue) : spriteTexture(url)), [url, img, hue]);
-  const at = localToTable({ x: MAT_W / 2 - 8, y: MAT_D / 2 + 1.9 }, seat, seatCount);
+  const at = localToTable({ x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 }, seat, seatCount);
   const body = useRef<THREE.Group>(null);
   const phase = useMemo(() => Math.random() * Math.PI * 2, []);
+  // When this player's turn started (or the table opened on it), so the hopping can wind down.
+  const turnStart = useRef<number | null>(null);
+  useEffect(() => {
+    turnStart.current = active ? performance.now() : null;
+  }, [active]);
   useFrame(({ clock }) => {
     const g = body.current;
     if (!g) return;
@@ -325,8 +333,10 @@ function CompanionFigure({ companion, variant, seat, seatCount, active, offline 
       g.scale.set(1, 1, 1);
       return;
     }
-    // Idle: a slow breath. On their turn: little hops.
-    const hop = active ? Math.abs(Math.sin(t * 3.2)) * 0.55 : 0;
+    // Idle: a slow breath. Just after their turn starts: hops that ease off to rest.
+    const sinceTurn = turnStart.current === null ? Infinity : (performance.now() - turnStart.current) / 1000;
+    const fade = Math.min(1, Math.max(0, (HOP_SECONDS - sinceTurn) / HOP_EASE_SECONDS));
+    const hop = Math.abs(Math.sin(t * 3.2)) * 0.4 * fade;
     const breath = 1 + Math.sin(t * 1.6) * 0.018;
     g.position.y = hop;
     g.scale.set(1 / breath, breath, 1);
