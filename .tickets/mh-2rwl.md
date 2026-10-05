@@ -120,3 +120,7 @@ Human sign-off, crit (quoted): picks pasted with "verdict": "GO" ("ok picks for 
 **2026-10-05T15:34:10Z**
 
 Nimbus and ribbit, generated (agent), PENDING human audition. Signatures: nimbus "soft rounded squeaks" -> "soft rounded whale-calf warbles", added "no squeaks"; ribbit "bubbly throat chirps" -> "bubbly throat burbles", added "no chirps". The 8 round-2 candidates per companion (hello-1/2, poke3-1/2, poke5-1/2, pickup-1/2; made with the old wording and the old "whoa" pickup descriptor; the human liked nimbus poke3-1 and pickup-2) were kept; the rest generated. Nimbus: ~40 new + 12 rerolls, 48/48 pass, every slot 3/3, treble ~0% (max 1%; very dark, listen for muffled). Ribbit: ~40 new + 35 rerolls over 4 prune rounds, 46/48 pass (poke7-3, emote2-2 clipped, left flagged; poke7 and emote2 have 2 clean), treble mean 3% (max 7%).
+
+**2026-10-05T15:49:11Z**
+
+Human feedback, nimbus (quoted): "great ok just need to regenerate poke6 for nimbus, they voice was way too low so sounded like different character - reword propmt if needed". Cause: my own earlier shared poke6 reword ("low grumbling groan ... deep and grumpy", made for foil) pushed a whale calf too deep. Action (agent): shared poke6 descriptor now "a fed-up grumbly protesting moan, increasingly annoyed, rounded and mellow, in the creature's own natural voice" (no pitch words). Regenerated nimbus poke6 only (3 + 2 rerolls; old takes parked in _nimbus-poke6-too-low): 3 new takes, all pass. Nimbus/ribbit picks not yet received (the human did not paste them with this message); awaiting picks.
