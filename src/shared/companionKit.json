@@ -3,7 +3,7 @@
     "suffix": "Short, no words, no music, dry, close-up.",
     "slots": {
       "hello": {
-        "emotion": "a friendly little greeting chirp, warm and bright, rising at the end",
+        "emotion": "a warm low burbling babble in the rhythm of a friendly 'heh-lloo!', mumbled creature chatter that almost sounds like saying hello, rising slightly at the end",
         "seconds": 1,
         "influence": 0.6
       },
@@ -13,7 +13,7 @@
         "influence": 0.6
       },
       "poke2": {
-        "emotion": "a happy delighted squeak",
+        "emotion": "a happy delighted low chuff and soft burbling giggle, rounded and mellow",
         "seconds": 0.7,
         "influence": 0.6
       },
@@ -33,12 +33,12 @@
         "influence": 0.6
       },
       "poke6": {
-        "emotion": "a fed-up whiny complaint, a protesting moan, increasingly annoyed",
+        "emotion": "a fed-up low grumbling groan, a protesting rumbly moan, deep and grumpy, increasingly annoyed",
         "seconds": 1.2,
         "influence": 0.6
       },
       "poke7": {
-        "emotion": "an indignant cheeky outburst, a sharp huffy protest ending in a defiant raspberry",
+        "emotion": "an indignant cheeky outburst, a deep huffy grunting protest ending in a defiant raspberry",
         "seconds": 1.8,
         "influence": 0.6
       },
@@ -48,12 +48,12 @@
         "influence": 0.6
       },
       "drop": {
-        "emotion": "a soft landing 'oof' followed by a relieved happy sigh",
+        "emotion": "a soft landing thump with a low animal grunt and a relieved purring sigh, a chubby furry creature, not a human voice",
         "seconds": 1,
         "influence": 0.6
       },
       "emote1": {
-        "emotion": "a triumphant excited cheer, bright and bouncy",
+        "emotion": "a triumphant excited cheer made of deep bouncy chuffs and a happy rumbling burble, low and round, not high-pitched",
         "seconds": 1.2,
         "influence": 0.6
       },
