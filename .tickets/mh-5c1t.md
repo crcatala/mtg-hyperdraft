@@ -57,3 +57,7 @@ Human review (quoted): "i reviewed all speech and look great to me, i approve." 
 **2026-10-05T12:31:40Z**
 
 Human review of the 150 speech lines (PR #28), quoted: "i reviewed all speech and look great to me, i approve". No edits requested. Voice signatures for foil/cinder/folio/sprout/wick/crit were not separately reviewed; mh-2rwl will audition the sounds.
+
+**2026-10-05T12:35:09Z**
+
+Post-approval edits (human OK'd: "sure go ahead"), from review feedback: (1) Hex emote slots were shifted by one (no silly line; sass/taunt held the wrong tones): silly now "Chased my tail. Forgot why.", sass "Mm. Almost impressive.", taunt "Ten lives. You have one." ("Is that your best? Yawn." dropped). (2) Silly slot varied: folio "Footnotes walk. Look it up.", gloop "Blorp. It means everything.", crit "I'm 20 sides of pure vibes.", ribbit "I knighted a fly. It left.". Added a test capping question-shaped silly lines at 4 of 10.

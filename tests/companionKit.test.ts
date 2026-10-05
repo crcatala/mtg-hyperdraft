@@ -114,6 +114,11 @@ describe("companion kits", () => {
       }
   });
 
+  it("keeps the silly slot varied (not everyone asks the same kind of question)", () => {
+    const silly = COMPANION_KITS.map((k) => k.lines.emote[EMOTE_IDS.indexOf("silly")]);
+    expect(silly.filter((l) => l.endsWith("?")).length).toBeLessThanOrEqual(4);
+  });
+
   it("looks lines up by slot, and rejects bad ones", () => {
     const hex = companionKit("hex")!;
     expect(pokeLine("hex", 0)).toBe(hex.lines.poke[0]);
