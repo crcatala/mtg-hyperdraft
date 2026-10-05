@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companionSpot, localToTable, MAT_D, MAT_W, matCenter, PET_MARGIN, petSpotValid, tableRadius } from "../src/shared/tableLayout";
+import { companionSpot, localToTable, MAT_D, MAT_W, matCenter, PET_MARGIN, PET_MARGIN_DEPTH, petSpotValid, tableRadius } from "../src/shared/tableLayout";
 
 describe("where a companion may be put down (petSpotValid)", () => {
   it("accepts every seat's home spot, at every table size", () => {
@@ -17,7 +17,8 @@ describe("where a companion may be put down (petSpotValid)", () => {
           [-MAT_W / 2 + 0.1, -MAT_D / 2 + 0.1],
           [MAT_W / 2 + PET_MARGIN - 0.05, 0],
           [-MAT_W / 2 - PET_MARGIN + 0.05, 0],
-          [0, -MAT_D / 2 - PET_MARGIN + 0.05],
+          [0, -MAT_D / 2 - PET_MARGIN_DEPTH + 0.05],
+          [3, MAT_D / 2 + PET_MARGIN_DEPTH - 0.05],
         ]) {
           expect(petSpotValid(local(x, y), n), `${seat}/${n} at ${x},${y}`).toBe(false);
         }
@@ -41,9 +42,10 @@ describe("where a companion may be put down (petSpotValid)", () => {
   });
 
   it("accepts open table between the mats", () => {
-    // Two seats face each other 9 from the middle, leaving a strip 5 wide between them (minus the margins).
+    // Two seats face each other 9 from the middle, leaving a strip 5 wide between them (4 once the margins are off).
     expect(petSpotValid({ x: 0, y: 0 }, 2)).toBe(true);
-    expect(petSpotValid({ x: 0, y: 2 }, 2)).toBe(false);
+    expect(petSpotValid({ x: 4, y: 1.9 }, 2)).toBe(true);
+    expect(petSpotValid({ x: 4, y: -2.1 }, 2)).toBe(false);
     // One seat: the far side of the table is free.
     expect(petSpotValid({ x: 0, y: -6 }, 1)).toBe(true);
     // Three and four seats leave the centre of the table open too.
