@@ -11,6 +11,7 @@ import { MusicPlayer } from "./components/MusicPlayer";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { DebugConsole } from "./debug/DebugConsole";
 import { useStore } from "./store";
+import { shortcutsBlocked } from "./shortcuts";
 
 export function App() {
   const path = usePath();
@@ -19,6 +20,7 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "`" || e.key === "~") {
+        if (shortcutsBlocked()) return;
         e.preventDefault();
         const s = useStore.getState();
         s.setDebug({ open: !s.debug.open });

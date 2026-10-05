@@ -14,6 +14,7 @@ import { beginDrag, tableApi } from "./drag";
 import { DRAG_LIFT, livePoses, motionScale, reducedMotion, useMotion } from "./motion";
 import { easeInOutCubic, Flights } from "./Flights";
 import type { IconName } from "../icons";
+import { shortcutsBlocked } from "../shortcuts";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
 const OUTLINE_GEO = roundedRectGeometry(CARD_W + 0.22, CARD_H + 0.22, 0.24);
@@ -132,7 +133,7 @@ function CameraRig({ seat, seatCount }: { seat: number; seatCount: number }) {
   useEffect(() => {
     const typing = (e: KeyboardEvent) => (e.target as HTMLElement).closest("input, textarea, select");
     const down = (e: KeyboardEvent) => {
-      if (typing(e)) return;
+      if (typing(e) || shortcutsBlocked()) return;
       keys.current.add(e.key);
       if (e.key === "Home") rig.current = { target: home.target.clone(), az: home.az, polar: home.polar, dist: home.dist };
     };

@@ -2,14 +2,14 @@
 // App and opened from the gear in the top bar, the table dock, or anything else that calls
 // `setSettingsOpen(true)`. To add a group, add an entry to TABS and a panel for it below.
 
-import { useEffect, useId, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "../store";
 import { setTheme, THEMES, useTheme } from "../theme";
 import { setSoundPack, SOUND_PACKS, useSoundPack, type PackId } from "../soundPacks";
-import { loadPack, setMuted, sfx, useMuted } from "../sfx";
+import { loadPack, setEffectsVolume, setMuted, sfx, useMuted } from "../sfx";
 import { pauseMusic, playMusic, setMusicMuted, setMusicVolume, useMusic } from "../music";
-import { setMasterVolume, setSfxVolume, useVolumes } from "../volume";
+import { setMasterVolume, useVolumes } from "../volume";
 import type { IconName } from "../icons";
 import { Icon } from "./Icon";
 
@@ -39,6 +39,16 @@ function Dialog() {
   const [tab, setTab] = useState<TabId>("appearance");
   const titleId = useId();
   const baseId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus moves into the dialog on open and back to whatever had it on close.
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    document.getElementById(`${baseId}-tab-appearance`)?.focus();
+    return () => {
+      if (before?.isConnected) before.focus();
+    };
+  }, [baseId]);
 
   // Esc closes (capture phase, so the table doesn't also clear its selection behind us).
   useEffect(() => {
@@ -51,6 +61,23 @@ function Dialog() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [close]);
 
+  // Tab cycles within the dialog instead of wandering into the page (and the music bar) behind it.
+  const trapTab = (e: KeyboardEvent) => {
+    if (e.key !== "Tab" || !dialogRef.current) return;
+    const items = [...dialogRef.current.querySelectorAll<HTMLElement>("button, input, [href], select, textarea, [tabindex]")].filter((el) => el.tabIndex >= 0 && !(el as HTMLButtonElement).disabled);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || !dialogRef.current.contains(active))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (active === last || !dialogRef.current.contains(active))) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   const onTabKey = (e: KeyboardEvent) => {
     const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
     if (!step) return;
@@ -62,7 +89,7 @@ function Dialog() {
 
   return createPortal(
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && close(false)}>
-      <div className="modal panel settings" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div className="modal panel settings" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} onKeyDown={trapTab}>
         <header className="settings-head">
           <h2 id={titleId}>Settings</h2>
           <button className="btn ghost small icon-only" onClick={() => close(false)} aria-label="Close" title="Close (Esc)">
@@ -156,7 +183,7 @@ function SoundTab() {
         <p className="faint settings-note">Master turns everything up or down at once; music and effects are balanced under it.</p>
         <VolumeRow label="Master" value={vol.master} onChange={setMasterVolume} />
         <VolumeRow label="Music" value={music.volume} onChange={setMusicVolume} muted={music.muted} onMute={setMusicMuted} />
-        <VolumeRow label="Effects" value={vol.sfx} onChange={setSfxVolume} onCommit={() => sfx.flip(0)} muted={muted} onMute={setMuted} />
+        <VolumeRow label="Effects" value={vol.sfx} onChange={setEffectsVolume} onCommit={() => sfx.flip(0)} muted={muted} onMute={setMuted} />
       </section>
       <section className="settings-checks">
         <label className="field check">

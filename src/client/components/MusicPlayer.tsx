@@ -116,8 +116,8 @@ function Bar() {
       </div>
 
       <div className="music-tools">
-        <button className="btn ghost small music-list-btn" onClick={() => setList((v) => !v)} aria-expanded={list} aria-controls="music-tracks">
-          Tracks <Icon name={list ? "chevron-down" : "chevron-up"} />
+        <button className="btn ghost small music-list-btn" onClick={() => setList((v) => !v)} aria-expanded={list} aria-controls="music-tracks" aria-label="Track list">
+          <span className="music-list-label">Tracks</span> <Icon name={list ? "chevron-down" : "chevron-up"} />
         </button>
         <button className="btn ghost small icon-only" onClick={() => openSettings(true)} aria-label="Sound settings" title="Sound settings">
           <Icon name="gear" />

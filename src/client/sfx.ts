@@ -13,7 +13,7 @@ import { useSyncExternalStore } from "react";
 import manifest from "./sfxManifest.json";
 import { analyze, isAudible, jitter, normalizeGain, pickTake } from "./sfxMath";
 import { activePack, FALLBACK_PACK, type PackId } from "./soundPacks";
-import { getVolumes, onVolumes } from "./volume";
+import { getVolumes, onVolumes, setSfxVolume } from "./volume";
 
 let ctx: AudioContext | null = null;
 let bus: AudioNode | null = null;
@@ -196,6 +196,12 @@ export function setMuted(m: boolean) {
   } catch {
     /* ignore */
   }
+}
+
+/** The effects volume slider: raising it from a mute un-mutes, like the music one (and like every volume control). */
+export function setEffectsVolume(v: number) {
+  setSfxVolume(v);
+  if (v > 0 && muted) setMuted(false);
 }
 
 interface PlayOptions {

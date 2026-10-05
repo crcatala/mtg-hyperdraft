@@ -288,6 +288,10 @@ copies the Comprehensive Rules. HyperDraft is unofficial Fan
 Content permitted under the Wizards of the Coast Fan Content Policy. Not approved/endorsed by Wizards.
 Keep it free — don't paywall or monetize anything built on this data.
 
+Background music (`public/music/`) was generated with [Suno](https://suno.com) (the files carry Suno's C2PA
+provenance metadata). Suno's terms for generated tracks depend on the plan they were made under, so check the
+current terms before using them commercially or redistributing them outside this free project.
+
 ## Pack opening and sound
 
 On the Draft screen a fresh pack is a real 3D foil booster (`src/client/pack/`). It drops in, catches

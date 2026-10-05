@@ -19,6 +19,7 @@ import { hasOpened, markOpened } from "../openedPacks";
 import PackScene from "../pack/PackScene";
 import { PackBoundary } from "../pack/PackBoundary";
 import { canUse3d, prefersReducedMotion, wants3dPack } from "../pack/support";
+import { isControl, shortcutsBlocked } from "../shortcuts";
 
 const COLOR_RANK = (c: CardData) => (c.colors.length === 0 ? 6 : c.colors.length > 1 ? 5 : "WUBRG".indexOf(c.colors[0]));
 
@@ -209,7 +210,7 @@ export function Draft() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === "INPUT" || zoom) return;
+      if (zoom || shortcutsBlocked() || isControl(e.target)) return;
       if (e.code === "Space") {
         e.preventDefault();
         if (stage === "sealed") rip();

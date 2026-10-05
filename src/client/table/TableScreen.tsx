@@ -22,6 +22,7 @@ import { activePeek } from "../../shared/table";
 import type { IconName } from "../icons";
 import type { CardData, Color, LogEntry, LogKind, LogMark, TableCard, TokenDef, ZoneName } from "../../shared/types";
 import { COLORS, ZONE_LABELS } from "../../shared/types";
+import { isControl, shortcutsBlocked } from "../shortcuts";
 
 export function TableScreen() {
   useTableShortcuts();
@@ -64,6 +65,8 @@ function useTableShortcuts() {
       const el = e.target as HTMLElement;
       if (el.closest("input, textarea, select")) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // Settings owns the keyboard while open; and Space on a focused button presses it (the music player's, say).
+      if (shortcutsBlocked() || (e.key === " " && isControl(el))) return;
       const ui = useTableUi.getState();
       // Dialogs and the zoom carousels own the keyboard while open.
       if (ui.ask || ui.handZoom || ui.logZoom) return;
