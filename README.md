@@ -153,6 +153,11 @@ reveals the character behind it.
   speech-bubble lines, ending in a cheeky finale and a sulk (`table/pokeLadder.ts`); the room relays pokes to
   the other players like pings and stores nothing (`table/companionPoke.ts`). Bubbles and table voices go
   through `say`/`voice` in `table/companionTalk.ts`.
+- **Emotes**: right-click your own companion for a wheel of six emotes (cheer, love, oops, silly, sass, taunt:
+  same order for everyone; pick with a click, a right-drag-and-release, or the keys 1-6 / arrows + Enter). Your
+  companion plays that emote's voice and reaction and says its line in a large bubble, for everyone; the room
+  relays it like a poke and stores nothing (`table/companionEmote.ts`, wheel in `table/EmoteWheel.tsx`). One
+  emote per 1.5 s per player.
 - To add a character, add an entry to `roster.ts` and its images; `tests/roster.test.ts` checks that
   every entry has its files. The prompts and style notes used to generate the current art are in
   `scripts/roster/roster.json`.

@@ -42,3 +42,9 @@ Players want to say something to each other: cheer, be wholesome, be cheeky, tro
 - Keyboard operation works (1-6, arrows, Enter, Esc); wedges have accessible names.
 - Works in solo/local mode (local only). Unit tests for schema, cooldown logic and relay following existing patterns. `npm run typecheck` and `rtk vitest run` pass; verified with agent-browser, screenshots in the PR.
 
+
+## Notes
+
+**2026-10-05T18:58:16Z**
+
+Implemented (agent): protocol emote {slot 0..5} / ServerMessage emote {by, slot}; Room relays to others only when the sender is seated at the table with a companion, EMOTE_COOLDOWN_MS 1200 per player, STATELESS (no write). Client: companionEmote.ts (send/receive/show, 1.5 s cooldown, wheel open state), emoteWheel.ts (pure geometry: wedges clockwise from the top in kit order, hit test, viewport clamp, arrow stepping), EmoteWheel.tsx (DOM wheel; wedges are clip-path buttons so hit areas are exactly the wedges; click, right-drag-release, 1-6, arrows/Tab + Enter, Esc / click outside / right-click again closes; owns the keyboard while open; centre left free for mh-5mz2's Home button; can't open during a card drag). Large bubble: own colour per emote + icon badge, ~1.7x poke size, 3 s, bigger pop + wobble (reduced motion: fade only). 5 new icons (love reuses heart). Verified in two browser sessions, solo, reduced motion, lab; a voice sample starts on both screens per emote. Taunt/sass lines reviewed in context: none hostile. OPEN: (1) human listening check; (2) large bubbles (like poke bubbles) are drawn in the canvas, so DOM HUD panels cover them when a companion sits near a screen corner (default solo view, opponent in 2-seat view): human to decide fix-now (DOM bubble layer) vs mh-ntsj.
