@@ -10,7 +10,7 @@ import { Icon } from "../components/Icon";
 import { useStore } from "../store";
 import { closeEmoteWheel, emoteCooldown, sendEmote, useEmoteWheel, type WheelState } from "./companionEmote";
 import { effectiveLine, openEmoteLines, useEmoteLines } from "./emoteLines";
-import { DRAG_PICK_PX, emoteTint, stepWedge, wedgeAt, wedgeCenter, wedgePath, WHEEL_R } from "./emoteWheel";
+import { DRAG_PICK_PX, emoteTint, stepWedge, wedgeAt, wedgeCenter, wedgePath, wheelExtrasAbove, WHEEL_R } from "./emoteWheel";
 
 export function EmoteWheel() {
   const wheel = useEmoteWheel((s) => s.wheel);
@@ -141,8 +141,8 @@ function Wheel({ wheel }: { wheel: WheelState }) {
   return (
     <div
       ref={ref}
-      // "Edit lines" and the line show under the wheel, or over it when there's no room below.
-      className={`emote-wheel${cooling ? " cooling" : ""}${wheel.at.y + WHEEL_R + 104 > window.innerHeight ? " flip" : ""}`}
+      // "Edit lines" and the line show under the wheel, or over it when there's less room below than above.
+      className={`emote-wheel${cooling ? " cooling" : ""}${wheelExtrasAbove(wheel.at.y, window.innerHeight) ? " flip" : ""}`}
       role="menu"
       aria-label="Emotes"
       tabIndex={-1}
