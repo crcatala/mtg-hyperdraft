@@ -104,3 +104,7 @@ Wick, generated (agent), PENDING human audition. Signature reworded before gener
 **2026-10-05T15:26:21Z**
 
 Human sign-off, wick (quoted): picks pasted with "verdict": "GO" (no further comment). Picks (shipped <- candidate): hello-1<-hello-3, hello-2<-hello-2, poke1-1<-poke1-2, poke1-2<-poke1-1, poke2<-poke2-3 (one take), poke3<-poke3-2, poke4<-poke4-1, poke5<-poke5-2, poke6<-poke6-3, poke7<-poke7-1, pickup<-pickup-2, drop<-drop-1, emote1<-emote1-1, emote2<-emote2-2, emote3<-emote3-1, emote4<-emote4-2, emote5<-emote5-3, emote6<-emote6-3 (18 files, public/sfx/companions/wick/). Done: hex, foil, cinder, folio, gloop, sprout, wick. Next: crit.
+
+**2026-10-05T15:27:27Z**
+
+Crit, generated (agent), PENDING human audition. Signature reworded before generating (clacks are broadband/bright): "A chunky friendly stone golem with a soft warm plush-toy cartoon voice: warm low rumbly grunts, deep stony hums and goofy rounded mumbles, mellow, never shrill, no clacking, no screeching". 48 gens (1 API failure retried) + 28 rerolls over 4 prune rounds: 46/48 pass (pickup-2, pickup-3 clipped, left flagged; pickup-1 is clean), every slot has a clean take. Treble mean ~0% (very dark): listen for muffled/too hum-like rather than shrill; the stone character (clacks) was deliberately removed from the wording, say if you want some back.
