@@ -1,6 +1,6 @@
 ---
 id: mh-2rwl
-status: in_progress
+status: closed
 deps: [mh-ciu5, mh-5c1t]
 links: []
 created: 2026-10-05T03:44:16Z
@@ -124,3 +124,7 @@ Nimbus and ribbit, generated (agent), PENDING human audition. Signatures: nimbus
 **2026-10-05T15:49:11Z**
 
 Human feedback, nimbus (quoted): "great ok just need to regenerate poke6 for nimbus, they voice was way too low so sounded like different character - reword propmt if needed". Cause: my own earlier shared poke6 reword ("low grumbling groan ... deep and grumpy", made for foil) pushed a whale calf too deep. Action (agent): shared poke6 descriptor now "a fed-up grumbly protesting moan, increasingly annoyed, rounded and mellow, in the creature's own natural voice" (no pitch words). Regenerated nimbus poke6 only (3 + 2 rerolls; old takes parked in _nimbus-poke6-too-low): 3 new takes, all pass. Nimbus/ribbit picks not yet received (the human did not paste them with this message); awaiting picks.
+
+**2026-10-05T15:54:33Z**
+
+Human sign-off, nimbus and ribbit (quoted): picks pasted with "verdict": "GO" ("ok heres picks"), including nimbus poke6-1 after the poke6 reword. Nimbus (shipped <- candidate): hello-1<-hello-1, hello-2<-hello-3, poke1-1<-poke1-3, poke1-2<-poke1-2, poke2-1<-poke2-3, poke2-2<-poke2-2, poke3<-poke3-2, poke4<-poke4-2, poke5<-poke5-1, poke6<-poke6-1, poke7<-poke7-3, pickup<-pickup-1, drop<-drop-1, emote1<-emote1-3, emote2<-emote2-2, emote3<-emote3-3, emote4<-emote4-2, emote5<-emote5-1, emote6<-emote6-1. Ribbit: hello-1<-hello-2, hello-2<-hello-1, poke1-1<-poke1-3, poke1-2<-poke1-1, poke2-1<-poke2-1, poke2-2<-poke2-2, poke3<-poke3-1, poke4<-poke4-3, poke5<-poke5-2, poke6<-poke6-2, poke7<-poke7-2, pickup<-pickup-3, drop<-drop-1, emote1<-emote1-3, emote2<-emote2-1, emote3<-emote3-3, emote4<-emote4-1, emote5<-emote5-3, emote6<-emote6-2. FINAL CHECKS (agent): all 10 companions have all 16 slots (187 files, 2.43 MB, under 3 MB); longest file 1.76 s (poke7); normalizeGain across all 187 files is 0.29-1.74, none above 2x; no keys or candidates committed. Deviation: folio (poke1, poke2) and wick (poke2) ship one take instead of two because the human picked only one; hello has two everywhere. REROLL/CREDIT LOG: wording changes that mattered: kitten/squeak/chirp/trill/peep/whistle/rustle/clack words are shrill (foil v1 30% treble, sprout v1 41%); hums/grunts/mumbles/burbles/coos are mellow (0-8%); "whoa"/"nyah nyah"/"oof" make it sound human (pickup, emote6, drop reworded); "deep and grumpy" made the whale calf too low (poke6 now neutral). Shared slot descriptors changed for hello, poke2, poke6, poke7, pickup, drop, emote1, emote6 (Hex shipped under the old wording). Approx generations: foil ~190+33, cinder ~75, folio ~75+4, gloop ~100, sprout ~245, wick ~67, crit ~76+5, nimbus ~52+5, ribbit ~75 = ~1,000; at ~5 credits per 1 s sound ~3,500-5,000 credits (spike rate; unverified, key lacks user_read). Clipping was the main reroll driver (~35-65% first pass).
