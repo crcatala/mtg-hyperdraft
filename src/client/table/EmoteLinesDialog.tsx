@@ -167,7 +167,7 @@ function Dialog() {
             })}
           </ul>
           <p className="faint settings-note">Only on this tab: lines reset when you close or reload it.</p>
-          <div className="row">
+          <div className="row emote-lines-foot">
             <button type="button" className="btn ghost" onClick={resetAll}>
               Reset to defaults
             </button>

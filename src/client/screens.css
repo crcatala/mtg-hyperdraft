@@ -5407,6 +5407,13 @@ html[data-music-open] .debug-console {
   .emote-lines-error {
     grid-column: 1 / -1;
   }
+  /* "Reset to defaults" gets a line of its own, so Cancel and Save always fit beside each other. */
+  .emote-lines-foot {
+    flex-wrap: wrap;
+  }
+  .emote-lines-foot > .btn.ghost {
+    width: 100%;
+  }
 }
 
 /* Companions' speech bubbles (table/SpeechBubbles.tsx): over the table and its HUD panels, under menus and
