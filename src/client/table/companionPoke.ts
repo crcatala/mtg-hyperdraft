@@ -8,10 +8,10 @@ import { companionSpot } from "../../shared/tableLayout";
 import { useStore } from "../store";
 import { bodyStyle, reactionFor } from "./companionReactions";
 import { reactionSeconds } from "./companionMotion";
-import { playReaction } from "./companionPlayback";
-import { say, voice } from "./companionTalk";
+import { clearReactions, playReaction } from "./companionPlayback";
+import { clearBubbles, say, voice } from "./companionTalk";
 import { tableApi } from "./drag";
-import { newLadder, observePoke, tapLadder } from "./pokeLadder";
+import { clearLadder, newLadder, observePoke, tapLadder } from "./pokeLadder";
 import { table } from "./tableUi";
 
 const ladder = newLadder();
@@ -27,10 +27,24 @@ export function pokeCompanion(target: string): boolean {
   return true;
 }
 
-/** Someone else poked `target`'s companion: show the same step, and keep this player's ladder in step with it. */
+/**
+ * Someone else poked `target`'s companion: show the same step, and keep this player's ladder in step with it.
+ * One that arrives while the companion sulks (sent before its sender saw the finale) is dropped.
+ */
 export function receivePoke(target: string, step: number) {
-  observePoke(ladder, target, step, performance.now());
-  showPoke(target, step);
+  if (observePoke(ladder, target, step, performance.now())) showPoke(target, step);
+}
+
+/**
+ * Leaving the table: forget the ladders, pending sulks, reactions and bubbles. Player ids ("u1", "u2"...) are
+ * reused by every room, so otherwise the next table's companions would inherit this one's sulks and bubbles.
+ */
+export function resetCompanions() {
+  clearLadder(ladder);
+  for (const t of sulks.values()) clearTimeout(t);
+  sulks.clear();
+  clearReactions();
+  clearBubbles();
 }
 
 /** The poke itself, as everyone sees it: the companion's voice for that step, its reaction and its line. */

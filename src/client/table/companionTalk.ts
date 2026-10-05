@@ -44,6 +44,13 @@ export function say(playerId: string, text: string | undefined, size: BubbleSize
   );
 }
 
+/** Takes every bubble down at once (leaving the table: the next room reuses player ids). */
+export function clearBubbles() {
+  for (const t of timers.values()) clearTimeout(t);
+  timers.clear();
+  useBubbles.setState({ bubbles: {} });
+}
+
 /** Plays one of a companion's voice sounds at the table (see companionVoice.ts). */
 export function voice(companion: string, slot: string, opts: VoiceOptions = {}): Voice | null {
   return playVoice(companion, slot, opts);
