@@ -7,12 +7,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Icon } from "../components/Icon";
 import { COMPANIONS, companionArt, companionDef, companionSmall } from "../roster";
-import { variantColor } from "../../shared/roster";
+import { variantColor, variantHue } from "../../shared/roster";
 import { VOICE_SLOT_IDS, VOICE_SLOTS, voiceSlotLabel, voiceSlotLine } from "../../shared/companionKit";
 import { variantPitch } from "../sfxMath";
 import { loadVoice, playVoice, takeCount, type Voice } from "../companionVoice";
-import { stopAll } from "../sfx";
-import { petFilter } from "../components/Persona";
+import { isMuted, stopAll } from "../sfx";
 
 /** Hue variants worth trying: the original and the first three that tables hand out. */
 const VARIANTS = [0, 1, 2, 3];
@@ -34,9 +33,14 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 interface Now {
   n: number;
   slot: string;
-  take: number | null;
   seconds: number;
-  variant: number;
+}
+
+/** The sound that is sounding this moment (cleared when it ends or is stopped): drives the lit pad and the progress bar. */
+interface Playing {
+  n: number;
+  slot: string;
+  seconds: number;
 }
 
 export function CompanionVoices() {
@@ -46,6 +50,7 @@ export function CompanionVoices() {
   });
   const [variant, setVariant] = useState(0);
   const [now, setNow] = useState<Now | null>(null);
+  const [playing, setPlaying] = useState<Playing | null>(null);
   /** The slot the reel or the sweep is on, or the last one played by hand. */
   const [slot, setSlot] = useState<string | null>(null);
   const [busy, setBusy] = useState<"reel" | "sweep" | null>(null);
@@ -65,6 +70,7 @@ export function CompanionVoices() {
     voice.current?.stop();
     voice.current = null;
     stopAll();
+    setPlaying(null);
     setBusy(null);
   }, []);
   useEffect(() => stop, [stop]);
@@ -72,14 +78,20 @@ export function CompanionVoices() {
   /** Plays one slot (and take) at a pitch; resolves when it has finished sounding, or at once if it made no sound. */
   const play = useCallback(
     async (s: string, take: number | undefined, v: number, mine: number): Promise<void> => {
+      // Muted clicks do nothing, rather than sounding later when the voice finishes loading after an unmute.
+      if (isMuted()) return;
       await loadVoice(id);
-      if (mine !== run.current) return;
+      if (mine !== run.current || isMuted()) return;
       voice.current?.stop();
       const sounding = playVoice(id, s, { variant: v, take });
       voice.current = sounding;
       setSlot(s);
-      setNow({ n: ++hops.current, slot: s, take: take ?? null, seconds: sounding?.seconds ?? 0, variant: v });
-      if (sounding) await sleep(sounding.seconds * 1000);
+      const n = ++hops.current;
+      setNow({ n, slot: s, seconds: sounding?.seconds ?? 0 });
+      if (!sounding) return;
+      setPlaying({ n, slot: s, seconds: sounding.seconds });
+      await sleep(sounding.seconds * 1000);
+      setPlaying((p) => (p?.n === n ? null : p));
     },
     [id],
   );
@@ -145,8 +157,7 @@ export function CompanionVoices() {
   });
 
   const saying = now ? voiceSlotLine(id, now.slot) : undefined;
-  const shown = now ? now.variant : variant;
-  const stage = { "--c": variantColor(color, shown) } as CSSProperties;
+  const stage = { "--c": variantColor(color, variant) } as CSSProperties;
   const groups = useMemo(() => GROUPS, []);
 
   return (
@@ -192,7 +203,7 @@ export function CompanionVoices() {
               src={companionArt(def.id)}
               alt={def.name}
               draggable={false}
-              style={petFilter(shown)}
+              style={{ filter: `hue-rotate(${variantHue(variant)}deg) drop-shadow(0 10px 14px rgb(0 0 0 / 0.5))` }}
               onClick={() => {
                 const first = VOICE_SLOT_IDS.find((s) => /^poke/.test(s) && takeCount(id, s) > 0);
                 if (first) playOne(first);
@@ -249,8 +260,8 @@ export function CompanionVoices() {
               </button>
             </div>
 
-            <div className={`cv-now${now && now.seconds > 0 ? " live" : ""}`} aria-hidden>
-              {now && now.seconds > 0 && <i key={now.n} style={{ animationDuration: `${now.seconds}s` }} />}
+            <div className={`cv-now${playing ? " live" : ""}`} aria-hidden>
+              {playing && <i key={playing.n} style={{ animationDuration: `${playing.seconds}s` }} />}
             </div>
           </div>
         </div>
@@ -270,7 +281,7 @@ export function CompanionVoices() {
                   {g.slots.map((s) => {
                     const n = takeCount(id, s);
                     const line = voiceSlotLine(id, s);
-                    const live = now?.slot === s && now.seconds > 0;
+                    const live = playing?.slot === s;
                     return (
                       <div key={s} className={`cv-pad${n === 0 ? " missing" : ""}${slot === s ? " sel" : ""}${live ? " live" : ""}`} title={VOICE_SLOTS[s]?.emotion}>
                         <button className="cv-pad-main" disabled={n === 0} onClick={() => playOne(s)} aria-label={`Play ${voiceSlotLabel(s)}`}>

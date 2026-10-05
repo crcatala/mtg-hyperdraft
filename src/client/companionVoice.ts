@@ -23,8 +23,8 @@ export const takeCount = (id: string, slot: string): number => FILES[id]?.[slot]
 /** Whether the companion has any voice files shipped yet. */
 export const hasVoice = (id: string | undefined): boolean => !!id && Object.keys(FILES[id] ?? {}).length > 0;
 
-/** Decoded takes: companion → slot → takes. */
-const bank = new Map<string, Map<string, Take[]>>();
+/** Decoded takes: companion → slot → one entry per file, in file order (null where a file is missing or silent, so take N is always file N). */
+const bank = new Map<string, Map<string, (Take | null)[]>>();
 const loading = new Map<string, Promise<void>>();
 const lastTake = new Map<string, number>();
 
@@ -39,7 +39,7 @@ export function loadVoice(id: string): Promise<void> {
   const files = FILES[id];
   if (!files) return Promise.resolve();
   const base = import.meta.env.BASE_URL ?? "/";
-  const mine = new Map<string, Take[]>();
+  const mine = new Map<string, (Take | null)[]>(Object.entries(files).map(([slot, count]) => [slot, Array<Take | null>(count).fill(null)]));
   bank.set(id, mine);
   const done = whenAudioReady()
     .then((a) =>
@@ -50,7 +50,7 @@ export function loadVoice(id: string): Promise<void> {
               const res = await fetch(`${base}sfx/companions/${id}/${voiceFile(slot, count, i)}`);
               if (!res.ok) return;
               const take = await decodeTake(a, await res.arrayBuffer());
-              if (take) mine.set(slot, [...(mine.get(slot) ?? []), take]);
+              if (take) mine.get(slot)![i] = take;
             } catch {
               /* that take stays silent */
             }
@@ -61,6 +61,17 @@ export function loadVoice(id: string): Promise<void> {
     .then(() => undefined);
   loading.set(id, done);
   return done;
+}
+
+/**
+ * Which take of a slot to play: `want` (a file index, for auditioning) if that file loaded, otherwise (no `want`) a
+ * random loaded one that isn't `last`. -1 when there is nothing to play, including a `want` whose file didn't load.
+ */
+export function chooseTake(takes: readonly (Take | null)[] | undefined, last: number, want?: number, random = Math.random): number {
+  if (!takes) return -1;
+  if (want !== undefined) return takes[want] ? want : -1;
+  const have = takes.flatMap((t, i) => (t ? [i] : []));
+  return have.length ? have[pickTake(have.length, have.indexOf(last), random)] : -1;
 }
 
 export interface VoiceOptions {
@@ -90,13 +101,13 @@ export function playVoice(id: string, slot: string, { variant = 0, pan = 0, gain
   const takes = bank.get(id)?.get(slot);
   let src: AudioBufferSourceNode | null = null;
   let seconds = 0;
-  if (takes?.length) {
-    const key = `${id}/${slot}`;
-    const i = take !== undefined && take >= 0 && take < takes.length ? take : pickTake(takes.length, lastTake.get(key) ?? -1);
+  const key = `${id}/${slot}`;
+  const i = chooseTake(takes, lastTake.get(key) ?? -1, take);
+  if (takes?.[i]) {
     lastTake.set(key, i);
     const rate = jitter(variantPitch(variant), 0.03);
-    src = startTake(a, takes[i], { gain, pan, rate });
-    seconds = (takes[i].buffer.duration - takes[i].offset) / rate;
+    src = startTake(a, takes[i]!, { gain, pan, rate });
+    seconds = (takes[i]!.buffer.duration - takes[i]!.offset) / rate;
   }
   emit({ name: slot, pack: null, voice: { companion: id, played: !!src } });
   return src ? { stop: () => stopSource(src), seconds } : null;

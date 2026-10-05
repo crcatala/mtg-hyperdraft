@@ -213,6 +213,9 @@ export function setMuted(m: boolean) {
   muted = m;
   muteListeners.forEach((l) => l());
   if (m) tearVoice?.end(false);
+  // A page that loaded muted never unlocked audio (audio() refuses while muted, and the first-interaction warm-up
+  // has already run), and voices wait for it rather than starting it themselves: unmuting, inside the click, does it.
+  else audio();
   try {
     localStorage.setItem("hyperdraft:muted", m ? "1" : "0");
   } catch {

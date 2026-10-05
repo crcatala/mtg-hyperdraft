@@ -156,6 +156,10 @@ export function SoundStudio() {
   };
   // Leaving the studio cancels everything, including a sequence still loading its packs.
   useEffect(() => () => player.stop(), [player]);
+  // ...and so does leaving the packs tab: its scheduled cues must not go off over the companions' voices.
+  useEffect(() => {
+    if (tab !== "packs") stop();
+  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Loads every pack the mix uses (first time only), then starts from a clean log. */
   const start = async (build: (s: Scheduler) => unknown, packs: PackId[], seq: SequenceId | null) => {
