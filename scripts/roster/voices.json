@@ -1,0 +1,91 @@
+{
+  "voices": {
+    "hex": "A chubby sleepy house cat with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched mews and a rumbling purr, rounded and mellow, never shrill, no squeals",
+    "nimbus": "A gentle baby whale calf with a soft plush-toy cartoon voice: warm low airy coos, dreamy hummed sighs and soft rounded squeaks, mellow, never shrill",
+    "gloop": "A cute squishy blob of mana slime with a plush-toy cartoon voice: soft round bubbly blorps, gurgles and happy wet squeaks, warm and mellow, never shrill",
+    "ribbit": "A chunky little frog knight with a plush-toy cartoon voice: warm low croaks, soft ribbits and bubbly throat chirps, mellow and rounded, never shrill"
+  },
+  "slots": {
+    "hello": {
+      "emotion": "a friendly little greeting chirp, warm and bright, rising at the end",
+      "seconds": 1.0,
+      "influence": 0.6
+    },
+    "poke1": {
+      "emotion": "a curious questioning 'huh?' sound with a small rising inflection",
+      "seconds": 0.6,
+      "influence": 0.6
+    },
+    "poke2": {
+      "emotion": "a happy delighted squeak",
+      "seconds": 0.7,
+      "influence": 0.6
+    },
+    "poke3": {
+      "emotion": "a warm affectionate coo, soft and melting, content",
+      "seconds": 1.0,
+      "influence": 0.6
+    },
+    "poke4": {
+      "emotion": "a playful giggly babble, bouncy and teasing",
+      "seconds": 1.0,
+      "influence": 0.6
+    },
+    "poke5": {
+      "emotion": "a mildly bothered grumble, a small 'hmph', slightly annoyed",
+      "seconds": 0.8,
+      "influence": 0.6
+    },
+    "poke6": {
+      "emotion": "a fed-up whiny complaint, a protesting moan, increasingly annoyed",
+      "seconds": 1.2,
+      "influence": 0.6
+    },
+    "poke7": {
+      "emotion": "an indignant cheeky outburst, a sharp huffy protest ending in a defiant raspberry",
+      "seconds": 1.8,
+      "influence": 0.6
+    },
+    "pickup": {
+      "emotion": "a surprised yelp as if suddenly lifted into the air, 'whoa!'",
+      "seconds": 0.8,
+      "influence": 0.6
+    },
+    "drop": {
+      "emotion": "a soft landing 'oof' followed by a relieved happy sigh",
+      "seconds": 1.0,
+      "influence": 0.6
+    },
+    "emote1": {
+      "emotion": "a triumphant excited cheer, bright and bouncy",
+      "seconds": 1.2,
+      "influence": 0.6
+    },
+    "emote2": {
+      "emotion": "a swooning lovestruck sigh with a dreamy coo",
+      "seconds": 1.2,
+      "influence": 0.6
+    },
+    "emote3": {
+      "emotion": "a sheepish apologetic 'oops' whimper, embarrassed, trailing off",
+      "seconds": 1.0,
+      "influence": 0.6
+    },
+    "emote4": {
+      "emotion": "a goofy silly babble with a wobbling trill",
+      "seconds": 1.2,
+      "influence": 0.6
+    },
+    "emote5": {
+      "emotion": "a sassy smug 'mm-hm', sarcastic and unimpressed",
+      "seconds": 1.0,
+      "influence": 0.6
+    },
+    "emote6": {
+      "emotion": "a teasing sing-song taunt, cheeky 'nyah nyah', playful mockery",
+      "seconds": 1.5,
+      "influence": 0.6
+    }
+  },
+  "suffix": "Short, no words, no music, dry, close-up."
+}

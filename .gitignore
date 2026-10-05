@@ -6,3 +6,6 @@ dist/
 
 # Vitest cache and reporter output
 .vitest/
+
+# Companion voice candidates and their audition page: auditioned, never committed
+scripts/roster/voice-candidates/
