@@ -108,3 +108,7 @@ Human sign-off, wick (quoted): picks pasted with "verdict": "GO" (no further com
 **2026-10-05T15:27:27Z**
 
 Crit, generated (agent), PENDING human audition. Signature reworded before generating (clacks are broadband/bright): "A chunky friendly stone golem with a soft warm plush-toy cartoon voice: warm low rumbly grunts, deep stony hums and goofy rounded mumbles, mellow, never shrill, no clacking, no screeching". 48 gens (1 API failure retried) + 28 rerolls over 4 prune rounds: 46/48 pass (pickup-2, pickup-3 clipped, left flagged; pickup-1 is clean), every slot has a clean take. Treble mean ~0% (very dark): listen for muffled/too hum-like rather than shrill; the stone character (clacks) was deliberately removed from the wording, say if you want some back.
+
+**2026-10-05T15:31:25Z**
+
+Human feedback, crit (quoted): "great regenerate variations for \"pickup\", maybe reword to not have explict \"whoa\" because sounded too human". Action (agent): shared pickup descriptor "a surprised yelp as if suddenly lifted into the air, 'whoa!'" -> "a startled low gasp and grunt as if suddenly lifted into the air, a quick surprised creature noise, not a human voice, no words". Regenerated crit pickup only (3 + 2 reroll gens; old takes parked in _crit-pickup-whoa): 3 new takes, treble 0-1%, all pass objective checks; other crit slots untouched. Note: Hex/foil/cinder/folio/gloop/sprout/wick pickups were made with the old wording and already signed off; only mention if the human wants any redone for the same reason. Awaiting crit picks.
