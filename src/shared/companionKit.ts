@@ -106,3 +106,23 @@ export function pokeLine(id: string | undefined, step: number): string | undefin
 export function emoteLine(id: string | undefined, index: number): string | undefined {
   return isEmoteIndex(index) ? companionKit(id)?.lines.emote[index] : undefined;
 }
+
+/** What a voice slot is, in a player's words: "Hello", "Poke 1 · curious", "Emote · Cheer". */
+export function voiceSlotLabel(slot: string): string {
+  const poke = POKE_STEP_IDS.findIndex((_, i) => pokeSound(i) === slot);
+  if (poke >= 0) return `Poke ${poke + 1} · ${POKE_STEP_IDS[poke]}`;
+  const emote = EMOTE_SLOTS.findIndex((_, i) => emoteSound(i) === slot);
+  if (emote >= 0) return `Emote · ${EMOTE_SLOTS[emote].label}`;
+  return slot === "hello" ? "Hello (lobby)" : slot === "pickup" ? "Pick up" : slot === "drop" ? "Drop" : slot;
+}
+
+/** The bubble text a companion shows with a voice slot, or undefined for slots that have none (hello). */
+export function voiceSlotLine(id: string | undefined, slot: string): string | undefined {
+  const lines = companionKit(id)?.lines;
+  if (!lines) return undefined;
+  const poke = POKE_STEP_IDS.findIndex((_, i) => pokeSound(i) === slot);
+  if (poke >= 0) return lines.poke[poke];
+  const emote = EMOTE_SLOTS.findIndex((_, i) => emoteSound(i) === slot);
+  if (emote >= 0) return lines.emote[emote];
+  return slot === "pickup" ? lines.pickup : slot === "drop" ? lines.drop : undefined;
+}

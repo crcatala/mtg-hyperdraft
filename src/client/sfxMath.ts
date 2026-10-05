@@ -62,3 +62,17 @@ export function pickTake(count: number, last: number, random = Math.random): num
 export function jitter(base: number, amount: number, random = Math.random): number {
   return base * (1 + (random() * 2 - 1) * amount);
 }
+
+/**
+ * How a companion's voice is pitched for its colour variant, as a playback rate: variant 0 (the original
+ * colours) is untouched, every other variant sits 0.8 to 3 semitones above or below it, in golden-ratio
+ * steps like variantHue so successive variants land well apart. None sit close enough to the original
+ * to be lost in the per-play jitter, so two copies of one companion at a table can be told apart by ear.
+ */
+export function variantPitch(variant: number): number {
+  if (variant <= 0) return 1;
+  const f = (variant * 0.618034) % 1;
+  const side = f < 0.5 ? -1 : 1;
+  const semitones = side * (0.8 + (f < 0.5 ? f * 2 : (f - 0.5) * 2) * 2.2);
+  return 2 ** (semitones / 12);
+}

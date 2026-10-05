@@ -4543,3 +4543,19 @@ html[data-music-open] .debug-console {
     animation: none;
   }
 }
+
+/* sound studio: companion voices tab */
+.cv-line {
+  font-family: var(--font-flavor, var(--font-card));
+  font-size: 15px;
+}
+.cv-takes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ss-head .ss-seg .label {
+  align-self: center;
+  margin: 0;
+}
