@@ -1,6 +1,6 @@
 ---
 id: mh-lhxh
-status: in_progress
+status: closed
 deps: [mh-kqys]
 links: []
 created: 2026-10-05T19:21:51Z
@@ -66,3 +66,7 @@ Implemented (agent): shared/emoteText.ts cleanEmoteText (whitespace runs -> one 
 **2026-10-05T21:08:37Z**
 
 Review fixes (agent; user said 'sure go ahead'): (1) the Edit lines pill and hovered line now go over the ring only when there's less room below than above (wheelExtrasAbove, tested); before, a ring at the top of a short window (1280x360) put them off screen; (2) under 480 px the dialog footer wraps with Reset to defaults on its own line, so Save no longer runs off the dialog below ~355 px. Verified at 1280x360 and at 320/360/430/800 px wide.
+
+**2026-10-05T21:49:39Z**
+
+Human sign-off (2026-10-05): "close mh-lhxh and push to main, then start next ticket". PR #34 merged by the human.
