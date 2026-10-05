@@ -1,18 +1,19 @@
 // A player's companion on the table (and in the lab, /dev/companion-lab): its picture on a soft shadow, an idle
 // breath, hops when its player's turn starts, and on top of that whatever reaction it is playing
-// (companionPlayback.ts), with its effect glyphs and its speech bubble (companionTalk.ts). At the table it can be
-// tapped (a poke). The motion itself is pure (companionMotion.ts); this file only turns poses into sprite transforms.
+// (companionPlayback.ts), with its effect glyphs. It tells its speech bubble (SpeechBubbles.tsx) where its head
+// is. At the table it can be tapped (a poke), and its owner can right-click it for the emote wheel. The motion
+// itself is pure (companionMotion.ts); this file only turns poses into sprite transforms.
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { bubbleTexture, glowTexture, glyphTexture, hueTexture, spriteTexture, useImage } from "./textures";
+import { glowTexture, glyphTexture, hueTexture, spriteTexture, useImage } from "./textures";
 import { reducedMotion } from "./motion";
 import { hopFade } from "./petMotion";
 import { advanceTrack, fxSpawns, glyphPose, newTrack, REST, type Fx, type GlyphMotion } from "./companionMotion";
 import { bodyStyle, reactionFor } from "./companionReactions";
 import { reactionNow, reactionOf } from "./companionPlayback";
-import { bubblePop, useBubbles } from "./companionTalk";
+import { bubbleAnchors } from "./companionTalk";
 import { loadVoice } from "../companionVoice";
 import { companionArt, companionDef, variantHue } from "../roster";
 
@@ -42,9 +43,10 @@ const up = new THREE.Vector3();
 /**
  * `playerId` is whose companion this is (reactions are played per player); `at` is where it stands on the table.
  * Offline: no idle breath or hop (it's resting), but it still reacts if someone pokes it. `onPoke`: it can be
- * tapped (a left click that doesn't reach the table underneath, so no pan, ping or deselect).
+ * tapped (a left click that doesn't reach the table underneath, so no pan, ping or deselect). `onEmote`: a
+ * right-click on it opens the emote wheel at the cursor instead of the table's menu (its owner only).
  */
-export function CompanionFigure({ playerId, companion, variant, at, active, turnNumber, offline, onPoke }: { playerId: string; companion: string; variant: number; at: { x: number; y: number }; active: boolean; turnNumber: number; offline: boolean; onPoke?: () => void }) {
+export function CompanionFigure({ playerId, companion, variant, at, active, turnNumber, offline, onPoke, onEmote }: { playerId: string; companion: string; variant: number; at: { x: number; y: number }; active: boolean; turnNumber: number; offline: boolean; onPoke?: () => void; onEmote?: (clientX: number, clientY: number) => void }) {
   const def = companionDef(companion);
   const url = companionArt(companion);
   const img = useImage(variant > 0 ? url : null);
@@ -69,6 +71,12 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
     if (e.button !== 0) return;
     e.stopPropagation();
     onPoke?.();
+  };
+  const emote = (e: ThreeEvent<MouseEvent>) => {
+    if (!onEmote) return;
+    e.stopPropagation();
+    e.nativeEvent.preventDefault();
+    onEmote(e.nativeEvent.clientX, e.nativeEvent.clientY);
   };
   // Its voice loads when it arrives at the table (once per companion, however many copies there are).
   useEffect(() => void loadVoice(companion), [companion]);
@@ -167,12 +175,14 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
       {onPoke && (
         // An invisible hit area over the body at rest. It stays put while the body hops and spins (a spin lifts the
         // body to turn about its middle), so a click lands whatever it is doing. Pressing it stops the table
-        // underneath from panning or deselecting; right-clicks pass through (the table's menu, for now).
+        // underneath from panning or deselecting. A right-click opens its owner's emote wheel; anyone else's
+        // passes through to the table's menu.
         <sprite
           scale={[PET_SIZE * HIT_W, PET_SIZE * HIT_H, 1]}
           center={[0.5, 0.04]}
           onPointerDown={(e) => e.button === 0 && e.stopPropagation()}
           onClick={tap}
+          onContextMenu={emote}
           onPointerOver={(e) => {
             e.stopPropagation();
             hover(true);
@@ -182,7 +192,7 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
           <spriteMaterial transparent opacity={0} depthWrite={false} />
         </sprite>
       )}
-      <SpeechBubble playerId={playerId} height={PET_SIZE * (style.head + 0.16)} />
+      <BubbleAnchor playerId={playerId} height={PET_SIZE * (style.head + 0.16)} />
       {Array.from({ length: FX_SLOTS }, (_, i) => (
         <sprite
           key={i}
@@ -200,28 +210,32 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
   );
 }
 
-/** Its speech bubble (if it's saying something): a constant size on screen, above its head, over everything else. */
-function SpeechBubble({ playerId, height }: { playerId: string; height: number }) {
-  const bubble = useBubbles((s) => s.bubbles[playerId]);
-  const art = useMemo(() => (bubble ? bubbleTexture(bubble.text, bubble.size) : null), [bubble]);
-  useEffect(() => () => art?.texture.dispose(), [art]);
-  const ref = useRef<THREE.Sprite>(null);
-  useFrame(({ camera, size }) => {
-    const s = ref.current;
-    if (!s || !bubble || !art) return;
-    // sizeAttenuation off: a scale of 1 spans 2 / (focal length) of the screen's height, whatever the distance.
-    const focal = 1 / Math.tan(THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov) / 2);
-    const perPx = 2 / (focal * size.height);
-    const pop = bubblePop(performance.now() - bubble.at, reducedMotion());
-    // Above its head as the picture is drawn: along the screen's up, not the world's (from overhead those differ).
-    s.position.setFromMatrixColumn(camera.matrixWorld, 1).multiplyScalar(height);
-    s.scale.set(art.width * perPx * pop.scale, art.height * perPx * pop.scale, 1);
-    s.material.opacity = pop.alpha;
+/**
+ * Where its speech bubble points: just above its head as the picture is drawn (along the screen's up, not the
+ * world's: from overhead those differ), and where its feet are (for a bubble that has to go underneath), in
+ * viewport pixels, every frame. The bubble itself is DOM (SpeechBubbles.tsx), so it draws over the HUD too.
+ */
+function BubbleAnchor({ playerId, height }: { playerId: string; height: number }) {
+  const ref = useRef<THREE.Group>(null);
+  const gl = useThree((s) => s.gl);
+  useEffect(() => () => void bubbleAnchors.delete(playerId), [playerId]);
+  useFrame(({ camera }) => {
+    const g = ref.current;
+    if (!g) return;
+    const r = gl.domElement.getBoundingClientRect();
+    g.getWorldPosition(foot);
+    head.copy(foot).addScaledVector(up.setFromMatrixColumn(camera.matrixWorld, 1), height);
+    foot.project(camera);
+    head.project(camera);
+    bubbleAnchors.set(playerId, {
+      x: r.left + ((head.x + 1) / 2) * r.width,
+      y: r.top + ((1 - head.y) / 2) * r.height,
+      footY: r.top + ((1 - foot.y) / 2) * r.height,
+      on: head.z < 1,
+    });
   });
-  if (!bubble || !art) return null;
-  return (
-    <sprite ref={ref} center={[0.5, 0]} scale={[0, 0, 1]} renderOrder={30} raycast={() => null}>
-      <spriteMaterial map={art.texture} transparent depthTest={false} depthWrite={false} sizeAttenuation={false} toneMapped={false} opacity={0} />
-    </sprite>
-  );
+  return <group ref={ref} />;
 }
+
+const head = new THREE.Vector3();
+const foot = new THREE.Vector3();

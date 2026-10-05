@@ -14,6 +14,8 @@ import { beginDrag, tableApi } from "./drag";
 import { handLayout } from "./handLayout";
 import { reducedMotion, startTableMotion, useMotion } from "./motion";
 import { resetCompanions } from "./companionPoke";
+import { EmoteWheel } from "./EmoteWheel";
+import { SpeechBubbles } from "./SpeechBubbles";
 import { relativeTime, RELATIVE_TIME_REFRESH_MS } from "../relativeTime";
 import { countNewEntries, logKeys } from "./logFeed";
 import { AnchoredPreview } from "../components/AnchoredPreview";
@@ -33,6 +35,8 @@ export function TableScreen() {
   return (
     <div className="screen table-screen">
       <TableCanvas />
+      <SpeechBubbles />
+      <EmoteWheel />
       <PlayersHud />
       <TurnBar />
       <TableDock />

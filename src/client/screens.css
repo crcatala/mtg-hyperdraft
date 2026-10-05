@@ -5181,3 +5181,204 @@ html[data-music-open] .debug-console {
     height: 46vh;
   }
 }
+
+/* The emote wheel (table/EmoteWheel.tsx): six wedges round the cursor, each in its emote's colour (--tint).
+   Each wedge is a full-size button clipped to its wedge, so its hit area is exactly the wedge. */
+.emote-wheel {
+  position: fixed;
+  z-index: 900;
+  border-radius: 50%;
+  outline: none;
+  user-select: none;
+  animation: emote-wheel-in 0.14s ease-out;
+  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.55));
+}
+@keyframes emote-wheel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+}
+.emote-wedge {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--menu-bg, rgba(22, 19, 36, 0.96));
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.emote-wedge:hover,
+.emote-wedge.active {
+  background: var(--tint);
+  color: #1a1024;
+}
+.emote-face {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: transform 0.1s;
+}
+.emote-wedge:hover .emote-face,
+.emote-wedge.active .emote-face {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+.emote-face .icon {
+  font-size: 30px;
+  color: var(--tint);
+  --icon-stroke: 2.2;
+}
+.emote-wedge:hover .emote-face .icon,
+.emote-wedge.active .emote-face .icon {
+  color: inherit;
+}
+.emote-label {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.emote-face kbd {
+  font-size: 10px;
+  opacity: 0.6;
+}
+.emote-wheel.cooling .emote-wedge {
+  cursor: default;
+}
+.emote-wheel.cooling .emote-face {
+  opacity: 0.35;
+}
+.emote-wheel.cooling .emote-wedge:hover,
+.emote-wheel.cooling .emote-wedge.active {
+  background: var(--menu-bg, rgba(22, 19, 36, 0.96));
+  color: var(--text);
+}
+.emote-line {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 320px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--menu-bg, rgba(22, 19, 36, 0.96));
+  border: 1px solid var(--line-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+.emote-wheel.flip .emote-line {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .emote-wheel {
+    animation: none;
+  }
+  .emote-face,
+  .emote-wedge {
+    transition: none;
+  }
+  .emote-wedge:hover .emote-face,
+  .emote-wedge.active .emote-face {
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Companions' speech bubbles (table/SpeechBubbles.tsx): over the table and its HUD panels, under menus and
+   dialogs. Placed by transform every frame; the tail sits at --tail along the bottom edge. */
+.speech-bubbles {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  overflow: hidden;
+}
+.speech-bubble {
+  --ink: #1a1024;
+  --tail-size: 9px;
+  --line: 2.5px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 200px;
+  width: max-content;
+  padding: 6px 12px;
+  border: var(--line) solid var(--ink);
+  border-radius: 12px;
+  background: var(--tint, #fff7e8);
+  color: var(--ink);
+  font: 700 15px/19px var(--font-ui);
+  text-align: center;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+/* The tail: an ink triangle with a fill-coloured one inside it. */
+.speech-bubble::before,
+.speech-bubble::after {
+  content: "";
+  position: absolute;
+  left: var(--tail, 50%);
+  border-style: solid;
+  border-color: transparent;
+  transform: translateX(-50%);
+}
+.speech-bubble::before {
+  top: 100%;
+  border-width: var(--tail-size) calc(var(--tail-size) * 0.85) 0;
+  border-top-color: var(--ink);
+}
+.speech-bubble::after {
+  top: calc(100% - var(--line) * 1.2);
+  border-width: calc(var(--tail-size) - var(--line)) calc((var(--tail-size) - var(--line)) * 0.85) 0;
+  border-top-color: var(--tint, #fff7e8);
+}
+/* An emote: a message to the table, so about twice the size, heavier, in the emote's colour, with its icon. */
+.speech-bubble.large {
+  --tail-size: 13px;
+  --line: 4px;
+  max-width: 360px;
+  padding: 9px 18px;
+  border-radius: 20px;
+  font: 900 26px/31px var(--font-ui);
+  filter: drop-shadow(5px 5px 0 rgba(26, 16, 36, 0.55));
+}
+.speech-badge {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2.5px solid var(--ink);
+  background: #fffaf0;
+  font-size: 25px;
+  --icon-stroke: 2.4;
+}
+.speech-text {
+  flex: 1;
+}
+/* Too near the top of the window: under the companion, its tail pointing up. */
+.speech-bubble.below::before {
+  top: auto;
+  bottom: 100%;
+  border-width: 0 calc(var(--tail-size) * 0.85) var(--tail-size);
+  border-color: transparent transparent var(--ink);
+}
+.speech-bubble.below::after {
+  top: auto;
+  bottom: calc(100% - var(--line) * 1.2);
+  border-width: 0 calc((var(--tail-size) - var(--line)) * 0.85) calc(var(--tail-size) - var(--line));
+  border-color: transparent transparent var(--tint, #fff7e8);
+}

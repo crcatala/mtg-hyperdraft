@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRoomState, PING_COOLDOWN_MS, POKE_COOLDOWN_MS, Room, SeatClaimNeeded, type ImportResult } from "../src/shared/room";
+import { createRoomState, EMOTE_COOLDOWN_MS, PING_COOLDOWN_MS, POKE_COOLDOWN_MS, Room, SeatClaimNeeded, type ImportResult } from "../src/shared/room";
 import { basicIds, makeCube, testDeps } from "./fixtures";
 import type { ClientMessage } from "../src/shared/protocol";
 
@@ -230,6 +230,37 @@ describe("room flow", () => {
     expect(send(room, a.playerId, { t: "poke", target: b.playerId, step: 4 }).outbound).toHaveLength(1);
 
     // Nothing about pokes is kept in the room.
+    expect(JSON.stringify(room.state)).toBe(before);
+  });
+
+  it("relays emotes on the sender's own companion to the other players, with a per-player cooldown, never stored", () => {
+    const { room, deps } = newRoom();
+    const a = room.join({ name: "Alice", companion: "hex" });
+    const b = room.join({ name: "Bob", companion: "gloop" });
+    const c = room.join({ name: "Cara" }); // no companion
+    // Only at the table.
+    expect(send(room, a.playerId, { t: "emote", slot: 0 }).outbound).toEqual([]);
+
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "debug", cmd: "startGame" });
+    expect(room.state.phase).toBe("playing");
+    const before = JSON.stringify(room.state);
+
+    const res = send(room, a.playerId, { t: "emote", slot: 5 });
+    expect(res.changed).toBe(false);
+    expect(res.outbound).toEqual([{ to: "others", msg: { t: "emote", by: a.playerId, slot: 5 } }]);
+    // A sender with no companion has nothing to emote with.
+    expect(send(room, c.playerId, { t: "emote", slot: 0 }).outbound).toEqual([]);
+
+    // Spam inside the cooldown is dropped; each player has their own.
+    expect(send(room, a.playerId, { t: "emote", slot: 1 }).outbound).toEqual([]);
+    expect(send(room, b.playerId, { t: "emote", slot: 1 }).outbound).toEqual([{ to: "others", msg: { t: "emote", by: b.playerId, slot: 1 } }]);
+    deps.advance(EMOTE_COOLDOWN_MS - 1);
+    expect(send(room, a.playerId, { t: "emote", slot: 1 }).outbound).toEqual([]);
+    deps.advance(1);
+    expect(send(room, a.playerId, { t: "emote", slot: 1 }).outbound).toHaveLength(1);
+
+    // Nothing about emotes is kept in the room.
     expect(JSON.stringify(room.state)).toBe(before);
   });
 });

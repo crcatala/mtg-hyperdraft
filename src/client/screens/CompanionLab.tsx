@@ -10,13 +10,15 @@ import { Icon } from "../components/Icon";
 import { navigate } from "../router";
 import { COMPANIONS, companionDef, companionSmall } from "../roster";
 import { variantColor } from "../../shared/roster";
-import { REACTION_IDS, VOICE_SLOT_IDS, voiceSlotLabel, voiceSlotLine } from "../../shared/companionKit";
+import { emoteSound, EMOTE_SLOTS, REACTION_IDS, VOICE_SLOT_IDS, voiceSlotLabel, voiceSlotLine } from "../../shared/companionKit";
 import { CompanionFigure } from "../table/CompanionFigure";
+import { SpeechBubbles } from "../table/SpeechBubbles";
 import { reactionSeconds } from "../table/companionMotion";
 import { bodyStyle, reactionFor, SIGNATURES } from "../table/companionReactions";
 import { playReaction, reactionNow, setReactionTimeScale, stopReaction } from "../table/companionPlayback";
 import { reducedMotion } from "../table/motion";
 import { say } from "../table/companionTalk";
+import { emoteBadge } from "../table/emoteWheel";
 import { loadVoice, playVoice, type Voice } from "../companionVoice";
 import { isMuted, setMuted, stopAll } from "../sfx";
 
@@ -77,7 +79,10 @@ export function CompanionLab() {
     cast.forEach((c, i) => {
       playReaction(LAB_IDS[i], slot);
       // Only the selected one speaks: four bubbles side by side would cover each other on this small stage.
-      if (i === 0) say(LAB_IDS[i], voiceSlotLine(c, slot), slot.startsWith("emote") ? "large" : "small");
+      if (i === 0) {
+        const emote = EMOTE_SLOTS.findIndex((_, e) => emoteSound(e) === slot);
+        say(LAB_IDS[i], voiceSlotLine(c, slot), emote >= 0 ? "large" : "small", emote >= 0 ? emoteBadge(emote) : undefined);
+      }
       if (sound && speed === 1 && VOICE_SLOT_IDS.includes(slot)) {
         const v = playVoice(c, slot, { variant: i === 0 ? variant : 0, gain: i === 0 ? 1 : 0.35 });
         if (v) voices.current.push(v);
@@ -307,6 +312,8 @@ export function CompanionLab() {
           </section>
         </div>
       </main>
+      {/* Out here, not in the stage: a panel's backdrop-filter (the Arcane theme) would make it the bubbles' frame. */}
+      <SpeechBubbles />
     </div>
   );
 }

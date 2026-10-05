@@ -17,6 +17,7 @@ import type { IconName } from "../icons";
 import { shortcutsBlocked } from "../shortcuts";
 import { CompanionFigure } from "./CompanionFigure";
 import { pokeCompanion } from "./companionPoke";
+import { openEmoteWheel } from "./companionEmote";
 import { accentOf, avatarFace } from "../roster";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
@@ -304,7 +305,7 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
       ))}
       {peek && <LibraryLook look={peek} libraryCount={player?.zones.library.length ?? 0} seat={seat} seatCount={seatCount} />}
       {!isMe && handCount > 0 && <OpponentHand count={handCount} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />}
-      {look?.companion && <CompanionFigure playerId={playerId} companion={look.companion} variant={look.companionVariant ?? 0} at={companionSpot(seat, seatCount)} active={table.turn.playerId === playerId} turnNumber={table.turn.number} offline={offline} onPoke={() => pokeCompanion(playerId)} />}
+      {look?.companion && <CompanionFigure playerId={playerId} companion={look.companion} variant={look.companionVariant ?? 0} at={companionSpot(seat, seatCount)} active={table.turn.playerId === playerId} turnNumber={table.turn.number} offline={offline} onPoke={() => pokeCompanion(playerId)} onEmote={isMe ? openEmoteWheel : undefined} />}
     </group>
   );
 }

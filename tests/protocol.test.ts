@@ -18,3 +18,15 @@ describe("client message schema: poke", () => {
     expect(parsed).toEqual({ t: "poke", target: "u1", step: 0 });
   });
 });
+
+describe("client message schema: emote", () => {
+  it("accepts a wheel slot 0..5", () => {
+    for (let slot = 0; slot <= 5; slot++) expect(ok({ t: "emote", slot })).toBe(true);
+  });
+
+  it("rejects out-of-range or non-integer slots, and a spoofed sender", () => {
+    for (const slot of [-1, 6, 2.5, "1", null, undefined]) expect(ok({ t: "emote", slot })).toBe(false);
+    // `by` isn't part of the message: zod strips it, and the server stamps the sender itself.
+    expect(clientMessageSchema.parse({ t: "emote", slot: 2, by: "u2" })).toEqual({ t: "emote", slot: 2 });
+  });
+});

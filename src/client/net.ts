@@ -5,6 +5,7 @@ import { loadIdentity, loadLook, loadName, saveIdentity } from "./identity";
 import { useStore } from "./store";
 import { showPing } from "./table/tableUi";
 import { receivePoke } from "./table/companionPoke";
+import { receiveEmote } from "./table/companionEmote";
 import { rememberExpiry } from "./publicRooms";
 import { forgetRoom, isRoomGone, rememberRoom, snapshotOf } from "./recentRooms";
 
@@ -162,6 +163,9 @@ function open() {
         break;
       case "poke":
         receivePoke(msg.target, msg.step);
+        break;
+      case "emote":
+        receiveEmote(msg.by, msg.slot);
         break;
       case "error":
         if (!welcomed) {
