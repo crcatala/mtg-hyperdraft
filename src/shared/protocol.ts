@@ -111,6 +111,12 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
    * player's own line for it, if they rewrote it (the room cleans it with cleanEmoteText before relaying it).
    */
   z.object({ t: z.literal("emote"), slot: z.number().int().min(0).max(EMOTE_COUNT - 1), text: z.string().max(EMOTE_TEXT_RAW_MAX).optional() }),
+  /** The sender is carrying their own companion: where it is now (streamed while it moves, like `drag`). */
+  z.object({ t: z.literal("petMove"), x: coord, y: coord }),
+  /** The sender let go of their companion somewhere it can't stand: it goes back where it was. */
+  z.object({ t: z.literal("petCancel") }),
+  /** The sender puts their own companion down at `at` (table coordinates), or sends it home (null). Stored. */
+  z.object({ t: z.literal("setPetPos"), at: z.object({ x: coord, y: coord }).nullable() }),
   z.object({ t: z.literal("debug"), cmd: z.enum(DEBUG_COMMANDS) }),
 ]);
 
@@ -188,6 +194,12 @@ export type ServerMessage =
   | { t: "poke"; by: string; target: string; step: number }
   /** `text`: the sender's own line for that slot, already cleaned by the room; absent means the kit's line. */
   | { t: "emote"; by: string; slot: number; text?: string }
+  /** `by` is carrying their companion: it's at (x, y) now. Each new carry starts with one of these. */
+  | { t: "petMove"; by: string; x: number; y: number }
+  /** `by` let go of their companion where it can't stand: it goes back. */
+  | { t: "petCancel"; by: string }
+  /** `by` put their companion down at `at` (null: sent it home). Sent just before the state that stores it. */
+  | { t: "petLand"; by: string; at: { x: number; y: number } | null }
   | { t: "error"; message: string }
   | { t: "pong" };
 

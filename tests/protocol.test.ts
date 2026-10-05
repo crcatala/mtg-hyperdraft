@@ -41,3 +41,19 @@ describe("client message schema: emote", () => {
     for (const text of [42, null, ["hi"], { s: "hi" }, true]) expect(ok({ t: "emote", slot: 0, text })).toBe(false);
   });
 });
+
+describe("client message schema: carrying a companion", () => {
+  it("streams petMove as a table point, and petCancel with nothing else", () => {
+    expect(ok({ t: "petMove", x: 1.5, y: -20 })).toBe(true);
+    expect(ok({ t: "petCancel" })).toBe(true);
+    for (const [x, y] of [[NaN, 0], [0, Infinity], [201, 0], [0, -201], ["1", 0], [0, null], [undefined, 0]]) expect(ok({ t: "petMove", x, y })).toBe(false);
+    expect(clientMessageSchema.parse({ t: "petMove", x: 1, y: 2, by: "u2" })).toEqual({ t: "petMove", x: 1, y: 2 });
+  });
+
+  it("puts it down with setPetPos at a table point, or home with null, and never names a player", () => {
+    expect(ok({ t: "setPetPos", at: { x: 3, y: -4 } })).toBe(true);
+    expect(ok({ t: "setPetPos", at: null })).toBe(true);
+    for (const at of [undefined, { x: 3 }, { x: "3", y: 0 }, { x: 0, y: 500 }, { x: NaN, y: 0 }, [3, 4], 0]) expect(ok({ t: "setPetPos", at })).toBe(false);
+    expect(clientMessageSchema.parse({ t: "setPetPos", at: null, playerId: "u2", by: "u2" })).toEqual({ t: "setPetPos", at: null });
+  });
+});

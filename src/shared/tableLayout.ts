@@ -53,6 +53,26 @@ export function localToTable(p: Vec2, seat: number, seatCount: number): Vec2 {
 export const COMPANION_LOCAL: Vec2 = { x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 };
 export const companionSpot = (seat: number, seatCount: number): Vec2 => localToTable(COMPANION_LOCAL, seat, seatCount);
 
+/**
+ * How far a companion's feet keep from the edge of any mat and from the table's rim: about half its footprint
+ * (its shadow is ~2.2 wide), and under the 1.3 its home spot keeps from its own mat, so home is always valid.
+ */
+export const PET_MARGIN = 1;
+
+/**
+ * Whether a companion may be put down at table point `p`: on the table, and off every seat's mat (anyone's, not
+ * just its owner's). The client checks it before dropping, and the room again before storing the spot.
+ */
+export function petSpotValid(p: Vec2, seatCount: number): boolean {
+  if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+  if (Math.hypot(p.x, p.y) > tableRadius(seatCount) - PET_MARGIN) return false;
+  for (let seat = 0; seat < Math.max(1, seatCount); seat++) {
+    const local = tableToLocal(p, seat, seatCount);
+    if (Math.abs(local.x) < MAT_W / 2 + PET_MARGIN && Math.abs(local.y) < MAT_D / 2 + PET_MARGIN) return false;
+  }
+  return true;
+}
+
 /** Table coordinates → local mat coordinates of a seat. */
 export function tableToLocal(p: Vec2, seat: number, seatCount: number): Vec2 {
   const r = rotate(p, -seatAngle(seat, seatCount));

@@ -12,6 +12,7 @@ import type { RoomSummary } from "./invites";
 import { PUBLIC_LIMITS } from "./publicRooms";
 import { AVATAR_IDS, COMPANION_IDS, isAvatarId, isCompanionId, lowestFreeVariant, pickFree } from "./roster";
 import { cleanEmoteText } from "./emoteText";
+import { petSpotValid } from "./tableLayout";
 
 export interface RoomDeps {
   now: () => number;
@@ -350,6 +351,8 @@ export class Room {
         for (const field of ["avatar", "companion"] as const) {
           const value = msg[field];
           if (value === undefined) continue;
+          // A new companion starts at its home spot (the old one's spot was its own).
+          if (field === "companion" && value !== me.companion) delete me.companionAt;
           if (value === null) delete me[field];
           else me[field] = value;
           delete me[field === "avatar" ? "avatarVariant" : "companionVariant"];
@@ -504,8 +507,7 @@ export class Room {
 
       case "emote": {
         // Also cosmetic and ephemeral: the sender's own companion, so they must be at the table with one.
-        const table = this.state.table;
-        if (this.state.phase !== "playing" || !table || !table.seats.includes(playerId) || !this.player(playerId)?.companion) return;
+        if (!this.atTableWithCompanion(playerId)) return;
         // A player's own line is cleaned here too (the sender's tab can't be trusted to have); text that doesn't
         // survive drops the whole emote, before it can use up the cooldown.
         const text = msg.text === undefined ? undefined : cleanEmoteText(msg.text);
@@ -517,12 +519,48 @@ export class Room {
         return;
       }
 
+      case "petMove":
+      case "petCancel": {
+        // Carrying your own companion around: relayed like a drag, never stored.
+        if (!this.atTableWithCompanion(playerId)) return;
+        const out: ServerMessage = msg.t === "petMove" ? { t: "petMove", by: playerId, x: msg.x, y: msg.y } : { t: "petCancel", by: playerId };
+        result.outbound.push({ to: "others", msg: out });
+        return;
+      }
+
+      case "setPetPos": {
+        // Putting it down: the one companion change that's stored (one write per drop), so reloads and late
+        // joiners see it where it was left. Only ever the sender's own, and only somewhere it may stand.
+        if (!this.atTableWithCompanion(playerId)) throw new RoomError("You have no companion at the table.");
+        if (msg.at === null) {
+          if (!me.companionAt) return;
+          delete me.companionAt;
+        } else {
+          if (!petSpotValid(msg.at, this.state.table!.seats.length)) throw new RoomError("Your companion can't stand there.");
+          me.companionAt = { x: Math.round(msg.at.x * 100) / 100, y: Math.round(msg.at.y * 100) / 100 };
+        }
+        result.outbound.push({ to: "others", msg: { t: "petLand", by: playerId, at: me.companionAt ?? null } });
+        result.changed = true;
+        return;
+      }
+
       case "debug": {
         this.debug(playerId, msg.cmd);
         result.changed = true;
         return;
       }
     }
+  }
+
+  /** Whether a player is seated at the table with a companion (so it's on the table, theirs to move or emote with). */
+  private atTableWithCompanion(playerId: string): boolean {
+    const table = this.state.table;
+    return this.state.phase === "playing" && !!table && table.seats.includes(playerId) && !!this.player(playerId)?.companion;
+  }
+
+  /** Every companion back to its home spot: a new game (or the lobby) starts the table afresh. */
+  private sendPetsHome() {
+    for (const p of this.state.players) delete p.companionAt;
   }
 
   private unreadyAll() {
@@ -570,6 +608,7 @@ export class Room {
     this.state.phase = "drafting";
     this.state.decks = {};
     this.state.table = null;
+    this.sendPetsHome();
     this.advanceDraft();
   }
 
@@ -596,6 +635,7 @@ export class Room {
     const seats = this.state.draft!.seats.filter((id) => !this.player(id)?.isBot);
     this.state.table = createTable(seats, this.state.decks, this.state.instances, this.state.cube?.basics ?? {}, this.state.config.game, this.tableEnv());
     this.state.phase = "playing";
+    this.sendPetsHome();
   }
 
   /** Auto-picks timed-out seats. Returns true if state changed. */
@@ -654,6 +694,7 @@ export class Room {
         this.state.decks = {};
         this.state.table = null;
         this.state.instances = {};
+        this.sendPetsHome();
         this.unreadyAll();
         return;
       }
