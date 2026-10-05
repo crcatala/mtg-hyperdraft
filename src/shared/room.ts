@@ -58,6 +58,8 @@ export interface JoinOptions {
 
 /** Minimum gap between two table pings ("point" messages) from the same player. */
 export const PING_COOLDOWN_MS = 300;
+/** Minimum gap between two companion pokes from the same player (a little under the client's own 300 ms throttle). */
+export const POKE_COOLDOWN_MS = 250;
 
 const BOT_NAMES = ["Ava", "Blix", "Cogsworth", "Dross", "Echo", "Fizz", "Gloom", "Hex"];
 
@@ -90,6 +92,7 @@ export function createRoomState(code: string, now: number, owner: RoomOwner = {}
 export class Room {
   /** Last ping per player (not persisted — it only throttles spam). */
   private lastPing = new Map<string, number>();
+  private lastPoke = new Map<string, number>();
 
   constructor(
     public state: RoomState,
@@ -481,6 +484,17 @@ export class Room {
         if (now - (this.lastPing.get(playerId) ?? -Infinity) < PING_COOLDOWN_MS) return;
         this.lastPing.set(playerId, now);
         result.outbound.push({ to: "others", msg: { t: "point", by: playerId, x: msg.x, y: msg.y } });
+        return;
+      }
+
+      case "poke": {
+        // Cosmetic and ephemeral, like a ping: relayed, never stored. Only a companion that's on the table can be poked.
+        const table = this.state.table;
+        if (this.state.phase !== "playing" || !table || !table.seats.includes(msg.target) || !this.player(msg.target)?.companion) return;
+        const now = this.deps.now();
+        if (now - (this.lastPoke.get(playerId) ?? -Infinity) < POKE_COOLDOWN_MS) return;
+        this.lastPoke.set(playerId, now);
+        result.outbound.push({ to: "others", msg: { t: "poke", by: playerId, target: msg.target, step: msg.step } });
         return;
       }
 
