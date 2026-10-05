@@ -1,6 +1,6 @@
 ---
 id: mh-n7y8
-status: in_progress
+status: closed
 deps: [mh-5c1t]
 links: []
 created: 2026-10-05T03:44:16Z
@@ -56,3 +56,7 @@ Implemented (agent): pure engine src/client/table/companionMotion.ts (19 primiti
 **2026-10-05T17:16:20Z**
 
 Review feedback addressed (agent, user said 'sure go ahead' to fixing all five): (1) roll snap on interrupt near upside down fixed in advanceTrack (continuous target roll, nearest-turn start); (2) interrupt tests check every frame of the blend over every cut point, plus a deterministic regression that fails on the old engine (2.98 rad at frame 33); (3) fxSpawns skips expired glyphs and the figure dates glyphs from their scheduled time; (4) lab reel button no longer sticks on Stop; (5) signature drops added for cinder, sprout, wick, hex, test now requires drop. Human review of the lab still PENDING.
+
+**2026-10-05T17:24:13Z**
+
+Human review of the reactions (PR #31, merged), quoted: "i merged PR already, but i approve". All 18 reactions x 10 companions approved as shipped, no tweaks requested.
