@@ -17,6 +17,24 @@
     "poke6": 1,
     "poke7": 1
   },
+  "crit": {
+    "drop": 1,
+    "emote1": 1,
+    "emote2": 1,
+    "emote3": 1,
+    "emote4": 1,
+    "emote5": 1,
+    "emote6": 1,
+    "hello": 2,
+    "pickup": 1,
+    "poke1": 2,
+    "poke2": 2,
+    "poke3": 1,
+    "poke4": 1,
+    "poke5": 1,
+    "poke6": 1,
+    "poke7": 1
+  },
   "foil": {
     "drop": 1,
     "emote1": 1,

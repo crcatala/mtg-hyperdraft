@@ -112,3 +112,7 @@ Crit, generated (agent), PENDING human audition. Signature reworded before gener
 **2026-10-05T15:31:25Z**
 
 Human feedback, crit (quoted): "great regenerate variations for \"pickup\", maybe reword to not have explict \"whoa\" because sounded too human". Action (agent): shared pickup descriptor "a surprised yelp as if suddenly lifted into the air, 'whoa!'" -> "a startled low gasp and grunt as if suddenly lifted into the air, a quick surprised creature noise, not a human voice, no words". Regenerated crit pickup only (3 + 2 reroll gens; old takes parked in _crit-pickup-whoa): 3 new takes, treble 0-1%, all pass objective checks; other crit slots untouched. Note: Hex/foil/cinder/folio/gloop/sprout/wick pickups were made with the old wording and already signed off; only mention if the human wants any redone for the same reason. Awaiting crit picks.
+
+**2026-10-05T15:32:15Z**
+
+Human sign-off, crit (quoted): picks pasted with "verdict": "GO" ("ok picks for crit"), including the new pickup-1 after the whoa reword. Picks (shipped <- candidate): hello-1<-hello-2, hello-2<-hello-1, poke1-1<-poke1-1, poke1-2<-poke1-3, poke2-1<-poke2-1, poke2-2<-poke2-3, poke3<-poke3-3, poke4<-poke4-2, poke5<-poke5-2, poke6<-poke6-3, poke7<-poke7-3, pickup<-pickup-1, drop<-drop-2, emote1<-emote1-2, emote2<-emote2-3, emote3<-emote3-2, emote4<-emote4-1, emote5<-emote5-3, emote6<-emote6-1 (19 files, public/sfx/companions/crit/). Done: hex, foil, cinder, folio, gloop, sprout, wick, crit. Next: nimbus.
