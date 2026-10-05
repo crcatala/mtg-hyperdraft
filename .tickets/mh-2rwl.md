@@ -96,3 +96,7 @@ Correction to the previous note: running total of generations for this ticket is
 **2026-10-05T15:08:32Z**
 
 Human sign-off, sprout (quoted): picks pasted with "verdict": "GO" ("Go picks for sprout"). Picks (shipped <- candidate): hello-1<-hello-3, hello-2<-hello-1, poke1-1<-poke1-2, poke1-2<-poke1-1, poke2-1<-poke2-2, poke2-2<-poke2-3, poke3<-poke3-1, poke4<-poke4-1, poke5<-poke5-3, poke6<-poke6-2, poke7<-poke7-3, pickup<-pickup-1, drop<-drop-2, emote1<-emote1-2, emote2<-emote2-3, emote3<-emote3-2, emote4<-emote4-2, emote5<-emote5-1, emote6<-emote6-2 (19 files, public/sfx/companions/sprout/). No comment on the omitted finale scream. Done: hex, foil, cinder, folio, gloop, sprout. Next: wick.
+
+**2026-10-05T15:09:36Z**
+
+Wick, generated (agent), PENDING human audition. Signature reworded before generating (sprout learning: breathy/whistle words are shrill): "A cozy candle wisp with a soft warm plush-toy cartoon voice: low warm hums, gentle murmuring coos and rounded little sighs, like a purring candle flame, mellow, never shrill, no whistles, no hissing, no whispering". 48 gens + 19 rerolls over 4 prune rounds: 47/48 pass (pickup-1 clipped, left flagged), every slot has >=2 clean takes. Treble 0% on every take: very dark, so listen for muffled/dull rather than shrill; may sound too hum-like and not enough like a flickering flame.
