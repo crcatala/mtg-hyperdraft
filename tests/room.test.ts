@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRoomState, EMOTE_COOLDOWN_MS, PING_COOLDOWN_MS, POKE_COOLDOWN_MS, Room, SeatClaimNeeded, type ImportResult } from "../src/shared/room";
 import { basicIds, makeCube, testDeps } from "./fixtures";
 import type { ClientMessage } from "../src/shared/protocol";
+import { EMOTE_TEXT_MAX } from "../src/shared/emoteText";
 
 function importResult(n = 400): ImportResult {
   const cards = Object.values(makeCube(n));
@@ -262,6 +263,33 @@ describe("room flow", () => {
 
     // Nothing about emotes is kept in the room.
     expect(JSON.stringify(room.state)).toBe(before);
+  });
+
+  it("relays a player's own emote line cleaned, and drops one that doesn't clean up without using the cooldown", () => {
+    const { room, deps } = newRoom();
+    const a = room.join({ name: "Alice", companion: "hex" });
+    room.join({ name: "Bob", companion: "gloop" });
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "debug", cmd: "startGame" });
+    const before = JSON.stringify(room.state);
+
+    // Nothing left after cleaning, or too long: dropped, and the cooldown isn't spent on it.
+    expect(send(room, a.playerId, { t: "emote", slot: 0, text: " \n\u200B\t " }).outbound).toEqual([]);
+    expect(send(room, a.playerId, { t: "emote", slot: 0, text: "x".repeat(EMOTE_TEXT_MAX + 1) }).outbound).toEqual([]);
+    // Cleaned (whitespace squeezed, the bidi override gone), markup left exactly as typed, and stamped with the sender.
+    const res = send(room, a.playerId, { t: "emote", slot: 5, by: "spoofed", text: "  <img src=x onerror=alert(1)>\n\u202Egotcha " } as ClientMessage);
+    expect(res.changed).toBe(false);
+    expect(res.outbound).toEqual([{ to: "others", msg: { t: "emote", by: a.playerId, slot: 5, text: "<img src=x onerror=alert(1)> gotcha" } }]);
+    // The same cooldown as any emote.
+    expect(send(room, a.playerId, { t: "emote", slot: 1, text: "again" }).outbound).toEqual([]);
+    deps.advance(EMOTE_COOLDOWN_MS);
+    expect(send(room, a.playerId, { t: "emote", slot: 1, text: "x".repeat(EMOTE_TEXT_MAX) }).outbound).toEqual([
+      { to: "others", msg: { t: "emote", by: a.playerId, slot: 1, text: "x".repeat(EMOTE_TEXT_MAX) } },
+    ]);
+
+    // Never stored.
+    expect(JSON.stringify(room.state)).toBe(before);
+    expect(JSON.stringify(room.state)).not.toContain("gotcha");
   });
 });
 
