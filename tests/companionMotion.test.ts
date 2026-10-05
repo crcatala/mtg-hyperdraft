@@ -100,8 +100,6 @@ describe("pose maths", () => {
     expect(blendPose(a, REST, 0)).toEqual(a);
     expect(near(blendPose(a, REST, 1), REST)).toBe(true);
     expect(blendPose(a, REST, 0.5).dx).toBeCloseTo(0.05);
-    // Rolls blend the short way: from just under a full turn to none is a small nudge, not a spin back.
-    expect(blendPose({ ...REST, rot: 6.2 }, REST, 0.5).rot).toBeGreaterThan(6.2);
     expect(blendWeight(0)).toBe(0);
     expect(blendWeight(BLEND_MS / 2)).toBeCloseTo(0.5);
     expect(blendWeight(BLEND_MS)).toBe(1);
@@ -137,22 +135,31 @@ describe("glyphs", () => {
 describe("glyph spawning", () => {
   const r: Reaction = { duration: 1, motions: [], fx: [{ glyph: "heart", motion: "rise", at: 0.2, n: 3 }, { glyph: "bang", motion: "pop", at: 0 }] };
   it("spawns each copy once, staggered, in time order, however the frames fall", () => {
-    const all = fxSpawns(r, DEFAULT_STYLE, -1, 10);
+    const all = fxSpawns(r, DEFAULT_STYLE, -1, 0.5);
     expect(all.map((s) => [s.index, s.copy])).toEqual([[1, 0], [0, 0], [0, 1], [0, 2]]);
     let from = -1;
     const stepped = [];
-    for (let t = 0; t <= 1.2; t += 1 / 60) {
+    for (let t = 0; t <= 0.5; t += 1 / 60) {
       stepped.push(...fxSpawns(r, DEFAULT_STYLE, from, t));
       from = t;
     }
     expect(stepped.map((s) => [s.index, s.copy])).toEqual(all.map((s) => [s.index, s.copy]));
   });
   it("plays faster for a faster companion, and repeats a loop's glyphs every period", () => {
-    expect(fxSpawns(r, { ...DEFAULT_STYLE, speed: 2 }, -1, 10).find((s) => s.index === 0)!.t).toBeCloseTo(0.1);
+    expect(fxSpawns(r, { ...DEFAULT_STYLE, speed: 2 }, -1, 0.5).find((s) => s.index === 0)!.t).toBeCloseTo(0.1);
     const loop = { ...r, loop: true };
     expect(fxSpawns(loop, DEFAULT_STYLE, 0.5, 1.5).map((s) => [s.index, s.t])).toEqual([[1, 1], [0, 1.2], [0, 1.32], [0, 1.44]]);
     // A hidden tab coming back only catches up on the latest period, not hundreds.
     expect(fxSpawns(loop, DEFAULT_STYLE, 0, 1000.5).length).toBeLessThanOrEqual(8);
+  });
+  it("leaves out glyphs that would already be over (a tab that was hidden), and says how long each lasts", () => {
+    // Default life 1 s: by 1.1 s the bang (from 0 s) is over, the hearts (from 0.2, 0.32, 0.44 s) still showing...
+    expect(fxSpawns(r, DEFAULT_STYLE, -1, 1.1).map((s) => [s.index, s.copy])).toEqual([[0, 0], [0, 1], [0, 2]]);
+    // ...and by 1.3 s the first heart is over too.
+    expect(fxSpawns(r, DEFAULT_STYLE, -1, 1.3).map((s) => [s.index, s.copy])).toEqual([[0, 1], [0, 2]]);
+    expect(fxSpawns(r, DEFAULT_STYLE, -1, 5)).toEqual([]);
+    const slow = fxSpawns({ ...r, fx: [{ glyph: "zzz", motion: "rise", at: 0, dur: 1.2 }] }, { ...DEFAULT_STYLE, speed: 0.8 }, -1, 0.1);
+    expect(slow[0].life).toBeCloseTo(1.5);
   });
 });
 
@@ -176,6 +183,7 @@ describe("the 180 reactions (18 slots × 10 companions)", () => {
       const sigs = signatureSlots(id);
       expect(sigs.length, id).toBeGreaterThanOrEqual(4);
       expect(sigs, id).toContain("poke7");
+      expect(sigs, id).toContain("drop");
       expect(sigs.filter((s) => s.startsWith("emote")).length, id).toBeGreaterThanOrEqual(2);
       for (const slot of sigs) expect(SIGNATURES[id][slot].move, `${id} ${slot}`).toBeTruthy();
     }
@@ -236,41 +244,99 @@ describe("the 180 reactions (18 slots × 10 companions)", () => {
   });
 });
 
+/** How far a pose moves in one frame, per channel (a roll as it looks: the short way round). */
+const frameStep = (p: Pose, q: Pose) => ({
+  rot: Math.abs(wrapAngle(p.rot - q.rot)),
+  rest: Math.max(...KEYS.filter((k) => k !== "rot").map((k) => Math.abs(p[k] - q[k]))),
+});
+/**
+ * The most a frame may move at 60 fps. On their own, reactions stay under ~0.46 rad of roll (a two-turn spin) and
+ * ~0.27 elsewhere (a hard landing). A blend may add a quick unwind on top: rolling back from a half turn within
+ * BLEND_MS is up to ~0.95 rad a frame, and the body drops back from an upside-down spin's lifted middle (~0.85 body
+ * heights) at up to ~0.36 a frame. A snap (a blend swinging round the long way) is ~3 rad.
+ */
+const MAX_ROLL_STEP = 1.1;
+const MAX_STEP = 0.4;
+
+describe("reactions move smoothly", () => {
+  it("on their own, frame to frame", () => {
+    for (const id of COMPANION_IDS)
+      for (const slot of REACTION_IDS) {
+        const r = reactionFor(id, slot)!;
+        const style = bodyStyle(id);
+        for (let f = 1; f <= reactionSeconds(r, style) * 60 + 1; f++) {
+          const s = frameStep(samplePose(r, style, (f - 1) / 60), samplePose(r, style, f / 60));
+          expect(s.rot, `${id} ${slot} frame ${f}`).toBeLessThan(0.5);
+          expect(s.rest, `${id} ${slot} frame ${f}`).toBeLessThan(0.3);
+        }
+      }
+  });
+});
+
 describe("interrupting a reaction (the figure's track)", () => {
-  /** Frame-by-frame at 60 fps: plays `first`, then `second` (or a stop, "") at `cut` seconds; returns every frame's pose and the cut frame. */
-  const run = (id: string, first: string, second: string, cut: number) => {
+  /** Frame by frame at 60 fps: plays `first`, then `second` (or a stop, "") from frame `cut`; every frame's pose. */
+  const run = (id: string, first: string, second: string, cut: number, frames = 150) => {
     const style = bodyStyle(id);
     const tr = newTrack();
     const poses: Pose[] = [];
-    let cutAt = -1;
-    for (let f = 0; f <= 150; f++) {
+    for (let f = 0; f <= frames; f++) {
       const now = f * (1000 / 60);
-      const late = now / 1000 >= cut;
-      if (late && cutAt < 0) cutAt = f;
-      const [seq, slot, since] = late ? [2, second, now / 1000 - cut] : [1, first, now / 1000];
-      poses.push(advanceTrack(tr, seq, slot ? reactionFor(id, slot) : undefined, since, style, now));
+      const late = f >= cut;
+      const slot = late ? second : first;
+      poses.push(advanceTrack(tr, late ? 2 : 1, slot ? reactionFor(id, slot) : undefined, late ? (f - cut) / 60 : f / 60, style, now));
     }
-    return { poses, cutAt };
+    return poses;
   };
 
-  /** The biggest change between two frames; a roll counts at half weight (a spin legitimately turns ~0.4 rad a frame). */
-  const step = (p: Pose, q: Pose) => Math.max(...KEYS.map((k) => (k === "rot" ? Math.abs(wrapAngle(p.rot - q.rot)) / 2 : Math.abs(p[k] - q[k]))));
+  /** The worst frame-to-frame move from just before the cut until well after the blend. */
+  const worstAround = (poses: Pose[], cut: number) => {
+    let rot = 0;
+    let rest = 0;
+    for (let f = cut; f <= Math.min(poses.length - 1, cut + 15); f++) {
+      const s = frameStep(poses[f - 1], poses[f]);
+      rot = Math.max(rot, s.rot);
+      rest = Math.max(rest, s.rest);
+    }
+    return { rot, rest };
+  };
 
-  it("picks up exactly where the old one was, then reaches the new one within BLEND_MS", () => {
+  it("picks up exactly where the old one was, and never jumps during the blend, wherever it's cut", () => {
+    const PAIRS = [["poke4", "poke3"], ["poke7", "poke3"], ["emote4", "pickup"], ["emote1", "poke1"], ["drop", "emote5"], ["carry", "drop"], ["carry", ""], ["poke7", ""]] as const;
     for (const id of COMPANION_IDS)
-      for (const [a, b] of [["poke7", "poke3"], ["emote4", "pickup"], ["carry", "drop"], ["carry", ""]] as const)
-        for (const cut of [0.2, 0.45, 0.7]) {
-          const { poses, cutAt } = run(id, a, b, cut);
-          const where = `${id} ${a}→${b || "stop"} @${cut}`;
-          // The cut frame shows where the old reaction had got to (the blend starts at weight 0): no jump.
-          expect(near(poses[cutAt], poses[cutAt - 1], 1e-9), where).toBe(true);
-          // A frame later it has only begun to move toward the new reaction (a ~11% step), not snapped to it.
-          expect(step(poses[cutAt], poses[cutAt + 1]), where).toBeLessThan(0.2);
+      for (const [a, b] of PAIRS) {
+        const len = Math.ceil(reactionSeconds(reactionFor(id, a)!, bodyStyle(id)) * 60);
+        for (let cut = 1; cut <= len; cut++) {
+          const poses = run(id, a, b, cut, cut + 20);
+          const where = `${id} ${a}→${b || "stop"} cut at frame ${cut}`;
+          // The cut frame shows where the old reaction had got to (the blend starts at weight 0).
+          expect(near(poses[cut], poses[cut - 1], 1e-9), where).toBe(true);
+          const worst = worstAround(poses, cut);
+          expect(worst.rot, where).toBeLessThan(MAX_ROLL_STEP);
+          expect(worst.rest, where).toBeLessThan(MAX_STEP);
         }
+      }
+  });
+
+  it("doesn't flip direction mid-blend when cut near upside down (regression: a ~3 rad snap)", () => {
+    // Held at -3.08 rad (just short of upside down), then cut by a lean the other way. The target's roll moves
+    // across the half-turn mark during the blend; "the short way round" used to flip there and snap ~3 rad.
+    const upsideDown: Reaction = { duration: 1, motions: [{ prim: "lean", at: 0, dur: 1, a: 11, dir: -1 }], fx: [] };
+    const leanBack: Reaction = { duration: 1, motions: [{ prim: "lean", at: 0, dur: 1, a: 2 }], fx: [] };
+    const tr = newTrack();
+    const poses: Pose[] = [];
+    for (let f = 0; f <= 50; f++) {
+      const late = f >= 30;
+      poses.push(advanceTrack(tr, late ? 2 : 1, late ? leanBack : upsideDown, late ? (f - 30) / 60 : f / 60, DEFAULT_STYLE, f * (1000 / 60)));
+    }
+    expect(poses[29].rot).toBeCloseTo(-3.08, 1);
+    for (let f = 30; f <= 50; f++) expect(frameStep(poses[f - 1], poses[f]).rot, `frame ${f}`).toBeLessThan(MAX_ROLL_STEP);
+    // ...and it really does come all the way back, the short way (up through -π/2 to its lean, not on round).
+    expect(poses[50].rot).toBeGreaterThan(0);
+    expect(poses[50].rot).toBeLessThan(1);
   });
 
   it("a stopped carry settles back to rest", () => {
-    const { poses } = run("gloop", "carry", "", 0.5);
+    const poses = run("gloop", "carry", "", 30);
     expect(near(poses[poses.length - 1], REST)).toBe(true);
   });
 });

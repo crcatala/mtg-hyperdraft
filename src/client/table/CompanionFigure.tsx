@@ -9,7 +9,7 @@ import * as THREE from "three";
 import { glowTexture, glyphTexture, hueTexture, spriteTexture, useImage } from "./textures";
 import { reducedMotion } from "./motion";
 import { hopFade } from "./petMotion";
-import { advanceTrack, FX_LIFE, fxSpawns, glyphPose, newTrack, REST, type Fx, type GlyphMotion } from "./companionMotion";
+import { advanceTrack, fxSpawns, glyphPose, newTrack, REST, type Fx, type GlyphMotion } from "./companionMotion";
 import { bodyStyle, reactionFor } from "./companionReactions";
 import { reactionNow, reactionOf } from "./companionPlayback";
 import { loadVoice } from "../companionVoice";
@@ -105,7 +105,8 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
         const slots = live.current;
         let slot = slots.findIndex((l) => !l || now - l.born >= l.life);
         if (slot < 0) slot = slots.reduce((old, l, i) => (l!.born < slots[old]!.born ? i : old), 0);
-        slots[slot] = { fx, motion: still ? "still" : fx.motion, copy: sp.copy, born: now, life: ((fx.dur ?? FX_LIFE) / style.speed) * 1000 };
+        // Dated from when it was due, not this frame: one caught up after a gap is already part-way through.
+        slots[slot] = { fx, motion: still ? "still" : fx.motion, copy: sp.copy, born: playing!.at + sp.t * 1000, life: sp.life * 1000 };
         const gs = glyphs.current[slot];
         if (gs) gs.material.map = glyphTexture(fx.glyph);
         if (gs) gs.material.color.set(fx.tint ?? "#ffffff");

@@ -263,11 +263,11 @@ export function compose(a: Pose, b: Pose): Pose {
   return { dx: a.dx + b.dx, dy: a.dy + b.dy, sx: a.sx * b.sx, sy: a.sy * b.sy, rot: a.rot + b.rot, alpha: a.alpha * b.alpha };
 }
 
-/** k of the way from a to b (rolling the short way round). */
+/** k of the way from a to b (straight: advanceTrack sees to it that the rolls are close). */
 export function blendPose(a: Pose, b: Pose, k: number): Pose {
   const t = clamp01(k);
   const mix = (x: number, y: number) => x + (y - x) * t;
-  return { dx: mix(a.dx, b.dx), dy: mix(a.dy, b.dy), sx: mix(a.sx, b.sx), sy: mix(a.sy, b.sy), rot: a.rot + wrapAngle(b.rot - a.rot) * t, alpha: mix(a.alpha, b.alpha) };
+  return { dx: mix(a.dx, b.dx), dy: mix(a.dy, b.dy), sx: mix(a.sx, b.sx), sy: mix(a.sy, b.sy), rot: mix(a.rot, b.rot), alpha: mix(a.alpha, b.alpha) };
 }
 
 /** How far a blend that started `ms` ago has got (eased; 1 = done). */
@@ -281,23 +281,31 @@ export interface Track {
   last: Pose;
   /** Seconds into the reaction that glyphs have been spawned up to. */
   fxUpTo: number;
+  /** The target's roll, kept continuous (a spin's roll wraps at half a turn; this one keeps counting). */
+  aim: number;
 }
-export const newTrack = (): Track => ({ seq: 0, from: REST, blendAt: -Infinity, last: REST, fxUpTo: 0 });
+export const newTrack = (): Track => ({ seq: 0, from: REST, blendAt: -Infinity, last: REST, fxUpTo: 0, aim: 0 });
 
 /**
  * The reaction layer's pose at `now` (ms): `reaction` (undefined = none, or stopped) is `since` seconds in. A new
  * play (a different `seq`) starts from wherever the last one had got to and blends over BLEND_MS: no pops.
  */
 export function advanceTrack(tr: Track, seq: number, reaction: Reaction | undefined, since: number, style: BodyStyle, now: number): Pose {
-  if (seq !== tr.seq) {
+  const fresh = seq !== tr.seq;
+  if (fresh) {
     tr.seq = seq;
     tr.from = tr.last;
     tr.blendAt = now;
     tr.fxUpTo = -1;
   }
   const target = reaction ? samplePose(reaction, style, since) : REST;
+  // The roll is unwrapped frame to frame, and a new play starts on the turn nearest the old pose: blending
+  // straight toward it then never swings the long way round, even when the target crosses a half turn.
+  const base = fresh ? tr.from.rot : tr.aim;
+  tr.aim = base + wrapAngle(target.rot - base);
+  const aimed = { ...target, rot: tr.aim };
   const k = blendWeight(now - tr.blendAt);
-  tr.last = k < 1 ? blendPose(tr.from, target, k) : target;
+  tr.last = k < 1 ? blendPose(tr.from, aimed, k) : aimed;
   return tr.last;
 }
 
@@ -317,16 +325,18 @@ export function samplePose(r: Reaction, style: BodyStyle, t: number): Pose {
   return pose;
 }
 
-/** A glyph copy due to appear: which fx entry, which copy of it, and when (seconds into the reaction). */
+/** A glyph copy due to appear: which fx entry, which copy of it, when (seconds into the reaction) and for how long (seconds). */
 export interface FxSpawn {
   index: number;
   copy: number;
   t: number;
+  life: number;
 }
 
 /**
- * The glyphs that appear between `from` (exclusive) and `to` (inclusive) seconds into a reaction, in order.
- * Loops repeat theirs every period; a long gap (a hidden tab) only catches up on the latest period.
+ * The glyphs that appear between `from` (exclusive) and `to` (inclusive) seconds into a reaction, in order, leaving
+ * out any that would already be over by `to`: after a long gap (a hidden tab) only the ones still showing come back,
+ * part-way through their lives. Loops repeat theirs every period.
  */
 export function fxSpawns(r: Reaction, style: BodyStyle, from: number, to: number): FxSpawn[] {
   const out: FxSpawn[] = [];
@@ -337,7 +347,8 @@ export function fxSpawns(r: Reaction, style: BodyStyle, from: number, to: number
     r.fx.forEach((fx, index) => {
       for (let copy = 0; copy < Math.max(1, fx.n ?? 1); copy++) {
         const t = k * period + (fx.at + copy * FX_STAGGER) / style.speed;
-        if (t > from && t <= to) out.push({ index, copy, t });
+        const life = (fx.dur ?? FX_LIFE) / style.speed;
+        if (t > from && t <= to && t + life > to) out.push({ index, copy, t, life });
       }
     });
   }
