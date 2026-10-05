@@ -1,7 +1,8 @@
 // The poke ladder (the old "click the unit too many times" gag): each tap on a companion climbs one step,
 // curious → happy → … → the cheeky finale, then it sulks and won't play for a while, then it starts over.
 // Every viewer keeps their own ladders (the server keeps none); someone else's poke moves yours too, so a
-// companion poked by two players at once escalates once, not twice in parallel. Pure, so it can be tested.
+// companion poked by two players at once escalates together, and its sulk holds for everyone. Pure, so it can
+// be tested.
 
 import { POKE_STEPS } from "../../shared/companionKit";
 
@@ -51,7 +52,21 @@ export function tapLadder(ladder: Ladder, target: string, now: number): number |
   return step;
 }
 
-/** Someone else poked `target` at `step`: this viewer's ladder for it moves there too. */
-export function observePoke(ladder: Ladder, target: string, step: number, now: number) {
-  ladder.rungs.set(target, rung(Math.max(0, Math.min(FINALE, step)), now));
+/**
+ * Someone else poked `target` at `step`: this viewer's ladder follows. Pokes arrive late (they were sent before
+ * the sender saw ours), so one that lands while the companion sulks is ignored (returns false: don't show it),
+ * and a late lower step never moves the ladder back down.
+ */
+export function observePoke(ladder: Ladder, target: string, step: number, now: number): boolean {
+  const r = ladder.rungs.get(target);
+  if (r?.sulkUntil && now < r.sulkUntil) return false;
+  const current = r && !r.sulkUntil && now - r.at <= IDLE_RESET_MS ? r.step : 0;
+  ladder.rungs.set(target, rung(Math.max(current, Math.max(0, Math.min(FINALE, step))), now));
+  return true;
+}
+
+/** Forgets every ladder (leaving the table: player ids are reused by the next room). */
+export function clearLadder(ladder: Ladder) {
+  ladder.rungs.clear();
+  ladder.lastTap = -Infinity;
 }
