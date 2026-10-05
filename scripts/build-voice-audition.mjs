@@ -1,7 +1,7 @@
 // Checks the companion voice candidates and writes a page to audition them:
 //
 //   node scripts/build-voice-audition.mjs            # every companion that has candidates
-//   node scripts/build-voice-audition.mjs hex        # one companion
+//   node scripts/build-voice-audition.mjs hex        # one companion (or several: ... folio gloop)
 //   node scripts/build-voice-audition.mjs hex --prune  # also delete flagged candidates, so build-companion-sfx.mjs refills them
 //
 // Writes scripts/roster/voice-candidates/audition.html (gitignored with the candidates). With `npm run dev`
@@ -28,8 +28,8 @@ const kit = JSON.parse(readFileSync(join(ROOT, "src", "shared", "companionKit.js
 const { slots } = kit.voice;
 const voices = Object.fromEntries(Object.entries(kit.companions).map(([id, c]) => [id, c.voice]));
 const prune = process.argv.includes("--prune");
-const arg = process.argv.slice(2).find((a) => !a.startsWith("--"));
-const ids = (arg ? [arg] : Object.keys(voices)).filter((id) => existsSync(join(DIR, id)));
+const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const ids = (args.length ? args : Object.keys(voices)).filter((id) => existsSync(join(DIR, id)));
 
 function check(file, wanted) {
   const buf = execFileSync(process.env.FFMPEG || "ffmpeg", ["-v", "error", "-i", file, "-f", "f32le", "-ac", "1", "-ar", String(RATE), "-"], { maxBuffer: 1 << 28 });
