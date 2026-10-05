@@ -349,6 +349,20 @@ node scripts/build-sfx.mjs --force              # regenerate everything
   slightly and never repeats the same take back to back. Packs load on demand; until a sample is ready (or if it's
   missing) an effect falls back to the Tabletop sample, then to a small synth.
 
+Companion voices are not part of a pack (they live in `public/sfx/companions/<id>/`, so switching pack never changes a
+voice). They're made the same way, but a human picks the keepers:
+
+```bash
+node scripts/build-companion-sfx.mjs hex                # 3 candidates per slot into scripts/roster/voice-candidates/hex/ (gitignored)
+node scripts/build-companion-sfx.mjs hex hello poke1    # only these slots (--candidates N, --force)
+node scripts/build-voice-audition.mjs hex               # checks them (audible, clipping, treble) and writes the audition page
+```
+
+`scripts/roster/voices.json` holds each companion's voice signature and the shared per-slot emotions. With `npm run dev`
+running, open `/scripts/roster/voice-candidates/audition`, tick the picks and copy them. Copy the keepers to
+`public/sfx/companions/<id>/<slot>.mp3` (`<slot>-1/-2.mp3` when a slot has several takes). Wording that sounds cute rather
+than shrill: "plush-toy cartoon, low-to-mid pitched, mellow, never shrill", not "small, high-pitched" (needs ffmpeg).
+
 ## Background music
 
 Seven tracks (`public/music/*.m4a`, listed in `TRACKS` in `src/client/music.ts`) play in order, on a loop, from the
