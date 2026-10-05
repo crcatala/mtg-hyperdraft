@@ -1,11 +1,9 @@
 {
   "voices": {
-    "hex": "A small cute witch's kitten with a sweet plush-toy cartoon voice: soft high-pitched mews, tiny trills and a gentle purr",
-    "hex-soft": "A chubby sleepy house cat with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched mews and a rumbling purr, rounded and mellow, never shrill, no squeals",
+    "hex": "A chubby sleepy house cat with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched mews and a rumbling purr, rounded and mellow, never shrill, no squeals",
     "nimbus": "A gentle baby whale calf with a soft plush-toy cartoon voice: warm low airy coos, dreamy hummed sighs and soft rounded squeaks, mellow, never shrill",
     "gloop": "A cute squishy blob of mana slime with a plush-toy cartoon voice: soft round bubbly blorps, gurgles and happy wet squeaks, warm and mellow, never shrill",
-    "ribbit": "A chunky little frog knight with a plush-toy cartoon voice: warm low croaks, soft ribbits and bubbly throat chirps, mellow and rounded, never shrill",
-    "hex-lowered": "(post-process experiment: the original hex candidates, pitched down ~5 semitones with treble rolled off; no generation)"
+    "ribbit": "A chunky little frog knight with a plush-toy cartoon voice: warm low croaks, soft ribbits and bubbly throat chirps, mellow and rounded, never shrill"
   },
   "slots": {
     "hello": {

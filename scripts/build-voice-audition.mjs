@@ -10,7 +10,7 @@
 // Picks survive reloads (localStorage) and "Copy picks" gives JSON to paste back to the agent.
 //
 // The sanity checks reuse analyze()/isAudible() from src/client/sfxMath.ts on the decoded mp3 (needs ffmpeg; set FFMPEG=/path/to/ffmpeg if it is not on PATH):
-// audible, not clipped, and a sensible length. A file that fails is flagged and should be regenerated.
+// audible, not clipped, not shrill (too much energy above 4 kHz), and a sensible length. A file that fails is flagged and should be regenerated.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -49,12 +49,22 @@ function check(file, wanted) {
     hot++;
     longest = Math.max(longest, ++run);
   }
+  // Share of the energy above 4 kHz: the first kitten prompt scored 38% on average and sounded like squeals,
+  // the reworded one 5%. Anything above ~30% is shrill.
+  const high = execFileSync(process.env.FFMPEG || "ffmpeg", ["-v", "error", "-i", file, "-af", "highpass=f=4000", "-f", "f32le", "-ac", "1", "-ar", String(RATE), "-"], { maxBuffer: 1 << 28 });
+  const hd = new Float32Array(high.buffer, high.byteOffset, high.byteLength / 4);
+  let all = 0;
+  let hi = 0;
+  for (let i = 0; i < data.length; i++) all += data[i] * data[i];
+  for (let i = 0; i < hd.length; i++) hi += hd[i] * hd[i];
+  const treble = all ? hi / all : 0;
   const problems = [];
+  if (treble > 0.3) problems.push("shrill");
   if (!isAudible(a)) problems.push("silent");
   if (longest >= 8 || hot / data.length > 0.01) problems.push("clipped");
   if (seconds < 0.15) problems.push("too short");
   if (seconds > wanted * 1.5 + 0.3) problems.push("too long");
-  return { peak: +a.peak.toFixed(2), rms: +a.rms.toFixed(3), seconds: +seconds.toFixed(2), problems };
+  return { treble: Math.round(treble * 100), peak: +a.peak.toFixed(2), rms: +a.rms.toFixed(3), seconds: +seconds.toFixed(2), problems };
 }
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -77,7 +87,7 @@ for (const id of ids) {
       }
       const n = f.replace(/\.mp3$/, "");
       const radios = `<label><input type="radio" name="${id}/${slot}" value="${n}"> pick</label>` + (TWO_TAKES.includes(slot) ? ` <label><input type="radio" name="${id}/${slot}#2" value="${n}"> 2nd take</label>` : "");
-      return `<div class="take${r.problems.length ? " bad" : ""}"><b>${n}</b><audio controls preload="none" src="${id}/${f}"></audio><small>${r.seconds}s · peak ${r.peak}${r.problems.length ? " · ⚠ " + r.problems.join(", ") : ""}</small>${radios}</div>`;
+      return `<div class="take${r.problems.length ? " bad" : ""}"><b>${n}</b><audio controls preload="none" src="${id}/${f}"></audio><small>${r.seconds}s · peak ${r.peak} · treble ${r.treble}%${r.problems.length ? " · ⚠ " + r.problems.join(", ") : ""}</small>${radios}</div>`;
     });
     if (!takes.length) continue;
     rows.push(`<section><h3>${slot} <small>${esc(slots[slot].emotion)}</small></h3><div class="takes">${cells.join("")}</div></section>`);
@@ -99,7 +109,7 @@ textarea{width:100%;height:5em;background:#1d2026;color:inherit}
 <textarea id="notes" placeholder="Notes (what sounded wrong or right?)"></textarea>
 ${sections.join("\n")}
 <script>
-const KEY="voice-audition",saved=JSON.parse(localStorage.getItem(KEY)||"{}");
+const KEY="voice-audition-v2",saved=JSON.parse(localStorage.getItem(KEY)||"{}");
 const inputs=[...document.querySelectorAll("input[type=radio]")];
 for(const i of inputs){if(saved[i.name]===i.value)i.checked=true;i.onchange=save}
 const notes=document.getElementById("notes");notes.value=saved.notes||"";notes.oninput=save;
