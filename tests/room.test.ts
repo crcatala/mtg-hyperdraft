@@ -3,6 +3,7 @@ import { createRoomState, EMOTE_COOLDOWN_MS, PING_COOLDOWN_MS, POKE_COOLDOWN_MS,
 import { basicIds, makeCube, testDeps } from "./fixtures";
 import type { ClientMessage } from "../src/shared/protocol";
 import { EMOTE_TEXT_MAX } from "../src/shared/emoteText";
+import { matCenter, tableRadius } from "../src/shared/tableLayout";
 
 function importResult(n = 400): ImportResult {
   const cards = Object.values(makeCube(n));
@@ -290,6 +291,114 @@ describe("room flow", () => {
     // Never stored.
     expect(JSON.stringify(room.state)).toBe(before);
     expect(JSON.stringify(room.state)).not.toContain("gotcha");
+  });
+});
+
+describe("carrying companions around the table", () => {
+  function game() {
+    const { room, deps } = newRoom();
+    const a = room.join({ name: "Alice", companion: "hex" });
+    const b = room.join({ name: "Bob", companion: "gloop" });
+    const c = room.join({ name: "Cara" }); // no companion
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "debug", cmd: "startGame" });
+    expect(room.state.phase).toBe("playing");
+    expect(room.state.table!.seats).toHaveLength(3);
+    return { room, deps, a, b, c };
+  }
+  const me = (room: Room, pid: string) => room.state.players.find((p) => p.id === pid)!;
+  // Open table in the middle (three seats leave it free of mats), and the middle of a player's mat.
+  const OPEN = { x: 0.123, y: -0.456 };
+  const matOf = (room: Room, pid: string) => matCenter(room.state.table!.seats.indexOf(pid), 3);
+
+  it("relays the carry (moves, a cancelled drop) to the others, stamped with the sender, never stored", () => {
+    const { room, a, c } = game();
+    const before = JSON.stringify(room.state);
+    const move = send(room, a.playerId, { t: "petMove", x: 3, y: -40, by: "spoofed" } as ClientMessage);
+    expect(move.changed).toBe(false);
+    expect(move.outbound).toEqual([{ to: "others", msg: { t: "petMove", by: a.playerId, x: 3, y: -40 } }]);
+    expect(send(room, a.playerId, { t: "petCancel" }).outbound).toEqual([{ to: "others", msg: { t: "petCancel", by: a.playerId } }]);
+    // No companion: nothing to carry.
+    expect(send(room, c.playerId, { t: "petMove", x: 0, y: 0 }).outbound).toEqual([]);
+    expect(send(room, c.playerId, { t: "petCancel" }).outbound).toEqual([]);
+    expect(JSON.stringify(room.state)).toBe(before);
+  });
+
+  it("stores a valid drop on the sender's own companion only, and tells the others it landed", () => {
+    const { room, a, b } = game();
+    const res = send(room, a.playerId, { t: "setPetPos", at: OPEN });
+    expect(res.changed).toBe(true);
+    expect(res.outbound).toEqual([{ to: "others", msg: { t: "petLand", by: a.playerId, at: { x: 0.12, y: -0.46 } } }]);
+    expect(me(room, a.playerId).companionAt).toEqual({ x: 0.12, y: -0.46 });
+    // Nobody else's moved (there's no way to name another player's companion).
+    expect(me(room, b.playerId).companionAt).toBeUndefined();
+    // Reloads and late joiners see it in the view.
+    expect(room.viewFor(b.playerId).players.find((p) => p.id === a.playerId)?.companionAt).toEqual({ x: 0.12, y: -0.46 });
+  });
+
+  it("takes a drop on the sender's own mat (cards, piles and all)", () => {
+    const { room, a } = game();
+    const mine = matOf(room, a.playerId);
+    expect(send(room, a.playerId, { t: "setPetPos", at: mine }).changed).toBe(true);
+    expect(me(room, a.playerId).companionAt).toEqual({ x: Math.round(mine.x * 100) / 100, y: Math.round(mine.y * 100) / 100 });
+  });
+
+  it("rejects a drop on anyone else's mat, off the table, or with no companion, changing nothing", () => {
+    const { room, a, b, c } = game();
+    send(room, a.playerId, { t: "setPetPos", at: OPEN });
+    const before = JSON.stringify(room.state);
+    for (const at of [matOf(room, b.playerId), matOf(room, c.playerId), { x: 0, y: tableRadius(3) + 2 }, { x: 150, y: 150 }]) {
+      const res = send(room, a.playerId, { t: "setPetPos", at });
+      expect(res.changed).toBe(false);
+      expect(res.outbound).toEqual([{ to: "self", msg: { t: "error", message: "Your companion can't stand there." } }]);
+    }
+    const none = send(room, c.playerId, { t: "setPetPos", at: OPEN });
+    expect(none.changed).toBe(false);
+    expect(none.outbound[0]).toMatchObject({ to: "self", msg: { t: "error" } });
+    expect(JSON.stringify(room.state)).toBe(before);
+  });
+
+  it("only takes a drop at the table", () => {
+    const { room } = newRoom();
+    const a = room.join({ name: "Alice", companion: "hex" });
+    const res = send(room, a.playerId, { t: "setPetPos", at: { x: 0, y: -6 } });
+    expect(res.changed).toBe(false);
+    expect(me(room, a.playerId).companionAt).toBeUndefined();
+    expect(send(room, a.playerId, { t: "petMove", x: 0, y: 0 }).outbound).toEqual([]);
+  });
+
+  it("sends it home (null) with one write, and does nothing if it's home already", () => {
+    const { room, a } = game();
+    expect(send(room, a.playerId, { t: "setPetPos", at: null })).toEqual({ changed: false, outbound: [] });
+    send(room, a.playerId, { t: "setPetPos", at: OPEN });
+    const res = send(room, a.playerId, { t: "setPetPos", at: null });
+    expect(res.changed).toBe(true);
+    expect(res.outbound).toEqual([{ to: "others", msg: { t: "petLand", by: a.playerId, at: null } }]);
+    expect(me(room, a.playerId).companionAt).toBeUndefined();
+  });
+
+  it("clears the spot for a new game, back in the lobby, and on a new companion", () => {
+    const { room, a, b } = game();
+    send(room, a.playerId, { t: "setPetPos", at: OPEN });
+    send(room, b.playerId, { t: "setPetPos", at: { x: -1, y: 1 } });
+    // Back to the lobby (and so to a new game): both go home.
+    send(room, a.playerId, { t: "debug", cmd: "toLobby" });
+    expect(room.state.players.map((p) => p.companionAt)).toEqual([undefined, undefined, undefined]);
+
+    // A spot left over from an earlier game (say, a room saved mid-game) doesn't survive a new one.
+    me(room, a.playerId).companionAt = { x: 1, y: 1 };
+    send(room, a.playerId, { t: "debug", cmd: "startGame" });
+    expect(me(room, a.playerId).companionAt).toBeUndefined();
+
+    // Changing companion (in the lobby) starts the new one at home; changing only the avatar keeps it.
+    send(room, a.playerId, { t: "debug", cmd: "toLobby" });
+    me(room, a.playerId).companionAt = { x: 1, y: 1 };
+    send(room, a.playerId, { t: "setLook", avatar: null });
+    expect(me(room, a.playerId).companionAt).toEqual({ x: 1, y: 1 });
+    send(room, a.playerId, { t: "setLook", companion: "hex" });
+    expect(me(room, a.playerId).companionAt).toEqual({ x: 1, y: 1 });
+    send(room, a.playerId, { t: "setLook", companion: "gloop" });
+    expect(me(room, a.playerId).companionAt).toBeUndefined();
   });
 });
 

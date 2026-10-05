@@ -141,6 +141,8 @@ export const ICONS = {
   volume: [stroke("M3.5 9.5H7l4.5-4v13l-4.5-4H3.5z"), stroke("M15 9a4.2 4.2 0 0 1 0 6"), stroke("M18 6.3a8 8 0 0 1 0 11.4")],
   "volume-off": [stroke("M3.5 9.5H7l4.5-4v13l-4.5-4H3.5z"), stroke("M15.5 9.5l5 5"), stroke("M20.5 9.5l-5 5")],
   pencil: [stroke("M4 20l1.1-4.5L15.6 5a2.1 2.1 0 0 1 3 0l.4.4a2.1 2.1 0 0 1 0 3L8.5 18.9z"), stroke("M13.6 7l3.4 3.4")],
+  /** A little house: a companion's home spot by its player's mat. */
+  home: [stroke("M3.5 11.5L12 4l8.5 7.5"), stroke("M6 9.5V20h12V9.5"), stroke("M10 20v-5.5h4V20")],
   copy: [stroke("M8 7.8V5.5A1.5 1.5 0 0 1 9.5 4h9A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5h-2.3"), stroke(roundRect(4, 8, 12, 12, 1.5))],
   sparkle: [solid(star4(12, 12, 10))],
   /** Magic: one big sparkle and a small one (auto-build). */

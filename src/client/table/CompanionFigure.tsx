@@ -1,8 +1,9 @@
 // A player's companion on the table (and in the lab, /dev/companion-lab): its picture on a soft shadow, an idle
 // breath, hops when its player's turn starts, and on top of that whatever reaction it is playing
 // (companionPlayback.ts), with its effect glyphs. It tells its speech bubble (SpeechBubbles.tsx) where its head
-// is. At the table it can be tapped (a poke), and its owner can right-click it for the emote wheel. The motion
-// itself is pure (companionMotion.ts); this file only turns poses into sprite transforms.
+// is. At the table it can be tapped (a poke), its owner can right-click it for the emote wheel, and pick it up
+// and carry it somewhere else (companionCarry.ts says where it is: carried, landing, or standing at its spot).
+// The motion itself is pure (companionMotion.ts); this file only turns poses into sprite transforms.
 
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
@@ -14,6 +15,7 @@ import { advanceTrack, fxSpawns, glyphPose, newTrack, REST, type Fx, type GlyphM
 import { bodyStyle, reactionFor } from "./companionReactions";
 import { reactionNow, reactionOf } from "./companionPlayback";
 import { bubbleAnchors } from "./companionTalk";
+import { petPositions, petTarget } from "./companionCarry";
 import { loadVoice } from "../companionVoice";
 import { companionArt, companionDef, variantHue } from "../roster";
 
@@ -26,6 +28,19 @@ const GLYPH_SIZE = 0.3;
 /** The tappable part of the picture: the body, not the whole (mostly transparent) square. */
 const HIT_W = 0.6;
 const HIT_H = 0.82;
+/** How high a carried companion is held over the table, and how much bigger it looks up there. */
+const LIFT_H = 1.3;
+const LIFT_GROW = 0.08;
+/** Most it swings (rad) while carried, and how much a sideways speed (units/s across the screen) swings it. */
+const DANGLE_MAX = 0.55;
+const DANGLE_PER_SPEED = 0.035;
+
+const WHITE = new THREE.Color("#ffffff");
+const DIM = new THREE.Color("#7a7a88");
+/** Held over somewhere it can't be put down. */
+const NOPE_TINT = new THREE.Color("#ff8080");
+const NOPE_SHADOW = new THREE.Color("#c01818");
+const BLACK = new THREE.Color("#000000");
 
 /** A glyph on screen, in one of the figure's FX_SLOTS sprites. */
 interface LiveGlyph {
@@ -41,20 +56,31 @@ const right = new THREE.Vector3();
 const up = new THREE.Vector3();
 
 /**
- * `playerId` is whose companion this is (reactions are played per player); `at` is where it stands on the table.
- * Offline: no idle breath or hop (it's resting), but it still reacts if someone pokes it. `onPoke`: it can be
- * tapped (a left click that doesn't reach the table underneath, so no pan, ping or deselect). `onEmote`: a
- * right-click on it opens the emote wheel at the cursor instead of the table's menu (its owner only).
+ * `playerId` is whose companion this is (reactions are played per player); `at` is its home spot on the table and
+ * `stored` where its player put it down instead, if they did (it glides between them, and follows a carry).
+ * Offline: no idle breath or hop (it's resting), but it still reacts if someone pokes it. `onPress`: a left press
+ * on it (which doesn't reach the table underneath, so no pan, ping or deselect) becomes a poke or, on your own,
+ * a pick-up (companionCarry.ts); `own` shows a grab cursor for that. `onEmote`: a right-click on it opens the
+ * emote wheel at the cursor instead of the table's menu (its owner only).
  */
-export function CompanionFigure({ playerId, companion, variant, at, active, turnNumber, offline, onPoke, onEmote }: { playerId: string; companion: string; variant: number; at: { x: number; y: number }; active: boolean; turnNumber: number; offline: boolean; onPoke?: () => void; onEmote?: (clientX: number, clientY: number) => void }) {
+export function CompanionFigure({ playerId, companion, variant, at, stored, active, turnNumber, offline, own, onPress, onEmote }: { playerId: string; companion: string; variant: number; at: { x: number; y: number }; stored?: { x: number; y: number }; active: boolean; turnNumber: number; offline: boolean; own?: boolean; onPress?: (e: PointerEvent) => void; onEmote?: (clientX: number, clientY: number) => void }) {
   const def = companionDef(companion);
   const url = companionArt(companion);
   const img = useImage(variant > 0 ? url : null);
   const hue = variantHue(variant);
   const tex = useMemo(() => (img && hue ? hueTexture(img, hue) : spriteTexture(url)), [url, img, hue]);
   const style = bodyStyle(companion);
+  const root = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const sprite = useRef<THREE.Sprite>(null);
+  const shadow = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null);
+  const anchor = useRef<THREE.Group>(null);
+  /** 0 standing … 1 held up; and the swing it has from being moved about. */
+  const lift = useRef(0);
+  const dangle = useRef(0);
+  // Where it first appears. Only then: after that the frame loop moves it (a new prop each time would make it jump).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const start = useMemo((): [number, number, number] => [(stored ?? at).x, 0.04, (stored ?? at).y], []);
   const glyphs = useRef<(THREE.Sprite | null)[]>([]);
   const live = useRef<(LiveGlyph | null)[]>(Array(FX_SLOTS).fill(null));
   const track = useRef(newTrack());
@@ -64,13 +90,13 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
   const gl = useThree((s) => s.gl);
   const hover = (on: boolean) => {
     hovered.current = on;
-    gl.domElement.style.cursor = on ? "pointer" : "";
+    gl.domElement.style.cursor = on ? (own ? "grab" : "pointer") : "";
   };
   useEffect(() => () => void (hovered.current && (gl.domElement.style.cursor = "")), [gl]);
-  const tap = (e: ThreeEvent<MouseEvent>) => {
+  const down = (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
     e.stopPropagation();
-    onPoke?.();
+    onPress?.(e.nativeEvent);
   };
   const emote = (e: ThreeEvent<MouseEvent>) => {
     if (!onEmote) return;
@@ -80,6 +106,7 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
   };
   // Its voice loads when it arrives at the table (once per companion, however many copies there are).
   useEffect(() => void loadVoice(companion), [companion]);
+  useEffect(() => () => void petPositions.delete(playerId), [playerId]);
   // When this player's turn started (or the table opened on it), so the hopping can wind down. The turn
   // number is a dependency too: with one player at the table (solo) it's their turn again, and `active`
   // never changes, so only the number says a new turn began.
@@ -88,12 +115,40 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
     turnStart.current = active ? performance.now() : null;
   }, [active, turnNumber]);
 
-  useFrame(({ clock, camera }) => {
+  useFrame(({ clock, camera }, dt) => {
     const g = body.current;
     const s = sprite.current;
-    if (!g || !s) return;
+    const r = root.current;
+    if (!g || !s || !r) return;
     const t = clock.elapsedTime + phase;
     const still = reducedMotion();
+
+    // Where it is: following its carrier's pointer (closely if that's this player, smoothed if streamed in), or
+    // gliding to where it was put down (or back, after a "nope"). Reduced motion: straight there.
+    right.setFromMatrixColumn(camera.matrixWorld, 0);
+    const want = petTarget(playerId, at, stored);
+    const carried = want.carried !== null;
+    const k = want.carried === "local" ? 30 : want.carried === "remote" ? 12 : 8;
+    const a = still ? 1 : 1 - Math.exp(-dt * k);
+    const dx = (want.x - r.position.x) * a;
+    const dz = (want.y - r.position.z) * a;
+    r.position.x += dx;
+    r.position.z += dz;
+    petPositions.set(playerId, { x: r.position.x, y: r.position.z });
+    lift.current = still ? (carried ? 1 : 0) : lift.current + ((carried ? 1 : 0) - lift.current) * (1 - Math.exp(-dt * 14));
+    // Held up, it swings away from the way it's moved across the screen, and settles when it stops.
+    const across = dt > 0 ? (dx * right.x + dz * right.z) / dt : 0;
+    const swing = carried && !still ? THREE.MathUtils.clamp(-across * DANGLE_PER_SPEED, -DANGLE_MAX, DANGLE_MAX) : 0;
+    dangle.current += (swing - dangle.current) * (1 - Math.exp(-dt * 7));
+    const sh = shadow.current;
+    if (sh) {
+      // Its shadow shrinks and fades as it goes up (and reddens over a spot it can't land on).
+      sh.scale.setScalar(1 - 0.4 * lift.current);
+      sh.material.opacity = 0.55 * (1 - 0.45 * lift.current) + (want.invalid ? 0.25 : 0);
+      sh.material.color.copy(want.invalid ? NOPE_SHADOW : BLACK);
+    }
+    s.material.color.copy(want.invalid ? NOPE_TINT : offline ? DIM : WHITE);
+    if (anchor.current) anchor.current.position.y = LIFT_H * lift.current;
     if (still || offline) {
       g.position.set(0, 0, 0);
       g.scale.set(1, 1, 1);
@@ -116,14 +171,14 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
     const pose = still ? REST : moved;
 
     // Offsets are along the screen (the picture faces the camera), so take the camera's right and up.
-    right.setFromMatrixColumn(camera.matrixWorld, 0);
     up.setFromMatrixColumn(camera.matrixWorld, 1);
     g.position.addScaledVector(right, pose.dx * PET_SIZE).addScaledVector(up, pose.dy * PET_SIZE);
-    // Hovered (when it can be poked): it perks up a touch.
-    hoverAmt.current += ((hovered.current && !still ? 1 : 0) - hoverAmt.current) * 0.25;
-    const perk = 1 + 0.06 * hoverAmt.current;
+    g.position.y += LIFT_H * lift.current;
+    // Hovered (when it can be poked): it perks up a touch. Held up: a little bigger (nearer the eye).
+    hoverAmt.current += ((hovered.current && !still && !carried ? 1 : 0) - hoverAmt.current) * 0.25;
+    const perk = (1 + 0.06 * hoverAmt.current) * (still ? 1 : 1 + LIFT_GROW * lift.current);
     s.scale.set(PET_SIZE * pose.sx * perk, PET_SIZE * pose.sy * perk, 1);
-    s.material.rotation = pose.rot;
+    s.material.rotation = pose.rot + dangle.current;
     s.material.opacity = pose.alpha;
 
     // Glyphs due since last frame take a free slot (or the oldest). Reduced motion: only each reaction's first, held still.
@@ -162,26 +217,25 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
 
   if (!def) return null;
   return (
-    <group position={[at.x, 0.04, at.y]}>
-      <mesh rotation-x={FLAT} position-y={0.02} renderOrder={2} raycast={() => null}>
+    <group ref={root} position={start}>
+      <mesh ref={shadow} rotation-x={FLAT} position-y={0.02} renderOrder={2} raycast={() => null}>
         <planeGeometry args={[PET_SIZE * 0.78, PET_SIZE * 0.34]} />
         <meshBasicMaterial map={glowTexture()} color="#000000" transparent opacity={0.55} depthWrite={false} />
       </mesh>
       <group ref={body}>
         <sprite ref={sprite} scale={[PET_SIZE, PET_SIZE, 1]} center={[0.5, 0.06]} renderOrder={6} raycast={() => null}>
-          <spriteMaterial map={tex} transparent toneMapped={false} depthWrite={false} color={offline ? "#7a7a88" : "#ffffff"} />
+          <spriteMaterial map={tex} transparent toneMapped={false} depthWrite={false} />
         </sprite>
       </group>
-      {onPoke && (
+      {onPress && (
         // An invisible hit area over the body at rest. It stays put while the body hops and spins (a spin lifts the
-        // body to turn about its middle), so a click lands whatever it is doing. Pressing it stops the table
-        // underneath from panning or deselecting. A right-click opens its owner's emote wheel; anyone else's
-        // passes through to the table's menu.
+        // body to turn about its middle), so a press lands whatever it is doing; it moves with the companion when
+        // it's put down elsewhere. Pressing it stops the table underneath from panning or deselecting. A
+        // right-click opens its owner's emote wheel; anyone else's passes through to the table's menu.
         <sprite
           scale={[PET_SIZE * HIT_W, PET_SIZE * HIT_H, 1]}
           center={[0.5, 0.04]}
-          onPointerDown={(e) => e.button === 0 && e.stopPropagation()}
-          onClick={tap}
+          onPointerDown={down}
           onContextMenu={emote}
           onPointerOver={(e) => {
             e.stopPropagation();
@@ -192,7 +246,9 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
           <spriteMaterial transparent opacity={0} depthWrite={false} />
         </sprite>
       )}
-      <BubbleAnchor playerId={playerId} height={PET_SIZE * (style.head + 0.16)} />
+      <group ref={anchor}>
+        <BubbleAnchor playerId={playerId} height={PET_SIZE * (style.head + 0.16)} />
+      </group>
       {Array.from({ length: FX_SLOTS }, (_, i) => (
         <sprite
           key={i}

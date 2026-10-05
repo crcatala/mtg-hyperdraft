@@ -1,6 +1,6 @@
 ---
 id: mh-5mz2
-status: open
+status: closed
 deps: [mh-x519, mh-kqys, mh-lhxh]
 links: []
 created: 2026-10-05T03:45:29Z
@@ -43,3 +43,17 @@ Players want to physically move their little buddy around the table and set it d
 - Works in solo/local mode; reduced motion respected (no dangle/transform fanciness but still functional).
 - Verified with agent-browser in two sessions; screenshots/capture in the PR. `npm run typecheck` and `rtk vitest run` pass.
 
+
+## Notes
+
+**2026-10-05T22:06:09Z**
+
+Implemented (agent): shared petSpotValid (off every mat: 1.0 sideways / 0.5 front-back margins; 1.0 from the rim) used by client and room. Protocol: petMove {x,y} + petCancel (STATELESS relays), setPetPos {at|null} (one write; stored as Player.companionAt, room relays petLand to others). Cleared on startDraft/startGame/toLobby and on a companion change. Client: petGesture.ts (HOLD_MS 250, MOVE_PX 8; non-owners only poke), companionCarry.ts (grab offset, <=20/s stream + 300 ms keep-alive, 1.5 s stale timeout on receivers, landed spot held until the state agrees, nope = poke5 reaction), figure glides/lifts/dangles/tints red over a bad spot; Home in the wheel centre (H). Verified in two browser sessions (room G9U6UQW), solo + reduced motion, lab. Optional, non-blocking: human listen/feel check of carry + landing.
+
+**2026-10-05T22:34:30Z**
+
+Human tweak (PR #35 review), quoted: "can we be able to place companion even on your own playmat area? even over cards and deck and stuff, no need to make special cases of elevating it or anything like that. companaion can be easily re-moveb by player to get access to cards, dec etc anyway". Done (agent): petSpotValid(p, seatCount, ownSeat) accepts anywhere on the owner's own mat (checked before the rim: the mat corners reach past the rim at 1-2 seats); other seats' mats and off-table still refused. No elevation special-casing (a tall pile hides the lower half of a companion standing on it).
+
+**2026-10-05T22:52:48Z**
+
+Review fixes (agent; user asked to assess review feedback, all three valid): (1) petMove is never queued while offline (like drag), so a carry during a reconnect cannot flood the room on flush and lose the setPetPos behind it; (2) a press only listens to its own pointer, a second finger pressing a companion mid-carry is ignored, and a new press from the same pointer (lost release) cancels the old carry first; (3) resetCarries removes body.dragging unconditionally. 5 regression tests; the 4 pointer/reset ones fail on the old code with real assertions.

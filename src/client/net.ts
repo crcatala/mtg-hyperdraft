@@ -6,6 +6,7 @@ import { useStore } from "./store";
 import { showPing } from "./table/tableUi";
 import { receivePoke } from "./table/companionPoke";
 import { receiveEmote } from "./table/companionEmote";
+import { receivePetCancel, receivePetLand, receivePetMove } from "./table/companionCarry";
 import { rememberExpiry } from "./publicRooms";
 import { forgetRoom, isRoomGone, rememberRoom, snapshotOf } from "./recentRooms";
 
@@ -167,6 +168,15 @@ function open() {
       case "emote":
         receiveEmote(msg.by, msg.slot, msg.text);
         break;
+      case "petMove":
+        receivePetMove(msg.by, msg.x, msg.y);
+        break;
+      case "petCancel":
+        receivePetCancel(msg.by);
+        break;
+      case "petLand":
+        receivePetLand(msg.by, msg.at);
+        break;
       case "error":
         if (!welcomed) {
           // Refused join: stop here rather than waiting for (or retrying after) the close.
@@ -197,8 +207,16 @@ function open() {
   };
 }
 
+/**
+ * Live previews of something moving (a dragged card, a carried companion): stale the moment they can't go out,
+ * and streamed many times a second, so they're never queued for a reconnect. Flushing a few seconds' worth at
+ * once would blow through the room's flood limits, taking the drop that follows them down too (or the socket).
+ */
+const LIVE_ONLY: ReadonlySet<ClientMessage["t"]> = new Set(["drag", "petMove"]);
+export const queuedWhileOffline = (msg: ClientMessage): boolean => !LIVE_ONLY.has(msg.t);
+
 export function sendRaw(msg: ClientMessage) {
   const text = JSON.stringify(msg);
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(text);
-  else if (msg.t !== "drag") queue.push(text);
+  else if (queuedWhileOffline(msg)) queue.push(text);
 }

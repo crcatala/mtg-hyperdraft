@@ -97,6 +97,11 @@ export interface Player {
   /** Which colour variant they have of it: 0 is the original, and later holders of the same one get different ones. */
   avatarVariant?: number;
   companionVariant?: number;
+  /**
+   * Where they put their companion down at the table (table coordinates), if they moved it off its home spot
+   * by their mat. Set only by a valid drop (setPetPos); cleared by a new game or a new companion.
+   */
+  companionAt?: { x: number; y: number };
 }
 
 export type PassPattern = "alternate" | "left";
