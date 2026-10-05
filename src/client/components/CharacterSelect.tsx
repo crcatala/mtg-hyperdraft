@@ -321,10 +321,11 @@ function CompanionPreview({ id, me, sharedWith, hop }: { id: string; me: Player;
             <SharedNote sharedWith={sharedWith} what="companion" />
             <p>{c.personality}</p>
             <p className="faint">
-              <b>Will learn to:</b> {c.moves.join(" · ").toLowerCase()}
+              <b>Signature moves:</b> {c.moves.join(" · ").toLowerCase()}
             </p>
             <p className="faint">
-              Your companion stands in front of your mat during the game and hops on your turn.
+              At the table it stands by your mat and hops on your turn. Anyone can poke it; right-click it (or press W) for its emotes, and hold it
+              to carry it somewhere else.
               {hasVoice(c.id) && " Hover or click it to hear it say hi."}
             </p>
           </>
