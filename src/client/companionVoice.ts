@@ -9,6 +9,7 @@
 // that still emits an event, like play() does for a sample that hasn't loaded.
 
 import manifest from "./companionVoices.json";
+import { companionSounds } from "./companionPrefs";
 import { audioIfUnlocked, decodeTake, emit, startTake, whenAudioReady, type Take } from "./sfx";
 import { jitter, pickTake, variantPitch } from "./sfxMath";
 
@@ -129,12 +130,13 @@ let helloFor = 0;
 /**
  * A companion greeting in the lobby: loads its voice if needed (the first one may come a beat late), then plays
  * its hello. Only one hello ever sounds: a new one cuts the last, and a hello still loading is dropped if another
- * was asked for in the meantime.
+ * was asked for in the meantime. Nothing (not even a download) while this player has companion sounds off.
  */
 export function sayHello(id: string, variant = 0) {
   const mine = ++helloFor;
   hello?.stop();
   hello = null;
+  if (!companionSounds()) return;
   void loadVoice(id).then(() => {
     if (mine === helloFor) hello = playVoice(id, "hello", { variant });
   });

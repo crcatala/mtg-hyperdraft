@@ -1,8 +1,9 @@
 // What companions say at the table: speech bubbles and voice sounds. Every bubble and every table voice goes
-// through `say` and `voice` here (pokes now, emotes and pick-up later), so a player's "Companion speech" and
-// "Companion sounds" settings can switch them off in one place.
+// through `say` and `voice` here (pokes, emotes, pick-up and drop), so a player's "Companion speech" and
+// "Companion sounds" settings (companionPrefs.ts) switch them off in one place.
 
 import { create } from "zustand";
+import { companionSounds, companionSpeech } from "../companionPrefs";
 import { playVoice, type Voice, type VoiceOptions } from "../companionVoice";
 import type { IconName } from "../icons";
 
@@ -36,9 +37,12 @@ export const useBubbles = create<{ bubbles: Record<string, Bubble> }>(() => ({ b
 let bubbleSeq = 1;
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
-/** Shows `text` in a bubble over a player's companion for bubbleLife(size), replacing whatever it was saying. */
+/**
+ * Shows `text` in a bubble over a player's companion for bubbleLife(size), replacing whatever it was saying.
+ * Nothing while this player has companion speech turned off.
+ */
 export function say(playerId: string, text: string | undefined, size: BubbleSize = "small", badge?: BubbleBadge) {
-  if (!text) return;
+  if (!text || !companionSpeech()) return;
   const bubble: Bubble = { id: bubbleSeq++, text, size, badge, at: performance.now() };
   useBubbles.setState((s) => ({ bubbles: { ...s.bubbles, [playerId]: bubble } }));
   clearTimeout(timers.get(playerId));
@@ -101,9 +105,9 @@ export function clearBubbles() {
   useBubbles.setState({ bubbles: {} });
 }
 
-/** Plays one of a companion's voice sounds at the table (see companionVoice.ts). */
+/** Plays one of a companion's voice sounds at the table (see companionVoice.ts); silent while companion sounds are off. */
 export function voice(companion: string, slot: string, opts: VoiceOptions = {}): Voice | null {
-  return playVoice(companion, slot, opts);
+  return companionSounds() ? playVoice(companion, slot, opts) : null;
 }
 
 /**

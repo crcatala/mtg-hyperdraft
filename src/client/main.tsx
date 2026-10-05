@@ -6,6 +6,7 @@ import { installSfxWarmUp } from "./sfx";
 import { initSoundPack } from "./soundPacks";
 import { initMusic } from "./music";
 import { initVolumes } from "./volume";
+import { initCompanionPrefs } from "./companionPrefs";
 import "./styles.css";
 import "./screens.css";
 import "./persona.css";
@@ -18,6 +19,7 @@ installThemeShortcut();
 initSoundPack();
 installSfxWarmUp();
 initVolumes();
+initCompanionPrefs();
 initMusic();
 
 createRoot(document.getElementById("root")!).render(<App />);

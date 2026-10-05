@@ -17,6 +17,7 @@ import { reactionNow, reactionOf } from "./companionPlayback";
 import { bubbleAnchors } from "./companionTalk";
 import { petPositions, petTarget } from "./companionCarry";
 import { loadVoice } from "../companionVoice";
+import { useCompanionPrefs } from "../companionPrefs";
 import { companionArt, companionDef, variantHue } from "../roster";
 
 export const PET_SIZE = 2.8;
@@ -104,8 +105,12 @@ export function CompanionFigure({ playerId, companion, variant, at, stored, acti
     e.nativeEvent.preventDefault();
     onEmote(e.nativeEvent.clientX, e.nativeEvent.clientY);
   };
-  // Its voice loads when it arrives at the table (once per companion, however many copies there are).
-  useEffect(() => void loadVoice(companion), [companion]);
+  // Its voice loads when it arrives at the table (once per companion, however many copies there are), unless
+  // this player has companion sounds off: then only once they turn them on.
+  const sounds = useCompanionPrefs().sounds;
+  useEffect(() => {
+    if (sounds) void loadVoice(companion);
+  }, [companion, sounds]);
   useEffect(() => () => void petPositions.delete(playerId), [playerId]);
   // When this player's turn started (or the table opened on it), so the hopping can wind down. The turn
   // number is a dependency too: with one player at the table (solo) it's their turn again, and `active`
