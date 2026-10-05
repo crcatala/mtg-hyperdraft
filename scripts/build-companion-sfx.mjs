@@ -5,12 +5,12 @@
 //   node scripts/build-companion-sfx.mjs hex                       # every slot of one companion, 3 candidates each
 //   node scripts/build-companion-sfx.mjs hex hello poke1           # only these slots
 //   node scripts/build-companion-sfx.mjs hex poke7 --candidates 5  # more takes of a slot
-//   node scripts/build-companion-sfx.mjs                           # every companion in voices.json
+//   node scripts/build-companion-sfx.mjs                           # every companion in the kit
 //   node scripts/build-companion-sfx.mjs hex hello --force         # regenerate files that already exist
 //
-// What a companion sounds like is its signature in scripts/roster/voices.json ("voices"); what each slot
-// is (hello, poke1..7, pickup, drop, emote1..6) is the shared emotion descriptor + length in "slots".
-// Prompt = signature + ": " + emotion + ". " + suffix. Existing candidates are skipped unless --force.
+// What a companion sounds like is its "voice" signature in src/shared/companionKit.json (the same file the game
+// reads its speech lines from); what each slot is (hello, poke1..7, pickup, drop, emote1..6) is the shared emotion
+// descriptor + length in its "voice.slots". Prompt = signature + ": " + emotion + ". " + suffix. Existing candidates are skipped unless --force.
 // Then `node scripts/build-voice-audition.mjs` writes the audition page next to the candidates.
 //
 // Needs the `elevenlabs` CLI (npm i -g @elevenlabs/cli) and ELEVENLABS_API_KEY.
@@ -26,7 +26,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "scripts", "roster", "voice-candidates");
 const CONCURRENCY = 5;
 
-const { voices, slots, suffix } = JSON.parse(readFileSync(join(ROOT, "scripts", "roster", "voices.json"), "utf8"));
+const kit = JSON.parse(readFileSync(join(ROOT, "src", "shared", "companionKit.json"), "utf8"));
+const { slots, suffix } = kit.voice;
+const voices = Object.fromEntries(Object.entries(kit.companions).map(([id, c]) => [id, c.voice]));
 
 const argv = process.argv.slice(2);
 const force = argv.includes("--force");

@@ -272,7 +272,7 @@ function CompanionPreview({ id, me, sharedWith }: { id: string; me: Player; shar
             <SharedNote sharedWith={sharedWith} what="companion" />
             <p>{c.personality}</p>
             <p className="faint">
-              <b>Will learn to:</b> {c.emotes.join(" · ").toLowerCase()}
+              <b>Will learn to:</b> {c.moves.join(" · ").toLowerCase()}
             </p>
             <p className="faint">Your companion stands in front of your mat during the game and hops on your turn. It's a picture for now; 3D versions are planned.</p>
           </>

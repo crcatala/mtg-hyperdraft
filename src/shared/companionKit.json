@@ -1,0 +1,329 @@
+{
+  "voice": {
+    "suffix": "Short, no words, no music, dry, close-up.",
+    "slots": {
+      "hello": {
+        "emotion": "a friendly little greeting chirp, warm and bright, rising at the end",
+        "seconds": 1,
+        "influence": 0.6
+      },
+      "poke1": {
+        "emotion": "a curious questioning 'huh?' sound with a small rising inflection",
+        "seconds": 0.6,
+        "influence": 0.6
+      },
+      "poke2": {
+        "emotion": "a happy delighted squeak",
+        "seconds": 0.7,
+        "influence": 0.6
+      },
+      "poke3": {
+        "emotion": "a warm affectionate coo, soft and melting, content",
+        "seconds": 1,
+        "influence": 0.6
+      },
+      "poke4": {
+        "emotion": "a playful giggly babble, bouncy and teasing",
+        "seconds": 1,
+        "influence": 0.6
+      },
+      "poke5": {
+        "emotion": "a mildly bothered grumble, a small 'hmph', slightly annoyed",
+        "seconds": 0.8,
+        "influence": 0.6
+      },
+      "poke6": {
+        "emotion": "a fed-up whiny complaint, a protesting moan, increasingly annoyed",
+        "seconds": 1.2,
+        "influence": 0.6
+      },
+      "poke7": {
+        "emotion": "an indignant cheeky outburst, a sharp huffy protest ending in a defiant raspberry",
+        "seconds": 1.8,
+        "influence": 0.6
+      },
+      "pickup": {
+        "emotion": "a surprised yelp as if suddenly lifted into the air, 'whoa!'",
+        "seconds": 0.8,
+        "influence": 0.6
+      },
+      "drop": {
+        "emotion": "a soft landing 'oof' followed by a relieved happy sigh",
+        "seconds": 1,
+        "influence": 0.6
+      },
+      "emote1": {
+        "emotion": "a triumphant excited cheer, bright and bouncy",
+        "seconds": 1.2,
+        "influence": 0.6
+      },
+      "emote2": {
+        "emotion": "a swooning lovestruck sigh with a dreamy coo",
+        "seconds": 1.2,
+        "influence": 0.6
+      },
+      "emote3": {
+        "emotion": "a sheepish apologetic 'oops' whimper, embarrassed, trailing off",
+        "seconds": 1,
+        "influence": 0.6
+      },
+      "emote4": {
+        "emotion": "a goofy silly babble with a wobbling trill",
+        "seconds": 1.2,
+        "influence": 0.6
+      },
+      "emote5": {
+        "emotion": "a sassy smug 'mm-hm', sarcastic and unimpressed",
+        "seconds": 1,
+        "influence": 0.6
+      },
+      "emote6": {
+        "emotion": "a teasing sing-song taunt, cheeky 'nyah nyah', playful mockery",
+        "seconds": 1.5,
+        "influence": 0.6
+      }
+    }
+  },
+  "companions": {
+    "foil": {
+      "voice": "A plump little pack rat with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched squeaks, happy chitters and rounded little trills, mellow, never shrill, no piercing squeals",
+      "lines": {
+        "poke": [
+          "Squeak? Is that a foil?",
+          "Ooh, a poke! Shiny!",
+          "You're my favourite card shop.",
+          "Bet I can dodge the next one!",
+          "That's two pokes too many.",
+          "I'm charging a booster fee now.",
+          "Poke me again and I keep your deck."
+        ],
+        "pickup": "Whee! Hold my cards!",
+        "drop": "Landed it! Ten out of ten.",
+        "emote": [
+          "Pull of the century!",
+          "Best table ever, squeak!",
+          "Wrong pack. Wrong pack!",
+          "Is cheese a foil, though?",
+          "Nice draft. Was it yours?",
+          "Your odds? Mine are better."
+        ]
+      }
+    },
+    "cinder": {
+      "voice": "A chubby baby dragon with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched chirrs, rumbly purring growls and small snorting puffs, rounded and mellow, never shrill, no screeches",
+      "lines": {
+        "poke": [
+          "Hm? Did something poke me?",
+          "Hehe, that tickled!",
+          "Okay, I like you. A lot.",
+          "Catch me! *puffs tiny smoke*",
+          "Hey. Hands off the scales.",
+          "I'll SNEEZE on you. Warning.",
+          "ACHOO! Anyway, you're toast."
+        ],
+        "pickup": "Wings! I need my wings!",
+        "drop": "Nailed it. Hot landing.",
+        "emote": [
+          "Burn bright, champion!",
+          "My heart is on fire!",
+          "Oops. That was flammable.",
+          "Soup is just wet toast.",
+          "Cute plan. Does it burn?",
+          "Too easy! Barely a sneeze."
+        ]
+      }
+    },
+    "folio": {
+      "voice": "A friendly living storybook creature with a plush-toy cartoon voice: soft papery flutters, warm low chirpy babbles and gentle rounded clicks, mellow, never shrill",
+      "lines": {
+        "poke": [
+          "Hm? A reader approaches.",
+          "Fun fact: you're delightful.",
+          "I've bookmarked you. Forever.",
+          "Quiz time: what is a stack?",
+          "Please don't fold my corners.",
+          "One more poke and I bite.",
+          "*CHOMP* Footnote: I warned you."
+        ],
+        "pickup": "Mind the spine! The spine!",
+        "drop": "Errata: I've landed.",
+        "emote": [
+          "A splendid play, truly!",
+          "You're my favourite chapter.",
+          "Oh no. A misprint, surely.",
+          "Is a book a bird? Asking.",
+          "Rules say that was bad.",
+          "Read the rules. Then lose."
+        ]
+      }
+    },
+    "gloop": {
+      "voice": "A cute squishy blob of mana slime with a plush-toy cartoon voice: soft round bubbly blorps, gurgles and happy wet squeaks, warm and mellow, never shrill",
+      "lines": {
+        "poke": [
+          "Blorp? Hm? Who's there?",
+          "Ooh, squishy hello!",
+          "You're warm. Stay close.",
+          "Boing! Again, again!",
+          "Mm. Too poky. Gloop's sleepy.",
+          "Stop. I'll absorb your finger.",
+          "*burp* ...that was your cursor."
+        ],
+        "pickup": "Wheee, I'm all stretchy!",
+        "drop": "Splat. Perfect. Nap time.",
+        "emote": [
+          "Glow-glow-GLOW! Yay!",
+          "Gloop loves you. Squish!",
+          "Oops. I absorbed that.",
+          "Am I a soup? Asking.",
+          "Cute. I've seen jellier.",
+          "Even I'd win. I'm a puddle."
+        ]
+      }
+    },
+    "sprout": {
+      "voice": "A shy little mandrake sapling with a soft plush-toy cartoon voice: gentle low-to-mid pitched coos, tiny rustling whimpers and soft rounded peeps, mellow, never shrill, no screams",
+      "lines": {
+        "poke": [
+          "Oh! H-hello?",
+          "Hehe... that's nice.",
+          "You're very kind. Thank you.",
+          "Peek-a-leaf! Found me!",
+          "Um... that's a bit much.",
+          "Stop! I'll wilt. Dramatically.",
+          "*tiny scream* I'm telling the soil."
+        ],
+        "pickup": "Not the roots! Not the roots!",
+        "drop": "Phew. Roots down. Safe now.",
+        "emote": [
+          "Sprout believes in you!",
+          "You make me bloom!",
+          "Oh no... my leaf slipped.",
+          "Do carrots dream of me?",
+          "Well, that was... a choice.",
+          "Even weeds play better."
+        ]
+      }
+    },
+    "wick": {
+      "voice": "A cozy candle wisp with a soft plush-toy cartoon voice: gentle low breathy hums, warm flickering whistles and soft rounded sighs, mellow, never shrill",
+      "lines": {
+        "poke": [
+          "Oh! A visitor? How cozy.",
+          "Ooh, warm hello, friend.",
+          "You make my flame glow.",
+          "Flicker-flicker! Catch me!",
+          "Careful, I'm quite meltable.",
+          "Stop! You're making a draft!",
+          "*puff* ...Now it's dark. Happy?"
+        ],
+        "pickup": "Careful! Wind! Cover me!",
+        "drop": "Safe. Flame still lit. Phew.",
+        "emote": [
+          "Burning bright, friends!",
+          "You warm my whole wax!",
+          "Oops. I dripped. Sorry.",
+          "Boo! ...Was that spooky?",
+          "Wow. Really? That play?",
+          "You're getting snuffed out."
+        ]
+      }
+    },
+    "crit": {
+      "voice": "A chunky friendly stone golem with a plush-toy cartoon voice: warm low rumbly grunts, soft clacking rolls and goofy rounded hums, mellow, never shrill",
+      "lines": {
+        "poke": [
+          "Roll for... hello?",
+          "Rolled a hello. Nat 20!",
+          "You're my favourite modifier.",
+          "Dare me to roll? I dare me.",
+          "That's -2 to my patience.",
+          "Roll for initiative: STOP.",
+          "I rolled for revenge. Nat 20."
+        ],
+        "pickup": "Rolling... upward? Rolling up!",
+        "drop": "Landed on 20. Obviously.",
+        "emote": [
+          "NATURAL TWENTY! Let's GO!",
+          "You're a nat 20, friend.",
+          "Ooh, a nat 1. Ouch.",
+          "Is a d20 a tiny planet?",
+          "Cute. I roll better asleep.",
+          "Roll again. Still losing."
+        ]
+      }
+    },
+    "nimbus": {
+      "voice": "A gentle baby whale calf with a soft plush-toy cartoon voice: warm low airy coos, dreamy hummed sighs and soft rounded squeaks, mellow, never shrill",
+      "lines": {
+        "poke": [
+          "Mm? A little star calls?",
+          "Mmm, that felt like starlight.",
+          "Stay close. I'll hum for you.",
+          "Wheee! Let's drift in circles!",
+          "Mm. A bit bumpy, friend.",
+          "Even whales get grumpy, you know.",
+          "I'll rain on you. Just a little."
+        ],
+        "pickup": "Up I float! Whoaaa...",
+        "drop": "Whale-come to my new spot.",
+        "emote": [
+          "You shine like a comet!",
+          "You're my favourite star.",
+          "Oops. Even stars slip.",
+          "Do clouds have feelings?",
+          "Mm. Very... plankton of you.",
+          "Whale, whale, whale. Behind?"
+        ]
+      }
+    },
+    "hex": {
+      "voice": "A chubby sleepy house cat with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched mews and a rumbling purr, rounded and mellow, never shrill, no squeals",
+      "lines": {
+        "poke": [
+          "...Mrrp? Yes?",
+          "Fine. You may continue.",
+          "Mrrr. Purr. Don't tell anyone.",
+          "Catch my tail. You can't.",
+          "I'm busy. Napping. Seriously.",
+          "Poke me once more. I dare you.",
+          "*knocks your token off* Oops?"
+        ],
+        "pickup": "Mrrow! Put me down! ...Wait.",
+        "drop": "I meant to do that.",
+        "emote": [
+          "Purr-fect play. Obviously.",
+          "I'll allow a head-bump.",
+          "It wasn't me. I was napping.",
+          "Mm. Almost impressive.",
+          "Is that your best? Yawn.",
+          "Ten lives. You have one."
+        ]
+      }
+    },
+    "ribbit": {
+      "voice": "A chunky little frog knight with a plush-toy cartoon voice: warm low croaks, soft ribbits and bubbly throat chirps, mellow and rounded, never shrill",
+      "lines": {
+        "poke": [
+          "Halt! Who goes there? ...Oh.",
+          "Well met, noble friend!",
+          "A true ally! Ribbit, ribbit!",
+          "En garde! ...gently, please.",
+          "Sir, I must protest. Politely.",
+          "Unhand me, or I shall... hide.",
+          "A DUEL! ...behind my shield."
+        ],
+        "pickup": "To the skies! Ribbit!",
+        "drop": "Stuck the landing. Mostly.",
+        "emote": [
+          "Victory! For the realm!",
+          "Honour to know thee, friend!",
+          "A tactical retreat! Oops.",
+          "Is a lily pad a throne?",
+          "Hmph. I've met braver newts.",
+          "Thou art no match! Ribbit!"
+        ]
+      }
+    }
+  }
+}

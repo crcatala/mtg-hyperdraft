@@ -24,8 +24,8 @@ export interface CompanionDef {
   species: string;
   color: string;
   personality: string;
-  /** Planned animations for the 3D tabletop version. */
-  emotes: string[];
+  /** Planned animations (idle/hop/signature moves). Not the emote wheel: that is the kit in companionKit.ts. */
+  moves: string[];
 }
 
 export const AVATARS: readonly AvatarDef[] = [
@@ -74,34 +74,34 @@ export const AVATARS: readonly AvatarDef[] = [
 export const COMPANIONS: readonly CompanionDef[] = [
   { id: "foil", name: "Foil", species: "Pack Rat", color: "#c9a0ff",
     personality: "Hoarder, optimist, tiny gambler. Squeaks with delight at foil cards.",
-    emotes: ["Hug the card", "Cape flourish", "Nibble the pack", "Faint on a bad pick"] },
+    moves: ["Hug the card", "Cape flourish", "Nibble the pack", "Faint on a bad pick"] },
   { id: "cinder", name: "Cinder", species: "Ember Drakeling", color: "#ff7a3d",
     personality: "Overeager, easily offended, loyal. Sneezes small fireballs when excited.",
-    emotes: ["Sneeze (fire puff)", "Flap hover", "Pout with smoke", "Curl up and sleep on the card"] },
+    moves: ["Sneeze (fire puff)", "Flap hover", "Pout with smoke", "Curl up and sleep on the card"] },
   { id: "folio", name: "Folio", species: "Tome Mimic", color: "#8f6bff",
     personality: "Know-it-all, curious, bites when ignored. Whispers rules trivia.",
-    emotes: ["Flip open and gasp", "Snap shut (hide)", "Page-flutter dance", "Ribbon tongue"] },
+    moves: ["Flip open and gasp", "Snap shut (hide)", "Page-flutter dance", "Ribbon tongue"] },
   { id: "gloop", name: "Gloop", species: "Mana Slime", color: "#45e0ff",
     personality: "Sleepy, affectionate, absorbs things by accident. Glows brighter when you tap mana.",
-    emotes: ["Wobble", "Squish flat", "Absorb a token", "Glow pulse"] },
+    moves: ["Wobble", "Squish flat", "Absorb a token", "Glow pulse"] },
   { id: "sprout", name: "Sprout", species: "Mandrake Sapling", color: "#7dd957",
     personality: "Shy, gentle, dramatic when uprooted. Screams (cutely) when you shuffle.",
-    emotes: ["Bloom the flower", "Hide in the pot", "Wave leaf", "Tiny scream"] },
+    moves: ["Bloom the flower", "Hide in the pot", "Wave leaf", "Tiny scream"] },
   { id: "wick", name: "Wick", species: "Candle Wisp", color: "#f4c55b",
     personality: "Cozy, spooky-but-sweet, afraid of drafts. Flame flickers with mood.",
-    emotes: ["Flicker (nervous)", "Flame flare (excited)", "Drip melt", "Blow out (sleep)"] },
+    moves: ["Flicker (nervous)", "Flame flare (excited)", "Drip melt", "Blow out (sleep)"] },
   { id: "crit", name: "Crit", species: "d20 Golem", color: "#ff5d6c",
     personality: "Steady, goofy, takes everything as a roll. Insists a natural 20 is always imminent.",
-    emotes: ["Roll tumble", "Nat-20 cheer", "Nat-1 sad slump", "Stomp"] },
+    moves: ["Roll tumble", "Nat-20 cheer", "Nat-1 sad slump", "Stomp"] },
   { id: "nimbus", name: "Nimbus", species: "Star Whale Calf", color: "#6cc8ff",
     personality: "Dreamy, wise beyond its size, drifts toward whoever is having a bad day.",
-    emotes: ["Drift in a circle", "Sing (sparkles)", "Rain a little", "Yawn"] },
+    moves: ["Drift in a circle", "Sing (sparkles)", "Rain a little", "Yawn"] },
   { id: "hex", name: "Hex", species: "Witch's Cat", color: "#ffd24a",
     personality: "Aloof, curious, loves sitting on whichever card you were about to read. Knocks tokens off the table on purpose.",
-    emotes: ["Loaf (sit on the card)", "Knock a token off", "Tail-star twirl", "Slow blink"] },
+    moves: ["Loaf (sit on the card)", "Knock a token off", "Tail-star twirl", "Slow blink"] },
   { id: "ribbit", name: "Sir Ribbit", species: "Frog Knight", color: "#7dd957",
     personality: "Brave, wobbly and very dramatic. Challenges every creature to a duel, then hides behind the shield.",
-    emotes: ["Throat-bubble croak", "Shield up", "Sword salute", "Tongue-snatch a token"] },
+    moves: ["Throat-bubble croak", "Shield up", "Sword salute", "Tongue-snatch a token"] },
 ];
 
 const AVATAR_BY_ID = new Map(AVATARS.map((a) => [a.id, a]));

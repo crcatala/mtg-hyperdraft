@@ -24,7 +24,9 @@ const RATE = 44100;
 /** Slots that ship a second take (the most repeated sounds). */
 const TWO_TAKES = ["hello", "poke1", "poke2"];
 
-const { voices, slots } = JSON.parse(readFileSync(join(ROOT, "scripts", "roster", "voices.json"), "utf8"));
+const kit = JSON.parse(readFileSync(join(ROOT, "src", "shared", "companionKit.json"), "utf8"));
+const { slots } = kit.voice;
+const voices = Object.fromEntries(Object.entries(kit.companions).map(([id, c]) => [id, c.voice]));
 const prune = process.argv.includes("--prune");
 const arg = process.argv.slice(2).find((a) => !a.startsWith("--"));
 const ids = (arg ? [arg] : Object.keys(voices)).filter((id) => existsSync(join(DIR, id)));
