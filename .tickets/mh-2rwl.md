@@ -60,3 +60,7 @@ Human feedback on the foil pilot (quoted): "Some are pretty good. ... the ones i
 **2026-10-05T14:29:27Z**
 
 Human sign-off, foil (quoted): picks pasted with "verdict": "GO" ("ok these are my picks as \"GO\""). Picks (shipped <- candidate): hello-1<-hello-2, hello-2<-hello-1, poke1-1<-poke1-1, poke1-2<-poke1-2, poke2-1<-poke2-1, poke2-2<-poke2-3, poke3<-poke3-1, poke4<-poke4-1, poke5<-poke5-2, poke6<-poke6-2, poke7<-poke7-1, pickup<-pickup-2, drop<-drop-1, emote1<-emote1-1, emote2<-emote2-2, emote3<-emote3-1, emote4<-emote4-1, emote5<-emote5-1, emote6<-emote6-1 (19 files, 288 KB, public/sfx/companions/foil/). Note poke3-1 was picked although the objective check flags it as clipped; the human chose it by ear. Foil done; next: cinder.
+
+**2026-10-05T14:30:27Z**
+
+Cinder, generated (agent), PENDING human audition. Signature reworded before generating, applying the foil learnings: "chirrs" -> "burbling coos", added "tiny fire sputters" and "no chirps": "A chubby baby dragon with a soft warm plush-toy cartoon voice: gentle low-to-mid pitched burbling coos, rumbly purring growls and small snorting puffs with tiny fire sputters, rounded and mellow, never shrill, no chirps, no screeches". 48 gens + ~16 rerolls over 3 prune rounds (2 first-round API failures retried): final 48/48 pass objective checks, every slot 3/3 clean. Treble mean 18% (max 28%): brighter than foil (5%) and Hex (5%), probably the fire sputters; below the 30% shrill line but worth a listen.
