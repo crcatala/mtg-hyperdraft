@@ -1,6 +1,6 @@
 ---
 id: mh-2rwl
-status: open
+status: in_progress
 deps: [mh-ciu5, mh-5c1t]
 links: []
 created: 2026-10-05T03:44:16Z
@@ -38,3 +38,9 @@ The feature only lands if every companion sounds like itself. This is the bulk a
 - Loudness is consistent across companions (normalised on load by the existing analyze/normalize path; no file needs a gain hack > 2x).
 - Credit usage and reroll log recorded in ticket notes. No API key committed. Candidates are not committed.
 
+
+## Notes
+
+**2026-10-05T13:54:36Z**
+
+WIP (agent): PENDING human approval of credit spend before any generation. Plan: 9 companions (foil cinder folio gloop sprout wick crit nimbus ribbit) x 16 slots x 3 candidates = 432 generations (kit slots total 17.0 s of audio per set, so 459 s for 9 x 3); nimbus/gloop/ribbit already hold 8 round-2 candidates each (4 slots x 2), reused as-is (script skips existing files), so ~400 new. Expect ~35% flat-top clipping on first pass (worst: drop, emote4, poke7), so budget ~+40% regenerations: ~550-600 generations total. Cost: the spike measured ~5 credits per 1 s sound (character-cost header), i.e. ~2,300 credits for the base 459 s, ~3,200 with rerolls; if the account is billed at the documented 20 credits/s with a set duration it would be ~4x that. The API key lacks user_read so the balance cannot be read from here. Signatures for foil/cinder/folio/sprout/wick/crit are untested against the API. Proposed order: one companion at a time (generate, objective checks, audition page, pick, reroll rejects), starting with the 6 untested signatures' cheapest check (1 companion first) so wording problems are caught before spending on all 9.
