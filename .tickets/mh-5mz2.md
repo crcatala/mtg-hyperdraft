@@ -1,6 +1,6 @@
 ---
 id: mh-5mz2
-status: in_progress
+status: closed
 deps: [mh-x519, mh-kqys, mh-lhxh]
 links: []
 created: 2026-10-05T03:45:29Z
@@ -43,3 +43,9 @@ Players want to physically move their little buddy around the table and set it d
 - Works in solo/local mode; reduced motion respected (no dangle/transform fanciness but still functional).
 - Verified with agent-browser in two sessions; screenshots/capture in the PR. `npm run typecheck` and `rtk vitest run` pass.
 
+
+## Notes
+
+**2026-10-05T22:06:09Z**
+
+Implemented (agent): shared petSpotValid (off every mat: 1.0 sideways / 0.5 front-back margins; 1.0 from the rim) used by client and room. Protocol: petMove {x,y} + petCancel (STATELESS relays), setPetPos {at|null} (one write; stored as Player.companionAt, room relays petLand to others). Cleared on startDraft/startGame/toLobby and on a companion change. Client: petGesture.ts (HOLD_MS 250, MOVE_PX 8; non-owners only poke), companionCarry.ts (grab offset, <=20/s stream + 300 ms keep-alive, 1.5 s stale timeout on receivers, landed spot held until the state agrees, nope = poke5 reaction), figure glides/lifts/dangles/tints red over a bad spot; Home in the wheel centre (H). Verified in two browser sessions (room G9U6UQW), solo + reduced motion, lab. Optional, non-blocking: human listen/feel check of carry + landing.
