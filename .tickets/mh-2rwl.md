@@ -68,3 +68,7 @@ Cinder, generated (agent), PENDING human audition. Signature reworded before gen
 **2026-10-05T14:34:54Z**
 
 Human sign-off, cinder (quoted): picks pasted with "verdict": "GO" ("ok \"GO\" picks for cinder"). Picks (shipped <- candidate): hello-1<-hello-1, hello-2<-hello-3, poke1-1<-poke1-1, poke1-2<-poke1-3, poke2-1<-poke2-1, poke2-2<-poke2-3, poke3<-poke3-1, poke4<-poke4-3, poke5<-poke5-2, poke6<-poke6-3, poke7<-poke7-1, pickup<-pickup-3, drop<-drop-3, emote1<-emote1-3, emote2<-emote2-2, emote3<-emote3-2, emote4<-emote4-1, emote5<-emote5-3, emote6<-emote6-2 (19 files, public/sfx/companions/cinder/). No notes on the 18% treble mean. Cinder done; next: folio.
+
+**2026-10-05T14:36:06Z**
+
+Folio, generated (agent), PENDING human audition. Signature reworded before generating ("chirpy babbles" -> "burbling babbles", added the tome-mimic "growly gasps and rounded little snaps", "no chirps"): "A friendly living storybook creature with a soft warm plush-toy cartoon voice: soft papery page flutters, warm low burbling babbles, gentle growly gasps and rounded little snaps, mellow, never shrill, no chirps". 48 gens + ~23 rerolls over 4 prune rounds (1 API failure retried): 46/48 pass, 2 left flagged clipped (pickup-2, emote4-3; the other takes in those slots are clean). Treble mean 3% (max 9%).
