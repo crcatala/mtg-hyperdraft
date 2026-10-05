@@ -13,6 +13,7 @@ import {
   NOPE_REACTION,
   petPositions,
   petTarget,
+  pressPet,
   receivePetCancel,
   receivePetLand,
   receivePetMove,
@@ -22,6 +23,9 @@ import {
 import { clearReactions, reactionOf } from "../src/client/table/companionPlayback";
 import { clearBubbles, useBubbles } from "../src/client/table/companionTalk";
 import { tableApi } from "../src/client/table/drag";
+import { HOLD_MS } from "../src/client/table/petGesture";
+import { queuedWhileOffline } from "../src/client/net";
+import { resetCompanions } from "../src/client/table/companionPoke";
 import { voiceSlotLine } from "../src/shared/companionKit";
 import { companionSpot, matCenter } from "../src/shared/tableLayout";
 import type { ClientMessage, RoomView } from "../src/shared/protocol";
@@ -219,5 +223,108 @@ describe("carrying your companion (lift, follow, land or nope, relay)", () => {
     expect(liftPet(0, 0)).toBe(false);
     expect(sent).toEqual([]);
     expect(classes.has("dragging")).toBe(false);
+  });
+});
+
+describe("one press at a time, from one pointer (touch: a second finger)", () => {
+  /** A window that really dispatches events, so pressPet's listeners run. */
+  let win: EventTarget & { innerWidth: number; innerHeight: number };
+  const fire = (type: string, pointerId: number, x = 0, y = 0) => win.dispatchEvent(Object.assign(new Event(type), { pointerId, clientX: x, clientY: y }));
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "performance"] });
+    vi.advanceTimersByTime(60_000);
+    win = Object.assign(new EventTarget(), { innerWidth: 1280, innerHeight: 800 });
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", { body: { classList: { add: (c: string) => classes.add(c), remove: (c: string) => classes.delete(c), contains: (c: string) => classes.has(c) } } });
+    classes.clear();
+    sent.length = 0;
+    useStore.setState({ sendImpl: (m) => sent.push(m) });
+    tableApi.screenToTable = (x, y) => ({ x, y });
+    seatTable();
+    petPositions.set("me", HOME);
+    petPositions.set("u2", U2_HOME);
+  });
+  afterEach(() => {
+    // Everything, the poke ladder included (its throttle would otherwise carry over to the next test).
+    resetCompanions();
+    clearReactions();
+    clearBubbles();
+    tableApi.screenToTable = () => null;
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    useStore.setState({ view: null, sendImpl: () => {} });
+  });
+
+  /** Pointer 1 presses my companion at home and holds it until it's lifted. */
+  function liftWithPointer1() {
+    pressPet("me", { clientX: HOME.x, clientY: HOME.y, pointerId: 1 });
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(isCarried("me")).toBe(true);
+  }
+
+  it("ignores another pointer's moves and release; its own release drops it where it is", () => {
+    liftWithPointer1();
+    fire("pointermove", 1, 0, 0);
+    fire("pointermove", 2, 50, 50);
+    fire("pointerup", 2, 50, 50);
+    fire("pointercancel", 2);
+    expect(isCarried("me")).toBe(true);
+    expect(petTarget("me", HOME, undefined)).toMatchObject({ x: 0, y: 0, carried: "local" });
+    fire("pointerup", 1, 0, 0);
+    expect(isCarried("me")).toBe(false);
+    expect(sent.filter((m) => m.t === "setPetPos")).toEqual([{ t: "setPetPos", at: { x: 0, y: 0 } }]);
+    expect(classes.has("dragging")).toBe(false);
+  });
+
+  it("ignores a second finger pressing a companion mid-carry, instead of stranding the carry", () => {
+    liftWithPointer1();
+    pressPet("u2", { clientX: U2_HOME.x, clientY: U2_HOME.y, pointerId: 2 });
+    fire("pointerup", 2, U2_HOME.x, U2_HOME.y);
+    // No poke from the second finger, and the carry still answers to the first.
+    expect(sent.some((m) => m.t === "poke")).toBe(false);
+    fire("pointermove", 1, 0, 0);
+    fire("pointerup", 1, 0, 0);
+    expect(isCarried("me")).toBe(false);
+    expect(sent.filter((m) => m.t === "setPetPos")).toHaveLength(1);
+    // And a fresh press works afterwards.
+    vi.advanceTimersByTime(1000);
+    pressPet("u2", { clientX: U2_HOME.x, clientY: U2_HOME.y, pointerId: 3 });
+    fire("pointerup", 3, U2_HOME.x, U2_HOME.y);
+    expect(sent.filter((m) => m.t === "poke")).toHaveLength(1);
+  });
+
+  it("a new press from the same pointer (its release went missing) puts the old carry back first", () => {
+    liftWithPointer1();
+    sent.length = 0;
+    pressPet("u2", { clientX: U2_HOME.x, clientY: U2_HOME.y, pointerId: 1 });
+    expect(isCarried("me")).toBe(false);
+    expect(sent).toEqual([{ t: "petCancel" }]);
+    expect(classes.has("dragging")).toBe(false);
+    fire("pointerup", 1, U2_HOME.x, U2_HOME.y);
+    expect(sent.at(-1)).toMatchObject({ t: "poke", target: "u2" });
+  });
+
+  it("leaving the table mid-carry takes the grabbing cursor away even when the view is already gone", () => {
+    liftWithPointer1();
+    expect(classes.has("dragging")).toBe(true);
+    useStore.setState({ view: null });
+    resetCarries();
+    expect(classes.has("dragging")).toBe(false);
+    expect(isCarried("me")).toBe(false);
+    // Nothing keeps streaming either.
+    sent.length = 0;
+    vi.advanceTimersByTime(CARRY_KEEPALIVE_MS * 3);
+    expect(sent).toEqual([]);
+  });
+});
+
+describe("what waits for a reconnect", () => {
+  it("never queues live movement (card drags, a carried companion), but keeps drops and everything else", () => {
+    expect(queuedWhileOffline({ t: "drag", id: "c1", x: 0, y: 0 })).toBe(false);
+    expect(queuedWhileOffline({ t: "petMove", x: 0, y: 0 })).toBe(false);
+    for (const msg of [{ t: "setPetPos", at: { x: 0, y: 0 } }, { t: "setPetPos", at: null }, { t: "petCancel" }, { t: "emote", slot: 0 }] as const) {
+      expect(queuedWhileOffline(msg), msg.t).toBe(true);
+    }
   });
 });

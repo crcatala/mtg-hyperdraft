@@ -81,22 +81,28 @@ export const isCarried = (playerId: string): boolean => carries.has(playerId);
 
 // --- this player's own carry ------------------------------------------------------------------
 
-/** The press in progress on a companion, and how to stop listening to it. */
-let press: { g: Gesture; target: string; end: () => void } | null = null;
+/** The press in progress on a companion: its pointer (the only one it listens to), and how to stop listening. */
+let press: { g: Gesture; target: string; pointerId?: number; end: () => void } | null = null;
 /** Pointer → companion offset, so it doesn't jump to sit under the pointer when it's grabbed. */
 let grab: Vec2 = { x: 0, y: 0 };
 let lastSent = 0;
 let keepalive: ReturnType<typeof setInterval> | undefined;
 
 /**
- * A press on `target`'s companion (from its figure's pointerdown). Follows the pointer from here on, on the
- * window, so nothing else on the table (panning, card drags, pings) sees it: what it turns into is petGesture's call.
+ * A press on `target`'s companion (from its figure's pointerdown). Follows that one pointer from here on, on the
+ * window, so nothing else on the table (panning, card drags, pings) sees it: what it turns into is petGesture's
+ * call. Only one press at a time: a second finger on a companion meanwhile is ignored. A new press from the same
+ * pointer means its release went missing (let go outside the window): the old press is cancelled first, so a
+ * carry can't be left stranded in the air.
  */
 export function pressPet(target: string, e: { clientX: number; clientY: number; pointerId?: number; target?: EventTarget | null }) {
-  press?.end();
+  if (press && press.pointerId !== e.pointerId) return;
+  if (press) cancelPress();
   const own = target === me();
   let last = { x: e.clientX, y: e.clientY };
-  const el = e.target instanceof Element ? e.target : null;
+  const el = e.target && "setPointerCapture" in e.target ? (e.target as Element) : null;
+  /** Events from other pointers (another finger) aren't this press's business. */
+  const mine = (ev: PointerEvent) => e.pointerId === undefined || ev.pointerId === e.pointerId;
   try {
     if (e.pointerId !== undefined) el?.setPointerCapture(e.pointerId);
   } catch {
@@ -110,15 +116,21 @@ export function pressPet(target: string, e: { clientX: number; clientY: number; 
     if (r.g.phase === "idle") press?.end();
   };
   const move = (ev: PointerEvent) => {
+    if (!mine(ev)) return;
     last = { x: ev.clientX, y: ev.clientY };
     step({ type: "move", x: ev.clientX, y: ev.clientY, t: performance.now() });
     if (press?.g.phase === "carrying") carryPetTo(ev.clientX, ev.clientY);
   };
   const up = (ev: PointerEvent) => {
+    if (!mine(ev)) return;
     last = { x: ev.clientX, y: ev.clientY };
     step({ type: "up", t: performance.now() });
   };
-  const cancel = () => step({ type: "cancel" });
+  const cancel = (ev?: Event) => {
+    if (ev?.type === "pointercancel" && !mine(ev as PointerEvent)) return;
+    step({ type: "cancel" });
+  };
+  const blur = () => cancel();
   const key = (ev: KeyboardEvent) => {
     if (ev.key !== "Escape" || press?.g.phase !== "carrying") return;
     ev.preventDefault();
@@ -130,17 +142,18 @@ export function pressPet(target: string, e: { clientX: number; clientY: number; 
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
   window.addEventListener("pointercancel", cancel);
-  window.addEventListener("blur", cancel);
+  window.addEventListener("blur", blur);
   window.addEventListener("keydown", key, true);
   press = {
     g: pressGesture(own, e.clientX, e.clientY, performance.now()),
     target,
+    pointerId: e.pointerId,
     end: () => {
       clearTimeout(hold);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
-      window.removeEventListener("blur", cancel);
+      window.removeEventListener("blur", blur);
       window.removeEventListener("keydown", key, true);
       try {
         if (e.pointerId !== undefined && el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
@@ -150,6 +163,14 @@ export function pressPet(target: string, e: { clientX: number; clientY: number; 
       press = null;
     },
   };
+}
+
+/** Ends the press in progress as if it was taken away: a carry goes back where it was. */
+function cancelPress() {
+  if (!press) return;
+  const r = stepGesture(press.g, { type: "cancel" });
+  press.end();
+  if (r.effect === "cancel") cancelPet();
 }
 
 function apply(effect: GestureEffect, target: string, at: { x: number; y: number }) {
@@ -349,8 +370,9 @@ function companionOf(playerId: string): string | undefined {
 /** Leaving the table: drop any carry (ours included) and every just-landed spot. The next room reuses player ids. */
 export function resetCarries() {
   press?.end();
-  if (carries.get(me())?.local) endLocalCarry();
   carries.clear();
+  // Whatever was carried, and whoever "me" is by now (the view may already be gone): the grabbing cursor goes.
+  globalThis.document?.body?.classList.remove("dragging");
   landed.clear();
   for (const t of loops.values()) clearTimeout(t);
   loops.clear();

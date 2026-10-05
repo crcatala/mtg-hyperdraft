@@ -207,8 +207,16 @@ function open() {
   };
 }
 
+/**
+ * Live previews of something moving (a dragged card, a carried companion): stale the moment they can't go out,
+ * and streamed many times a second, so they're never queued for a reconnect. Flushing a few seconds' worth at
+ * once would blow through the room's flood limits, taking the drop that follows them down too (or the socket).
+ */
+const LIVE_ONLY: ReadonlySet<ClientMessage["t"]> = new Set(["drag", "petMove"]);
+export const queuedWhileOffline = (msg: ClientMessage): boolean => !LIVE_ONLY.has(msg.t);
+
 export function sendRaw(msg: ClientMessage) {
   const text = JSON.stringify(msg);
   if (socket && socket.readyState === WebSocket.OPEN) socket.send(text);
-  else if (msg.t !== "drag") queue.push(text);
+  else if (queuedWhileOffline(msg)) queue.push(text);
 }
