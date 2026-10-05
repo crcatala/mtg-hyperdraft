@@ -47,6 +47,18 @@ function gear(teeth: number, inner: number, outer: number): string {
   return `M${pts.join("L")}z`;
 }
 
+/** An outward spiral from (cx, cy): `turns` full turns, growing to radius `r`. */
+function spiral(cx: number, cy: number, turns: number, r: number): string {
+  const steps = Math.round(turns * 16);
+  const pts: string[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const u = i / steps;
+    const a = u * turns * Math.PI * 2 - Math.PI / 2;
+    pts.push(`${f(cx + Math.cos(a) * r * u)} ${f(cy + Math.sin(a) * r * u)}`);
+  }
+  return `M${pts.join("L")}`;
+}
+
 const stroke = (d: string): IconPart => ({ d });
 const solid = (d: string): IconPart => ({ d, fill: true });
 /** Filled and stroked: a solid shape with softened corners. */
@@ -172,6 +184,25 @@ export const ICONS = {
   "arrow-down": [stroke("M12 4.5v15"), stroke("M6 13.5l6 6 6-6")],
   "arrow-left": [stroke("M19.5 12h-15"), stroke("M10.5 6l-6 6 6 6")],
   "arrow-right": [stroke("M4.5 12h15"), stroke("M13.5 6l6 6-6 6")],
+
+  // --- companion emotes (the wheel; see EMOTE_SLOTS in shared/companionKit.ts; Love uses `heart`) ---
+  /** Cheer: a party popper, confetti flying out. */
+  party: [
+    soft("M3.5 20.5L8 8.5l7.5 7.5z"),
+    stroke("M13.5 10.5c1.5-2.5 3.5-3.5 6-3"),
+    stroke("M12 3.5l.6 2.4"),
+    stroke("M17.6 13.4l2.4.6"),
+    solid(circle(16.5, 3.8, 1.2)),
+    solid(circle(20.3, 10.5, 1.2)),
+  ],
+  /** Oops: a sweat drop. */
+  sweat: [stroke("M12 3s-6.5 7.2-6.5 11.5a6.5 6.5 0 0 0 13 0C18.5 10.2 12 3 12 3z"), stroke("M9 14.8a3 3 0 0 0 2.4 2.9")],
+  /** Silly: a dizzy spiral. */
+  spiral: [stroke(spiral(12, 12, 2.2, 9.5))],
+  /** Sass: a smirk under half-closed eyes. */
+  smirk: [stroke(circle(12, 12, 9.5)), stroke("M7.3 9.8h3.2"), stroke("M13.5 9.8h3.2"), stroke("M8.8 15.6c2.4 1 5 .6 6.9-1.6")],
+  /** Taunt: a wink and a stuck-out tongue. */
+  tongue: [stroke(circle(12, 12, 9.5)), solid(circle(8.8, 9.6, 1.3)), stroke("M13.6 10l1.6-1.2 1.6 1.2"), stroke("M7.5 14h9"), soft("M10.2 14v2.3a1.8 1.8 0 0 0 3.6 0V14z")],
 
   // --- card types (art on text-only cards) ---
   /** Crossed swords: long blades crossing high, guards and hilts low. */

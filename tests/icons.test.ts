@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cardTypeIcon, ICONS, type IconPart } from "../src/client/icons";
+import { EMOTE_SLOTS } from "../src/shared/companionKit";
 
 describe("icons", () => {
   it("every icon is well-formed SVG path data", () => {
@@ -22,5 +23,9 @@ describe("icons", () => {
     expect(cardTypeIcon("Artifact — Equipment")).toBe("gear");
     expect(cardTypeIcon("Basic Land — Island")).toBe("land");
     expect(cardTypeIcon("Kindred Tribal")).toBe("diamond");
+  });
+
+  it("has an icon for every emote on the companion wheel", () => {
+    for (const e of EMOTE_SLOTS) expect(ICONS, e.id).toHaveProperty(e.icon);
   });
 });
