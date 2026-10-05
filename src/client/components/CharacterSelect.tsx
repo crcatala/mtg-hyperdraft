@@ -7,7 +7,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEv
 import { createPortal } from "react-dom";
 import { useStore } from "../store";
 import type { Player } from "../../shared/types";
-import { saveLook } from "../identity";
+import { loadLook, mergeLook, saveLook } from "../identity";
 import { AVATARS, COMPANIONS, accentOf, avatarArt, avatarDef, avatarFace, companionArt, companionDef, companionSmall, holders, surprise } from "../roster";
 import { petFilter } from "./Persona";
 import { Icon } from "./Icon";
@@ -68,7 +68,8 @@ export function CharacterSelect({ initialTab = "avatar", onClose }: { initialTab
   const choose = (id: string | null) => {
     if ((id ?? NONE) === current) return;
     send({ t: "setLook", [tab]: id });
-    saveLook({ avatar: me.avatar, companion: me.companion, [tab]: id ?? undefined });
+    // Built from what is saved, not from `me`: a pick made a moment ago may not be in the room view yet.
+    saveLook(mergeLook(loadLook(), tab, id));
   };
 
   const roll = () => {

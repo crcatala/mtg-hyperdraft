@@ -15,6 +15,7 @@ import { DRAG_LIFT, livePoses, motionScale, reducedMotion, useMotion } from "./m
 import { easeInOutCubic, Flights } from "./Flights";
 import type { IconName } from "../icons";
 import { shortcutsBlocked } from "../shortcuts";
+import { hopFade } from "./petMotion";
 import { accentOf, avatarFace, companionArt, companionDef, variantHue } from "../roster";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
@@ -299,18 +300,15 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
       ))}
       {peek && <LibraryLook look={peek} libraryCount={player?.zones.library.length ?? 0} seat={seat} seatCount={seatCount} />}
       {!isMe && handCount > 0 && <OpponentHand count={handCount} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />}
-      {look?.companion && <CompanionFigure companion={look.companion} variant={look.companionVariant ?? 0} seat={seat} seatCount={seatCount} active={table.turn.playerId === playerId} offline={offline} />}
+      {look?.companion && <CompanionFigure companion={look.companion} variant={look.companionVariant ?? 0} seat={seat} seatCount={seatCount} active={table.turn.playerId === playerId} turnNumber={table.turn.number} offline={offline} />}
     </group>
   );
 }
 
 const PET_SIZE = 2.8;
-/** How long a companion hops after its player's turn starts: full height, then easing off to rest. */
-const HOP_SECONDS = 5;
-const HOP_EASE_SECONDS = 1.5;
 
 /** The player's companion standing by the back-left corner of their mat: a picture for now, until it becomes a 3D model. It hops when its player's turn starts, then settles. */
-function CompanionFigure({ companion, variant, seat, seatCount, active, offline }: { companion: string; variant: number; seat: number; seatCount: number; active: boolean; offline: boolean }) {
+function CompanionFigure({ companion, variant, seat, seatCount, active, turnNumber, offline }: { companion: string; variant: number; seat: number; seatCount: number; active: boolean; turnNumber: number; offline: boolean }) {
   const def = companionDef(companion);
   const url = companionArt(companion);
   const img = useImage(variant > 0 ? url : null);
@@ -319,11 +317,13 @@ function CompanionFigure({ companion, variant, seat, seatCount, active, offline 
   const at = localToTable({ x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 }, seat, seatCount);
   const body = useRef<THREE.Group>(null);
   const phase = useMemo(() => Math.random() * Math.PI * 2, []);
-  // When this player's turn started (or the table opened on it), so the hopping can wind down.
+  // When this player's turn started (or the table opened on it), so the hopping can wind down. The turn
+  // number is a dependency too: with one player at the table (solo) it's their turn again, and `active`
+  // never changes, so only the number says a new turn began.
   const turnStart = useRef<number | null>(null);
   useEffect(() => {
     turnStart.current = active ? performance.now() : null;
-  }, [active]);
+  }, [active, turnNumber]);
   useFrame(({ clock }) => {
     const g = body.current;
     if (!g) return;
@@ -334,8 +334,7 @@ function CompanionFigure({ companion, variant, seat, seatCount, active, offline 
       return;
     }
     // Idle: a slow breath. Just after their turn starts: hops that ease off to rest.
-    const sinceTurn = turnStart.current === null ? Infinity : (performance.now() - turnStart.current) / 1000;
-    const fade = Math.min(1, Math.max(0, (HOP_SECONDS - sinceTurn) / HOP_EASE_SECONDS));
+    const fade = hopFade(turnStart.current === null ? null : (performance.now() - turnStart.current) / 1000);
     const hop = Math.abs(Math.sin(t * 3.2)) * 0.4 * fade;
     const breath = 1 + Math.sin(t * 1.6) * 0.018;
     g.position.y = hop;

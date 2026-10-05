@@ -79,6 +79,17 @@ export function loadLook(): LookPref {
   }
 }
 
+/**
+ * `prev` with one choice changed (`null` clears it). Callers pass what's saved in the browser rather than
+ * the room's current state, which may not have caught up with the player's last pick yet.
+ */
+export function mergeLook(prev: LookPref, field: keyof LookPref, id: string | null): LookPref {
+  const next = { ...prev };
+  if (id) next[field] = id;
+  else delete next[field];
+  return next;
+}
+
 export function saveLook(look: LookPref) {
   safeSet(aliasedKey(LOOK_KEY), JSON.stringify(look));
 }
