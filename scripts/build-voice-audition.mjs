@@ -79,6 +79,7 @@ for (const id of ids) {
       const radios = `<label><input type="radio" name="${id}/${slot}" value="${n}"> pick</label>` + (TWO_TAKES.includes(slot) ? ` <label><input type="radio" name="${id}/${slot}#2" value="${n}"> 2nd take</label>` : "");
       return `<div class="take${r.problems.length ? " bad" : ""}"><b>${n}</b><audio controls preload="none" src="${id}/${f}"></audio><small>${r.seconds}s · peak ${r.peak}${r.problems.length ? " · ⚠ " + r.problems.join(", ") : ""}</small>${radios}</div>`;
     });
+    if (!takes.length) continue;
     rows.push(`<section><h3>${slot} <small>${esc(slots[slot].emotion)}</small></h3><div class="takes">${cells.join("")}</div></section>`);
   }
   sections.push(`<h2>${id}</h2><p class="sig">${esc(voices[id])}</p>${rows.join("")}`);
