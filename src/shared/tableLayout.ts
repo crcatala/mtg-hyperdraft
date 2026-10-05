@@ -54,7 +54,7 @@ export const COMPANION_LOCAL: Vec2 = { x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 
 export const companionSpot = (seat: number, seatCount: number): Vec2 => localToTable(COMPANION_LOCAL, seat, seatCount);
 
 /**
- * How far a companion's feet keep from the edges of any mat: about half its footprint (its shadow is ~2.2 wide
+ * How far a companion's feet keep from the edges of anyone else's mat: about half its footprint (its shadow is ~2.2 wide
  * and ~0.95 deep), sideways along the mat's ends and front/back along its long edges. Sideways stays under the
  * 1.3 its home spot keeps from its own mat, so home is always valid. The rim keeps the wider of the two.
  */
@@ -62,13 +62,20 @@ export const PET_MARGIN = 1;
 export const PET_MARGIN_DEPTH = 0.5;
 
 /**
- * Whether a companion may be put down at table point `p`: on the table, and off every seat's mat (anyone's, not
- * just its owner's). The client checks it before dropping, and the room again before storing the spot.
+ * Whether the companion of the player at `ownSeat` may be put down at table point `p`: on the table, and off
+ * everyone else's mat. Its own player's mat is fair game, cards and piles included (they can always move it
+ * off again to get at them). The client checks it before dropping, and the room again before storing the spot.
  */
-export function petSpotValid(p: Vec2, seatCount: number): boolean {
+export function petSpotValid(p: Vec2, seatCount: number, ownSeat: number): boolean {
   if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+  // Its own mat first: the mat's corners reach past the table's rim at 1-2 seats, and they count as the mat.
+  if (ownSeat >= 0 && ownSeat < seatCount) {
+    const own = tableToLocal(p, ownSeat, seatCount);
+    if (Math.abs(own.x) <= MAT_W / 2 && Math.abs(own.y) <= MAT_D / 2) return true;
+  }
   if (Math.hypot(p.x, p.y) > tableRadius(seatCount) - PET_MARGIN) return false;
   for (let seat = 0; seat < Math.max(1, seatCount); seat++) {
+    if (seat === ownSeat) continue;
     const local = tableToLocal(p, seat, seatCount);
     if (Math.abs(local.x) < MAT_W / 2 + PET_MARGIN && Math.abs(local.y) < MAT_D / 2 + PET_MARGIN_DEPTH) return false;
   }

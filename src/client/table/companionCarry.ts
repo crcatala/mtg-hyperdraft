@@ -1,8 +1,8 @@
 // Picking your companion up and putting it down somewhere else on the table (D2, D9, D13 in the epic). A press
 // on a companion runs through petGesture.ts: a tap pokes it; on your own, a hold or a drag lifts it, it follows
-// the pointer, and letting go puts it down. Off every mat and on the table (petSpotValid) it lands there: one
-// stored `setPetPos`, which the room re-checks and announces to the others (`petLand`). Anywhere else it goes
-// back where it was with a "nope". While it's carried its position streams to the others (`petMove`, like a
+// the pointer, and letting go puts it down. On the table and off everyone else's mat (petSpotValid; its own
+// player's mat is fine, cards and all) it lands there: one stored `setPetPos`, which the room re-checks and
+// announces to the others (`petLand`). Anywhere else it goes back where it was with a "nope". While it's carried its position streams to the others (`petMove`, like a
 // card drag) so they see it travel; a carry that goes quiet (a lost connection) ends on their screens by itself.
 // The figures read this module every frame (petTarget), like companionPlayback: plain maps, no re-renders.
 
@@ -194,7 +194,7 @@ export function carryPetTo(clientX: number, clientY: number) {
   c.x = pt.x + grab.x;
   c.y = pt.y + grab.y;
   c.at = performance.now();
-  c.valid = petSpotValid(c, t.seats.length);
+  c.valid = petSpotValid(c, t.seats.length, t.seats.indexOf(me()));
   sendMove(c);
 }
 
@@ -205,7 +205,7 @@ export function dropPet(clientX: number, clientY: number) {
   const c = carries.get(pid);
   if (!c?.local) return;
   const t = table();
-  if (!t || !petSpotValid(c, t.seats.length)) {
+  if (!t || !petSpotValid(c, t.seats.length, t.seats.indexOf(pid))) {
     cancelPet();
     return;
   }

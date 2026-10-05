@@ -307,9 +307,9 @@ describe("carrying companions around the table", () => {
     return { room, deps, a, b, c };
   }
   const me = (room: Room, pid: string) => room.state.players.find((p) => p.id === pid)!;
-  // Open table in the middle (three seats leave it free of mats), and the middle of Bob's mat.
+  // Open table in the middle (three seats leave it free of mats), and the middle of a player's mat.
   const OPEN = { x: 0.123, y: -0.456 };
-  const onMat = (room: Room) => matCenter(room.state.table!.seats.indexOf(room.state.players[1].id), 3);
+  const matOf = (room: Room, pid: string) => matCenter(room.state.table!.seats.indexOf(pid), 3);
 
   it("relays the carry (moves, a cancelled drop) to the others, stamped with the sender, never stored", () => {
     const { room, a, c } = game();
@@ -336,11 +336,18 @@ describe("carrying companions around the table", () => {
     expect(room.viewFor(b.playerId).players.find((p) => p.id === a.playerId)?.companionAt).toEqual({ x: 0.12, y: -0.46 });
   });
 
-  it("rejects a drop on any mat, off the table, or with no companion, changing nothing", () => {
-    const { room, a, c } = game();
+  it("takes a drop on the sender's own mat (cards, piles and all)", () => {
+    const { room, a } = game();
+    const mine = matOf(room, a.playerId);
+    expect(send(room, a.playerId, { t: "setPetPos", at: mine }).changed).toBe(true);
+    expect(me(room, a.playerId).companionAt).toEqual({ x: Math.round(mine.x * 100) / 100, y: Math.round(mine.y * 100) / 100 });
+  });
+
+  it("rejects a drop on anyone else's mat, off the table, or with no companion, changing nothing", () => {
+    const { room, a, b, c } = game();
     send(room, a.playerId, { t: "setPetPos", at: OPEN });
     const before = JSON.stringify(room.state);
-    for (const at of [onMat(room), matCenter(0, 3), { x: 0, y: tableRadius(3) + 2 }, { x: 150, y: 150 }]) {
+    for (const at of [matOf(room, b.playerId), matOf(room, c.playerId), { x: 0, y: tableRadius(3) + 2 }, { x: 150, y: 150 }]) {
       const res = send(room, a.playerId, { t: "setPetPos", at });
       expect(res.changed).toBe(false);
       expect(res.outbound).toEqual([{ to: "self", msg: { t: "error", message: "Your companion can't stand there." } }]);

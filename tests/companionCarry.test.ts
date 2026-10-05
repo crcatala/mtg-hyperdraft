@@ -97,7 +97,7 @@ describe("carrying your companion (lift, follow, land or nope, relay)", () => {
     expect(sent.at(-1)).toEqual({ t: "petMove", x: 2, y: 0.5 });
   });
 
-  it("shows when it can't land where it is (on a mat, off the table)", () => {
+  it("shows when it can't land where it is (on someone else's mat, off the table)", () => {
     liftPet(HOME.x, HOME.y);
     const mat = matCenter(1, 2);
     carryPetTo(mat.x, mat.y);
@@ -130,7 +130,7 @@ describe("carrying your companion (lift, follow, land or nope, relay)", () => {
   });
 
   it("goes back with a nope on a bad spot (or Esc): no stored change, the others told to put it back", () => {
-    for (const end of [() => dropPet(matCenter(0, 2).x, matCenter(0, 2).y), () => cancelPet()]) {
+    for (const end of [() => dropPet(matCenter(1, 2).x, matCenter(1, 2).y), () => cancelPet()]) {
       liftPet(HOME.x, HOME.y);
       carryPetTo(30, 30);
       sent.length = 0;
@@ -141,6 +141,16 @@ describe("carrying your companion (lift, follow, land or nope, relay)", () => {
       expect(reactionOf("me")?.slot).toBe(NOPE_REACTION);
       expect(petTarget("me", HOME, undefined)).toMatchObject({ x: HOME.x, y: HOME.y, carried: null });
     }
+  });
+
+  it("lands on its own player's mat too, over whatever is there", () => {
+    const mine = matCenter(0, 2);
+    liftPet(HOME.x, HOME.y);
+    carryPetTo(mine.x, mine.y);
+    expect(petTarget("me", HOME, undefined).invalid).toBe(false);
+    dropPet(mine.x, mine.y);
+    expect(sent.filter((m) => m.t === "setPetPos")).toEqual([{ t: "setPetPos", at: { x: Math.round(mine.x * 100) / 100, y: Math.round(mine.y * 100) / 100 } }]);
+    expect(reactionOf("me")?.slot).toBe("drop");
   });
 
   it("a landing the room never confirms gives way to the state after LAND_HOLD_MS", () => {

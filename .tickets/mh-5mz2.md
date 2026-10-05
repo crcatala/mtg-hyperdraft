@@ -49,3 +49,7 @@ Players want to physically move their little buddy around the table and set it d
 **2026-10-05T22:06:09Z**
 
 Implemented (agent): shared petSpotValid (off every mat: 1.0 sideways / 0.5 front-back margins; 1.0 from the rim) used by client and room. Protocol: petMove {x,y} + petCancel (STATELESS relays), setPetPos {at|null} (one write; stored as Player.companionAt, room relays petLand to others). Cleared on startDraft/startGame/toLobby and on a companion change. Client: petGesture.ts (HOLD_MS 250, MOVE_PX 8; non-owners only poke), companionCarry.ts (grab offset, <=20/s stream + 300 ms keep-alive, 1.5 s stale timeout on receivers, landed spot held until the state agrees, nope = poke5 reaction), figure glides/lifts/dangles/tints red over a bad spot; Home in the wheel centre (H). Verified in two browser sessions (room G9U6UQW), solo + reduced motion, lab. Optional, non-blocking: human listen/feel check of carry + landing.
+
+**2026-10-05T22:34:30Z**
+
+Human tweak (PR #35 review), quoted: "can we be able to place companion even on your own playmat area? even over cards and deck and stuff, no need to make special cases of elevating it or anything like that. companaion can be easily re-moveb by player to get access to cards, dec etc anyway". Done (agent): petSpotValid(p, seatCount, ownSeat) accepts anywhere on the owner's own mat (checked before the rim: the mat corners reach past the rim at 1-2 seats); other seats' mats and off-table still refused. No elevation special-casing (a tall pile hides the lower half of a companion standing on it).

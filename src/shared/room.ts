@@ -530,13 +530,15 @@ export class Room {
 
       case "setPetPos": {
         // Putting it down: the one companion change that's stored (one write per drop), so reloads and late
-        // joiners see it where it was left. Only ever the sender's own, and only somewhere it may stand.
+        // joiners see it where it was left. Only ever the sender's own, and only somewhere it may stand (on the
+        // table, off everyone else's mat).
         if (!this.atTableWithCompanion(playerId)) throw new RoomError("You have no companion at the table.");
         if (msg.at === null) {
           if (!me.companionAt) return;
           delete me.companionAt;
         } else {
-          if (!petSpotValid(msg.at, this.state.table!.seats.length)) throw new RoomError("Your companion can't stand there.");
+          const seats = this.state.table!.seats;
+          if (!petSpotValid(msg.at, seats.length, seats.indexOf(playerId))) throw new RoomError("Your companion can't stand there.");
           me.companionAt = { x: Math.round(msg.at.x * 100) / 100, y: Math.round(msg.at.y * 100) / 100 };
         }
         result.outbound.push({ to: "others", msg: { t: "petLand", by: playerId, at: me.companionAt ?? null } });
