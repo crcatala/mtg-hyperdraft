@@ -56,3 +56,7 @@ Human listening check (PR #33), quoted: "i played around and sounds are good to 
 **2026-10-05T19:20:17Z**
 
 Option A done (agent): SpeechBubbles.tsx renders every bubble as DOM (z-index 40: over HUD panels at 10, under menus, the wheel and dialogs); CompanionFigure's BubbleAnchor writes the head's viewport position each frame (bubbleAnchors); placeBubble slides a bubble inside the window and keeps the tail on the companion (tested). bubbleTexture removed. Verified: solo default view, overview, 2-seat opponent view (over the view switcher), poke bubbles, lab.
+
+**2026-10-05T20:16:29Z**
+
+Review fixes (agent; user said 'sure go ahead' to fixing all three): (1) the finale's pending sulk only plays if the finale is still the companion's current reaction, so an emote over a finale isn't cut off (regression test in companionPoke.test.ts fails on the old code); (2) a bubble with no room above its companion goes under its feet with the tail up (feet anchor added; placeBubble edge tests), verified by panning a companion to the top edge; (3) the lab mounts SpeechBubbles outside the .panel stage (Arcane's backdrop-filter made the panel the fixed layer's containing block), verified with ?theme=arcane.
