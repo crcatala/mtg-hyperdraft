@@ -3,6 +3,7 @@
 
 import { z } from "zod";
 import { isAvatarId, isCompanionId } from "./roster";
+import { POKE_STEPS } from "./companionKit";
 import type {
   CardInstance,
   CardMap,
@@ -102,6 +103,8 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("table"), action: tableActionSchema }),
   z.object({ t: z.literal("drag"), id, x: coord, y: coord }),
   z.object({ t: z.literal("point"), x: coord, y: coord }),
+  /** A tap on a seated player's companion: `step` is the poke ladder step (0-based) the tapper is showing. */
+  z.object({ t: z.literal("poke"), target: id, step: z.number().int().min(0).max(POKE_STEPS - 1) }),
   z.object({ t: z.literal("debug"), cmd: z.enum(DEBUG_COMMANDS) }),
 ]);
 
@@ -176,6 +179,7 @@ export type ServerMessage =
   | { t: "cards"; cards: CardMap }
   | { t: "drag"; by: string; id: string; x: number; y: number }
   | { t: "point"; by: string; x: number; y: number }
+  | { t: "poke"; by: string; target: string; step: number }
   | { t: "error"; message: string }
   | { t: "pong" };
 

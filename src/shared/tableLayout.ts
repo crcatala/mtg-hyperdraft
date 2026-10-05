@@ -49,6 +49,10 @@ export function localToTable(p: Vec2, seat: number, seatCount: number): Vec2 {
   return rotate({ x: p.x, y: p.y + seatRadius(seatCount) }, seatAngle(seat, seatCount));
 }
 
+/** Where a player's companion stands: by the back-left corner of their mat (seat-local coordinates). */
+export const COMPANION_LOCAL: Vec2 = { x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 };
+export const companionSpot = (seat: number, seatCount: number): Vec2 => localToTable(COMPANION_LOCAL, seat, seatCount);
+
 /** Table coordinates → local mat coordinates of a seat. */
 export function tableToLocal(p: Vec2, seat: number, seatCount: number): Vec2 {
   const r = rotate(p, -seatAngle(seat, seatCount));

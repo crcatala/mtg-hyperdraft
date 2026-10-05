@@ -7,8 +7,13 @@ import { act, me, moveTo, playFromHand, settle, table, unsettle, useTableUi, typ
 import { DRAG_LIFT, noteDrop } from "./motion";
 
 /** Set by the canvas: converts a screen point to table coordinates (ray vs. table plane). */
-export const tableApi: { screenToTable: (clientX: number, clientY: number) => Vec2 | null } = {
+export const tableApi: {
+  screenToTable: (clientX: number, clientY: number) => Vec2 | null;
+  /** Where a table spot is across the screen, -1 (left edge) … 1 (right edge): stereo pan for sounds made there. */
+  screenPan: (x: number, y: number) => number;
+} = {
   screenToTable: () => null,
+  screenPan: () => 0,
 };
 
 export function isOverHand(clientY: number): boolean {

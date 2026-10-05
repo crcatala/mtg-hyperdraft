@@ -48,3 +48,8 @@ export function stopReaction(playerId: string) {
 
 /** What a player's companion is playing (slot "" once stopped), or null if it never reacted. */
 export const reactionOf = (playerId: string): PlayingReaction | null => playing.get(playerId) ?? null;
+
+/** Forgets every companion's reaction (leaving the table: the next room reuses player ids). */
+export function clearReactions() {
+  playing.clear();
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRoomState, PING_COOLDOWN_MS, Room, SeatClaimNeeded, type ImportResult } from "../src/shared/room";
+import { createRoomState, PING_COOLDOWN_MS, POKE_COOLDOWN_MS, Room, SeatClaimNeeded, type ImportResult } from "../src/shared/room";
 import { basicIds, makeCube, testDeps } from "./fixtures";
 import type { ClientMessage } from "../src/shared/protocol";
 
@@ -192,6 +192,45 @@ describe("room flow", () => {
     expect(send(room, b.playerId, { t: "point", x: 3, y: 4 }).outbound).toHaveLength(1);
     deps.advance(PING_COOLDOWN_MS);
     expect(send(room, a.playerId, { t: "point", x: 5, y: 6 }).outbound).toHaveLength(1);
+  });
+
+  it("relays companion pokes to the other players, stamped with the sender, never stored", () => {
+    const { room, deps } = newRoom();
+    const a = room.join({ name: "Alice", companion: "hex" });
+    const b = room.join({ name: "Bob", companion: "gloop" });
+    const c = room.join({ name: "Cara" }); // no companion
+    send(room, a.playerId, { t: "addBot" });
+    // Only at the table.
+    expect(send(room, a.playerId, { t: "poke", target: b.playerId, step: 0 }).outbound).toEqual([]);
+
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "debug", cmd: "startGame" });
+    expect(room.state.phase).toBe("playing");
+    const before = JSON.stringify(room.state);
+
+    const res = send(room, a.playerId, { t: "poke", target: b.playerId, step: 2 });
+    expect(res.changed).toBe(false);
+    expect(res.outbound).toEqual([{ to: "others", msg: { t: "poke", by: a.playerId, target: b.playerId, step: 2 } }]);
+    // `by` is always the sender's own id (there is no way to send one).
+    deps.advance(POKE_COOLDOWN_MS);
+    expect(send(room, b.playerId, { t: "poke", target: b.playerId, step: 0 }).outbound).toEqual([{ to: "others", msg: { t: "poke", by: b.playerId, target: b.playerId, step: 0 } }]);
+
+    // Dropped: unknown targets, players without a companion, bots (never seated at the table).
+    deps.advance(POKE_COOLDOWN_MS);
+    const bot = room.state.players.find((p) => p.isBot)!;
+    expect(bot.companion).toBeTruthy();
+    expect(room.state.table!.seats).not.toContain(bot.id);
+    for (const target of ["nobody", c.playerId, bot.id]) expect(send(room, a.playerId, { t: "poke", target, step: 0 }).outbound).toEqual([]);
+
+    // Spam inside the cooldown is dropped; each player has their own.
+    expect(send(room, a.playerId, { t: "poke", target: b.playerId, step: 3 }).outbound).toHaveLength(1);
+    expect(send(room, a.playerId, { t: "poke", target: b.playerId, step: 4 }).outbound).toEqual([]);
+    expect(send(room, c.playerId, { t: "poke", target: a.playerId, step: 0 }).outbound).toHaveLength(1);
+    deps.advance(POKE_COOLDOWN_MS);
+    expect(send(room, a.playerId, { t: "poke", target: b.playerId, step: 4 }).outbound).toHaveLength(1);
+
+    // Nothing about pokes is kept in the room.
+    expect(JSON.stringify(room.state)).toBe(before);
   });
 });
 

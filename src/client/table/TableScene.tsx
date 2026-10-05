@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { useStore } from "../store";
 import { handDragId } from "../../shared/table";
 import type { PublicLook, TableCard, TableState } from "../../shared/types";
-import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
+import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, companionSpot, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
 import { backTexture, feltTexture, glowTexture, labelTexture, lookTagTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, useImage, type LabelVariant } from "./textures";
 import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
@@ -16,6 +16,7 @@ import { easeInOutCubic, Flights } from "./Flights";
 import type { IconName } from "../icons";
 import { shortcutsBlocked } from "../shortcuts";
 import { CompanionFigure } from "./CompanionFigure";
+import { pokeCompanion } from "./companionPoke";
 import { accentOf, avatarFace } from "../roster";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
@@ -85,7 +86,7 @@ function Scene() {
   );
 }
 
-/** Exposes screen → table-plane conversion to DOM code (hand drags, drops). */
+/** Exposes screen ↔ table-plane conversions to DOM code (hand drags, drops, where a sound is panned). */
 function ScreenApi() {
   const { camera, gl } = useThree();
   useEffect(() => {
@@ -98,8 +99,11 @@ function ScreenApi() {
       ray.setFromCamera(ndc, camera);
       return ray.ray.intersectPlane(plane, hit) ? { x: hit.x, y: hit.z } : null;
     };
+    const spot = new THREE.Vector3();
+    tableApi.screenPan = (x, y) => THREE.MathUtils.clamp(spot.set(x, 0, y).project(camera).x, -1, 1);
     return () => {
       tableApi.screenToTable = () => null;
+      tableApi.screenPan = () => 0;
     };
   }, [camera, gl]);
   return null;
@@ -300,13 +304,10 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
       ))}
       {peek && <LibraryLook look={peek} libraryCount={player?.zones.library.length ?? 0} seat={seat} seatCount={seatCount} />}
       {!isMe && handCount > 0 && <OpponentHand count={handCount} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />}
-      {look?.companion && <CompanionFigure playerId={playerId} companion={look.companion} variant={look.companionVariant ?? 0} at={localToTable(COMPANION_LOCAL, seat, seatCount)} active={table.turn.playerId === playerId} turnNumber={table.turn.number} offline={offline} />}
+      {look?.companion && <CompanionFigure playerId={playerId} companion={look.companion} variant={look.companionVariant ?? 0} at={companionSpot(seat, seatCount)} active={table.turn.playerId === playerId} turnNumber={table.turn.number} offline={offline} onPoke={() => pokeCompanion(playerId)} />}
     </group>
   );
 }
-
-/** Where a player's companion stands: by the back-left corner of their mat (seat-local coordinates). */
-const COMPANION_LOCAL = { x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 };
 
 function Pile({ table, ownerId, zone, seat, seatCount, viewerAngle }: { table: TableState; ownerId: string; zone: PileZone; seat: number; seatCount: number; viewerAngle: number }) {
   // Cards still flying in don't count yet (and don't spoil the top of the graveyard early).

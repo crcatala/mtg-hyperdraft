@@ -4,6 +4,7 @@ import { CLOSE, type ClientMessage, type ServerMessage } from "../shared/protoco
 import { loadIdentity, loadLook, loadName, saveIdentity } from "./identity";
 import { useStore } from "./store";
 import { showPing } from "./table/tableUi";
+import { receivePoke } from "./table/companionPoke";
 import { rememberExpiry } from "./publicRooms";
 import { forgetRoom, isRoomGone, rememberRoom, snapshotOf } from "./recentRooms";
 
@@ -158,6 +159,9 @@ function open() {
         break;
       case "point":
         showPing(msg.by, msg.x, msg.y);
+        break;
+      case "poke":
+        receivePoke(msg.target, msg.step);
         break;
       case "error":
         if (!welcomed) {

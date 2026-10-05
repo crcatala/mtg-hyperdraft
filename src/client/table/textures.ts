@@ -763,3 +763,59 @@ export function glyphTexture(id: GlyphId): THREE.Texture {
   }
   return tex;
 }
+
+// --- companion speech bubbles -----------------------------------------------------------------
+
+const BUBBLE_STYLES = {
+  small: { font: 15, weight: 700, maxW: 200, padX: 12, padY: 8, lineH: 19, radius: 12, tail: 9 },
+  large: { font: 22, weight: 800, maxW: 280, padX: 16, padY: 11, lineH: 27, radius: 16, tail: 12 },
+} as const;
+/** Canvas pixels per CSS pixel: bubbles are drawn at twice their on-screen size so the text stays crisp. */
+const BUBBLE_RES = 2;
+
+/**
+ * A comic speech bubble with its tail pointing down, the text wrapped to fit. Not cached (one bubble per
+ * companion at a time; the caller disposes it). `width`/`height` are its on-screen size in CSS pixels, tail included.
+ */
+export function bubbleTexture(text: string, size: "small" | "large"): { texture: THREE.Texture; width: number; height: number } {
+  const st = BUBBLE_STYLES[size];
+  const font = `${st.weight} ${st.font}px Inter, sans-serif`;
+  const [, probe] = canvas(8, 8);
+  probe.font = font;
+  const lines = wrap(probe, text, st.maxW - st.padX * 2);
+  const textW = Math.max(...lines.map((l) => probe.measureText(l).width));
+  const w = Math.ceil(Math.max(st.radius * 3, textW + st.padX * 2)) + 4;
+  const bodyH = Math.ceil(lines.length * st.lineH + st.padY * 2) + 4;
+  const h = bodyH + st.tail;
+  const [c, ctx] = canvas(w * BUBBLE_RES, h * BUBBLE_RES);
+  ctx.scale(BUBBLE_RES, BUBBLE_RES);
+  // Body and tail as one outline, so the border runs round both.
+  const x0 = 2;
+  const y0 = 2;
+  const x1 = w - 2;
+  const y1 = bodyH - 2;
+  const r = st.radius;
+  const mid = w / 2;
+  ctx.beginPath();
+  ctx.moveTo(x0 + r, y0);
+  ctx.arcTo(x1, y0, x1, y1, r);
+  ctx.arcTo(x1, y1, x0, y1, r);
+  ctx.lineTo(mid + st.tail * 0.8, y1);
+  ctx.lineTo(mid, h - 2);
+  ctx.lineTo(mid - st.tail * 0.8, y1);
+  ctx.arcTo(x0, y1, x0, y0, r);
+  ctx.arcTo(x0, y0, x1, y0, r);
+  ctx.closePath();
+  ctx.fillStyle = "#fff7e8";
+  ctx.fill();
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+  ctx.fillStyle = INK;
+  ctx.font = font;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  lines.forEach((line, i) => ctx.fillText(line, mid, y0 + st.padY + st.lineH * (i + 0.5) + 1));
+  return { texture: finish(new THREE.CanvasTexture(c)), width: w, height: h };
+}

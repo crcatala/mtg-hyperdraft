@@ -1,17 +1,18 @@
 // A player's companion on the table (and in the lab, /dev/companion-lab): its picture on a soft shadow, an idle
 // breath, hops when its player's turn starts, and on top of that whatever reaction it is playing
-// (companionPlayback.ts), with its effect glyphs. The motion itself is pure (companionMotion.ts); this file
-// only turns poses into sprite transforms.
+// (companionPlayback.ts), with its effect glyphs and its speech bubble (companionTalk.ts). At the table it can be
+// tapped (a poke). The motion itself is pure (companionMotion.ts); this file only turns poses into sprite transforms.
 
 import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import { glowTexture, glyphTexture, hueTexture, spriteTexture, useImage } from "./textures";
+import { bubbleTexture, glowTexture, glyphTexture, hueTexture, spriteTexture, useImage } from "./textures";
 import { reducedMotion } from "./motion";
 import { hopFade } from "./petMotion";
 import { advanceTrack, fxSpawns, glyphPose, newTrack, REST, type Fx, type GlyphMotion } from "./companionMotion";
 import { bodyStyle, reactionFor } from "./companionReactions";
 import { reactionNow, reactionOf } from "./companionPlayback";
+import { bubblePop, useBubbles } from "./companionTalk";
 import { loadVoice } from "../companionVoice";
 import { companionArt, companionDef, variantHue } from "../roster";
 
@@ -21,6 +22,9 @@ const FLAT = -Math.PI / 2;
 export const FX_SLOTS = 8;
 /** Size of a glyph, in body heights. */
 const GLYPH_SIZE = 0.3;
+/** The tappable part of the picture: the body, not the whole (mostly transparent) square. */
+const HIT_W = 0.6;
+const HIT_H = 0.82;
 
 /** A glyph on screen, in one of the figure's FX_SLOTS sprites. */
 interface LiveGlyph {
@@ -37,9 +41,10 @@ const up = new THREE.Vector3();
 
 /**
  * `playerId` is whose companion this is (reactions are played per player); `at` is where it stands on the table.
- * Offline: no idle breath or hop (it's resting), but it still reacts if someone pokes it.
+ * Offline: no idle breath or hop (it's resting), but it still reacts if someone pokes it. `onPoke`: it can be
+ * tapped (a left click that doesn't reach the table underneath, so no pan, ping or deselect).
  */
-export function CompanionFigure({ playerId, companion, variant, at, active, turnNumber, offline }: { playerId: string; companion: string; variant: number; at: { x: number; y: number }; active: boolean; turnNumber: number; offline: boolean }) {
+export function CompanionFigure({ playerId, companion, variant, at, active, turnNumber, offline, onPoke }: { playerId: string; companion: string; variant: number; at: { x: number; y: number }; active: boolean; turnNumber: number; offline: boolean; onPoke?: () => void }) {
   const def = companionDef(companion);
   const url = companionArt(companion);
   const img = useImage(variant > 0 ? url : null);
@@ -52,6 +57,19 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
   const live = useRef<(LiveGlyph | null)[]>(Array(FX_SLOTS).fill(null));
   const track = useRef(newTrack());
   const phase = useMemo(() => Math.random() * Math.PI * 2, []);
+  const hovered = useRef(false);
+  const hoverAmt = useRef(0);
+  const gl = useThree((s) => s.gl);
+  const hover = (on: boolean) => {
+    hovered.current = on;
+    gl.domElement.style.cursor = on ? "pointer" : "";
+  };
+  useEffect(() => () => void (hovered.current && (gl.domElement.style.cursor = "")), [gl]);
+  const tap = (e: ThreeEvent<MouseEvent>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    onPoke?.();
+  };
   // Its voice loads when it arrives at the table (once per companion, however many copies there are).
   useEffect(() => void loadVoice(companion), [companion]);
   // When this player's turn started (or the table opened on it), so the hopping can wind down. The turn
@@ -93,7 +111,10 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
     right.setFromMatrixColumn(camera.matrixWorld, 0);
     up.setFromMatrixColumn(camera.matrixWorld, 1);
     g.position.addScaledVector(right, pose.dx * PET_SIZE).addScaledVector(up, pose.dy * PET_SIZE);
-    s.scale.set(PET_SIZE * pose.sx, PET_SIZE * pose.sy, 1);
+    // Hovered (when it can be poked): it perks up a touch.
+    hoverAmt.current += ((hovered.current && !still ? 1 : 0) - hoverAmt.current) * 0.25;
+    const perk = 1 + 0.06 * hoverAmt.current;
+    s.scale.set(PET_SIZE * pose.sx * perk, PET_SIZE * pose.sy * perk, 1);
     s.material.rotation = pose.rot;
     s.material.opacity = pose.alpha;
 
@@ -143,6 +164,25 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
           <spriteMaterial map={tex} transparent toneMapped={false} depthWrite={false} color={offline ? "#7a7a88" : "#ffffff"} />
         </sprite>
       </group>
+      {onPoke && (
+        // An invisible hit area over the body at rest. It stays put while the body hops and spins (a spin lifts the
+        // body to turn about its middle), so a click lands whatever it is doing. Pressing it stops the table
+        // underneath from panning or deselecting; right-clicks pass through (the table's menu, for now).
+        <sprite
+          scale={[PET_SIZE * HIT_W, PET_SIZE * HIT_H, 1]}
+          center={[0.5, 0.04]}
+          onPointerDown={(e) => e.button === 0 && e.stopPropagation()}
+          onClick={tap}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            hover(true);
+          }}
+          onPointerOut={() => hover(false)}
+        >
+          <spriteMaterial transparent opacity={0} depthWrite={false} />
+        </sprite>
+      )}
+      <SpeechBubble playerId={playerId} height={PET_SIZE * (style.head + 0.16)} />
       {Array.from({ length: FX_SLOTS }, (_, i) => (
         <sprite
           key={i}
@@ -157,5 +197,31 @@ export function CompanionFigure({ playerId, companion, variant, at, active, turn
         </sprite>
       ))}
     </group>
+  );
+}
+
+/** Its speech bubble (if it's saying something): a constant size on screen, above its head, over everything else. */
+function SpeechBubble({ playerId, height }: { playerId: string; height: number }) {
+  const bubble = useBubbles((s) => s.bubbles[playerId]);
+  const art = useMemo(() => (bubble ? bubbleTexture(bubble.text, bubble.size) : null), [bubble]);
+  useEffect(() => () => art?.texture.dispose(), [art]);
+  const ref = useRef<THREE.Sprite>(null);
+  useFrame(({ camera, size }) => {
+    const s = ref.current;
+    if (!s || !bubble || !art) return;
+    // sizeAttenuation off: a scale of 1 spans 2 / (focal length) of the screen's height, whatever the distance.
+    const focal = 1 / Math.tan(THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov) / 2);
+    const perPx = 2 / (focal * size.height);
+    const pop = bubblePop(performance.now() - bubble.at, reducedMotion());
+    // Above its head as the picture is drawn: along the screen's up, not the world's (from overhead those differ).
+    s.position.setFromMatrixColumn(camera.matrixWorld, 1).multiplyScalar(height);
+    s.scale.set(art.width * perPx * pop.scale, art.height * perPx * pop.scale, 1);
+    s.material.opacity = pop.alpha;
+  });
+  if (!bubble || !art) return null;
+  return (
+    <sprite ref={ref} center={[0.5, 0]} scale={[0, 0, 1]} renderOrder={30} raycast={() => null}>
+      <spriteMaterial map={art.texture} transparent depthTest={false} depthWrite={false} sizeAttenuation={false} toneMapped={false} opacity={0} />
+    </sprite>
   );
 }
