@@ -46,3 +46,9 @@ hello | poke1 curious | poke2 happy | poke3 affectionate | poke4 playful | poke5
 - Pure-function tests cover primitives and the 180 reaction rows (see Work 7); `npm run typecheck` and `rtk vitest run` pass.
 - Screenshots/short capture of the lab in the PR; the human has reviewed the reactions on the lab page and approved or requested tweaks (recorded in ticket).
 
+
+## Notes
+
+**2026-10-05T16:50:22Z**
+
+Implemented (agent): pure engine src/client/table/companionMotion.ts (19 primitives, 8 glyph motions, advanceTrack 80 ms blend, fxSpawns), data src/client/table/companionReactions.ts (DEFAULT_REACTIONS for 18 slots, BODY_STYLES, SIGNATURES: 5-6 per companion named after roster moves, incl. every poke7 finale and >=2 emotes), playback src/client/table/companionPlayback.ts (playReaction/stopReaction keyed by playerId, time-scalable clock for the lab), CompanionFigure.tsx extracted from TableScene (idle breath + turn hop unchanged; reactions play even when the owner is offline; 14 canvas glyphs in textures.ts, fixed pool of 8 sprites per figure). Lab: /dev/companion-lab. Tilting prims lift the body by 0.25*|sin(rot)| so a fallen companion doesn't sink into the table. PENDING: human review of the reactions in the lab (approve or request tweaks), recorded here when given.
