@@ -14,6 +14,7 @@ import { autoBuild, basicsTotal, colorPips, deckSize, suggestBasics } from "../.
 import { isLand } from "../../shared/autopick";
 import { playFlip, snapshotRects } from "../flip";
 import { copyText } from "../clipboard";
+import { PlayerFace } from "../components/Persona";
 
 type Area = "main" | "side";
 const COLUMNS = ["0–1", "2", "3", "4", "5", "6+"];
@@ -230,7 +231,8 @@ export function Deckbuilder() {
           {others.map((p) => {
             const st = view.deckStatus[p.id];
             return (
-              <span key={p.id} className={`pill ${st?.ready ? "ok" : ""}`}>
+              <span key={p.id} className={`pill pill-face ${st?.ready ? "ok" : ""}`}>
+                <PlayerFace player={p} size={18} />
                 {p.name}{" "}
                 {st?.ready ? (
                   <>

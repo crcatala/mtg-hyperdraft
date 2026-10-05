@@ -63,7 +63,7 @@ interface Store {
   /** The server's close code (CLOSE.*) behind `fatal`, when it gave one. */
   fatalCode: number | null;
   /** Free seats offered when rejoining a started game without a valid seat secret. */
-  claimSeats: { id: string; name: string }[];
+  claimSeats: { id: string; name: string; avatar?: string }[];
   view: RoomView | null;
   cards: CardMap;
   clockOffset: number;

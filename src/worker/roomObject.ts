@@ -160,6 +160,8 @@ export class RoomDurableObject extends DurableObject<Env> {
           playerId: url.searchParams.get("pid") ?? undefined,
           secret: url.searchParams.get("secret") ?? undefined,
           name: url.searchParams.get("name") ?? undefined,
+          avatar: url.searchParams.get("avatar") ?? undefined,
+          companion: url.searchParams.get("companion") ?? undefined,
           claim: url.searchParams.get("claim") ?? undefined,
         });
         server.serializeAttachment({ playerId: joined.playerId, sid: crypto.randomUUID(), since: Date.now() } satisfies Attachment);

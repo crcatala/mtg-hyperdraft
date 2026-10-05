@@ -266,7 +266,7 @@ describe("rejoining a started game", () => {
       expect.unreachable();
     } catch (err) {
       expect(err).toBeInstanceOf(SeatClaimNeeded);
-      expect((err as SeatClaimNeeded).seats).toEqual([{ id: b.playerId, name: "Bob" }]);
+      expect((err as SeatClaimNeeded).seats).toEqual([{ id: b.playerId, name: "Bob", avatar: undefined }]);
     }
     expect(() => room.join({ claim: a.playerId })).toThrow(/already playing as Alice/);
   });
@@ -332,5 +332,105 @@ describe("draft clock while nobody is here", () => {
     expect(room.syncConnections(new Set())).toBe(false);
     expect(room.syncConnections(new Set([a.playerId]))).toBe(true);
     expect(room.nextAlarm()).not.toBeNull();
+  });
+});
+
+describe("avatars and companions", () => {
+  it("leaves humans without an avatar or companion, and deals bots both", () => {
+    const { room } = newRoom();
+    const host = room.join({ name: "Alice" });
+    room.join({ name: "Bob" });
+    for (let i = 0; i < 4; i++) send(room, host.playerId, { t: "addBot" });
+    const [alice, bob, ...bots] = room.state.players;
+    for (const human of [alice, bob]) {
+      expect(human.avatar).toBeUndefined();
+      expect(human.companion).toBeUndefined();
+    }
+    expect(bots).toHaveLength(4);
+    expect(bots.every((b) => b.avatar && b.companion)).toBe(true);
+    // Bots avoid each other's avatars while there are free ones.
+    expect(new Set(bots.map((b) => b.avatar)).size).toBe(4);
+  });
+
+  it("starts a joiner with what they picked before, and gives a second holder a different variant", () => {
+    const { room } = newRoom();
+    room.join({ name: "Alice", avatar: "sable", companion: "foil" });
+    room.join({ name: "Bob", avatar: "sable", companion: "foil" });
+    room.join({ name: "Cleo", avatar: "sable" });
+    const [alice, bob, cleo] = room.state.players;
+    expect([alice.avatar, bob.avatar, cleo.avatar]).toEqual(["sable", "sable", "sable"]);
+    expect([alice.avatarVariant, bob.avatarVariant, cleo.avatarVariant]).toEqual([0, 1, 2]);
+    expect([alice.companionVariant, bob.companionVariant]).toEqual([0, 1]);
+    expect(cleo.companion).toBeUndefined();
+    expect(cleo.companionVariant).toBeUndefined();
+
+    room.join({ name: "Dee", avatar: "nonsense" });
+    expect(room.state.players[3].avatar).toBeUndefined();
+  });
+
+  it("lets players pick anything, share it, and clear it again", () => {
+    const { room } = newRoom();
+    const a = room.join({ name: "Alice", avatar: "sable", companion: "foil" });
+    const b = room.join({ name: "Bob" });
+    expect(send(room, b.playerId, { t: "setLook", avatar: "sable", companion: "cinder" }).changed).toBe(true);
+    const [alice, bob] = room.state.players;
+    expect(bob).toMatchObject({ avatar: "sable", avatarVariant: 1, companion: "cinder", companionVariant: 0 });
+
+    // The first holder keeps the original look when the second one leaves; the next one reuses the freed variant.
+    expect(send(room, b.playerId, { t: "setLook", avatar: null }).changed).toBe(true);
+    expect(bob.avatar).toBeUndefined();
+    expect(bob.avatarVariant).toBeUndefined();
+    expect(bob.companion).toBe("cinder");
+    send(room, b.playerId, { t: "setLook", avatar: "sable" });
+    expect(bob.avatarVariant).toBe(1);
+    expect(alice.avatarVariant).toBe(0);
+
+    // Alice moves on: Bob's colours stay as they were.
+    send(room, a.playerId, { t: "setLook", avatar: "odalys" });
+    expect(bob.avatarVariant).toBe(1);
+    expect(alice).toMatchObject({ avatar: "odalys", avatarVariant: 0 });
+  });
+
+  it("only lets looks change in the lobby", () => {
+    const { room } = newRoom();
+    const host = room.join({ name: "Alice" });
+    send(room, host.playerId, { t: "import", source: "x" });
+    room.applyImport(importResult());
+    send(room, host.playerId, { t: "addBot" });
+    send(room, host.playerId, { t: "addBot" });
+    send(room, host.playerId, { t: "setReady", ready: true });
+    expect(room.state.phase).toBe("drafting");
+    const res = send(room, host.playerId, { t: "setLook", avatar: "pip" });
+    expect(res.outbound[0].msg).toMatchObject({ t: "error" });
+  });
+
+  it("tidies rooms saved before looks existed or with retired ids", () => {
+    const { room, deps } = newRoom();
+    const host = room.join({ name: "Alice", avatar: "sable" });
+    room.join({ name: "Bob", avatar: "sable" });
+    send(room, host.playerId, { t: "addBot" });
+    const [alice, bob, bot] = room.state.players;
+    delete bot.avatar;
+    delete bot.companion;
+    bob.avatar = "retired-hero";
+    delete alice.avatarVariant;
+    const reloaded = new Room(room.state, {}, deps);
+    const [a2, b2, bot2] = reloaded.state.players;
+    expect(b2.avatar).toBeUndefined();
+    expect(a2.avatarVariant).toBe(0);
+    expect(bot2.avatar && bot2.companion).toBeTruthy();
+  });
+
+  it("shows the seat's avatar to anyone rejoining a started game", () => {
+    const { room } = newRoom();
+    const host = room.join({ name: "Alice", avatar: "pip" });
+    room.join({ name: "Bob" });
+    room.state.phase = "playing";
+    room.setConnected(host.playerId, false);
+    room.setConnected(room.state.players[1].id, false);
+    expect(room.claimableSeats()).toEqual([
+      { id: host.playerId, name: "Alice", avatar: "pip" },
+      { id: room.state.players[1].id, name: "Bob", avatar: undefined },
+    ]);
   });
 });

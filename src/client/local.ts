@@ -5,7 +5,7 @@
 import { createRoomState, Room } from "../shared/room";
 import type { ClientMessage, ServerMessage } from "../shared/protocol";
 import { importCube } from "../shared/importCube";
-import { loadName } from "./identity";
+import { loadLook, loadName } from "./identity";
 import { useStore } from "./store";
 import { forgetOpenedPacks } from "./openedPacks";
 
@@ -24,7 +24,7 @@ export function startLocal() {
   const room = new Room(createRoomState("SOLO", Date.now()), {}, { now: () => Date.now(), rng: Math.random });
   // Every solo game reuses the code "SOLO" and the same pack ids: let its packs be opened afresh.
   forgetOpenedPacks("SOLO");
-  const { playerId } = room.join({ name: loadName() || "You" });
+  const { playerId } = room.join({ name: loadName() || "You", ...loadLook() });
   for (let i = 0; i < SOLO_BOTS; i++) room.handle(playerId, { t: "addBot" });
   session = { room, playerId };
   useStore.setState({

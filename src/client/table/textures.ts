@@ -319,7 +319,54 @@ export function feltTexture(): THREE.Texture {
 
 const PX = 40; // canvas pixels per world unit for mats
 
-export function matTexture(name: string, hue: number, isMe: boolean): THREE.Texture {
+/** An image from the app's own files, as a hook: null until it has loaded. Shared across callers. */
+const imageCache = new Map<string, HTMLImageElement>();
+export function useImage(url: string | null): HTMLImageElement | null {
+  const [, bump] = useState(0);
+  const hit = url ? imageCache.get(url) : undefined;
+  useEffect(() => {
+    if (!url || (hit && hit.complete)) return;
+    const img = hit ?? new Image();
+    if (!hit) {
+      img.src = url;
+      imageCache.set(url, img);
+    }
+    const done = () => bump((n) => n + 1);
+    img.addEventListener("load", done);
+    return () => img.removeEventListener("load", done);
+  }, [url, hit]);
+  return hit && hit.complete && hit.naturalWidth > 0 ? hit : null;
+}
+
+/** A sprite texture for a picture that ships with the app (companions); fills in when it loads. */
+const spriteCache = new Map<string, THREE.Texture>();
+export function spriteTexture(url: string): THREE.Texture {
+  let tex = spriteCache.get(url);
+  if (!tex) {
+    tex = new THREE.TextureLoader().load(url);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    spriteCache.set(url, tex);
+  }
+  return tex;
+}
+
+/** A copy of a sprite picture with its hues turned (a duplicate companion's colour variant); the plain picture where the browser can't filter canvases. */
+const hueCache = new Map<string, THREE.Texture>();
+export function hueTexture(img: HTMLImageElement, deg: number): THREE.Texture {
+  const key = `${img.src}@${deg}`;
+  const hit = hueCache.get(key);
+  if (hit) return hit;
+  const [c, ctx] = canvas(img.naturalWidth, img.naturalHeight);
+  if ("filter" in ctx) ctx.filter = `hue-rotate(${deg}deg)`;
+  ctx.drawImage(img, 0, 0);
+  const tex = finish(new THREE.CanvasTexture(c));
+  hueCache.set(key, tex);
+  return tex;
+}
+
+/** `face`: the avatar's face picture, drawn as a round badge beside the name (skipped until it loads). */
+export function matTexture(name: string, hue: number, isMe: boolean, face: HTMLImageElement | null = null, accent?: string): THREE.Texture {
   const W = MAT_W * PX;
   const H = MAT_D * PX;
   const [c, ctx] = canvas(W, H);
@@ -376,6 +423,25 @@ export function matTexture(name: string, hue: number, isMe: boolean): THREE.Text
   ctx.font = "800 34px Cinzel, Georgia, serif";
   ctx.textAlign = "center";
   ctx.fillText(name.toUpperCase(), W / 2, H - 22);
+  if (face) {
+    const r = 27;
+    const textW = ctx.measureText(name.toUpperCase()).width;
+    const cx = W / 2 - textW / 2 - r - 18;
+    const cy = H - 22 - 12;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = "#14111f";
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.drawImage(face, cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = accent ?? `hsla(${hue}, 80%, 70%, 0.9)`;
+    ctx.stroke();
+  }
   return finish(new THREE.CanvasTexture(c));
 }
 

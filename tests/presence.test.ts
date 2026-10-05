@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { presenceChanges } from "../src/client/presence";
 import type { Player } from "../src/shared/types";
 
-const player = (id: string, connected: boolean, isBot = false): Player => ({ id, name: id.toUpperCase(), isBot, isHost: false, ready: false, connected, joinedAt: 0 });
+const player = (id: string, connected: boolean, isBot = false): Player => ({ id, name: id.toUpperCase(), isBot, isHost: false, ready: false, connected, joinedAt: 0, avatar: "sable", companion: "foil" });
 
 describe("presenceChanges", () => {
   it("reports humans who dropped out or came back", () => {

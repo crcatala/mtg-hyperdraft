@@ -88,6 +88,15 @@ export interface Player {
   ready: boolean;
   connected: boolean;
   joinedAt: number;
+  /**
+   * Their avatar and table companion (ids from shared/roster.ts). Humans have neither until they
+   * choose; bots are dealt both. Several players may hold the same one.
+   */
+  avatar?: string;
+  companion?: string;
+  /** Which colour variant they have of it: 0 is the original, and later holders of the same one get different ones. */
+  avatarVariant?: number;
+  companionVariant?: number;
 }
 
 export type PassPattern = "alternate" | "left";

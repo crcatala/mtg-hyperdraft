@@ -20,6 +20,7 @@ import PackScene from "../pack/PackScene";
 import { PackBoundary } from "../pack/PackBoundary";
 import { canUse3d, prefersReducedMotion, wants3dPack } from "../pack/support";
 import { isControl, shortcutsBlocked } from "../shortcuts";
+import { PlayerFace } from "../components/Persona";
 
 const COLOR_RANK = (c: CardData) => (c.colors.length === 0 ? 6 : c.colors.length > 1 ? 5 : "WUBRG".indexOf(c.colors[0]));
 
@@ -669,6 +670,7 @@ function SeatRing() {
             {i > 0 && <span className="ring-arrow">{arrow}</span>}
             <div className={`ring-seat${i === d.seat ? " me" : ""}${s.queued === 0 ? " idle" : ""}`} title={`${s.name}: ${s.queued} pack(s) waiting, ${s.picks} picks`}>
               <span className="ring-name">
+                {p && <PlayerFace player={p} size={22} className="ring-face" />}
                 {s.isBot && <Icon name="bot" className="ring-bot" title="Bot" />}
                 {s.name}
                 {p && !p.isBot && !p.connected ? " (offline)" : ""}

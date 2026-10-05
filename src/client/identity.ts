@@ -60,6 +60,40 @@ export function saveName(name: string) {
   safeSet(aliasedKey(NAME_KEY), name);
 }
 
+const LOOK_KEY = "hyperdraft:look";
+
+/** The avatar and companion the player chose for themselves (nothing saved until they pick one). */
+export interface LookPref {
+  avatar?: string;
+  companion?: string;
+}
+
+export function loadLook(): LookPref {
+  const raw = safeGet(aliasedKey(LOOK_KEY));
+  if (!raw) return {};
+  try {
+    const v = JSON.parse(raw) as LookPref;
+    return { avatar: typeof v.avatar === "string" ? v.avatar : undefined, companion: typeof v.companion === "string" ? v.companion : undefined };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * `prev` with one choice changed (`null` clears it). Callers pass what's saved in the browser rather than
+ * the room's current state, which may not have caught up with the player's last pick yet.
+ */
+export function mergeLook(prev: LookPref, field: keyof LookPref, id: string | null): LookPref {
+  const next = { ...prev };
+  if (id) next[field] = id;
+  else delete next[field];
+  return next;
+}
+
+export function saveLook(look: LookPref) {
+  safeSet(aliasedKey(LOOK_KEY), JSON.stringify(look));
+}
+
 export function withAlias(path: string): string {
   const a = alias();
   return a ? `${path}?as=${encodeURIComponent(a)}` : path;

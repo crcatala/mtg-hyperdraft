@@ -4,6 +4,8 @@ import { relativeTime } from "../src/client/relativeTime";
 import { RARITY_RANK, revealSchedule } from "../src/client/revealSchedule";
 import type { LogEntry, Rarity } from "../src/shared/types";
 import { countNewEntries, logKeys } from "../src/client/table/logFeed";
+import { hopFade, HOP_SECONDS } from "../src/client/table/petMotion";
+import { mergeLook } from "../src/client/identity";
 
 describe("hand layout", () => {
   it("keeps a normal hand at full size with the classic fan", () => {
@@ -107,5 +109,34 @@ describe("game log feed", () => {
     expect(after.slice(0, 2)).toEqual(before.slice(1));
     const dup = logKeys([entry(5, "tap"), entry(5, "tap")]);
     expect(new Set(dup).size).toBe(2);
+  });
+});
+
+describe("companion hop timing", () => {
+  it("hops at full height at first, eases off, and is at rest after five seconds", () => {
+    expect(hopFade(0)).toBe(1);
+    expect(hopFade(HOP_SECONDS - 1.5)).toBe(1);
+    expect(hopFade(HOP_SECONDS - 0.75)).toBeCloseTo(0.5);
+    expect(hopFade(HOP_SECONDS)).toBe(0);
+    expect(hopFade(60)).toBe(0);
+  });
+
+  it("doesn't hop when it isn't their turn", () => {
+    expect(hopFade(null)).toBe(0);
+  });
+});
+
+describe("remembered avatar and companion", () => {
+  it("keeps earlier picks when a later one is made before the room has caught up", () => {
+    // Two quick picks in a row, each merged onto what was saved (not onto a stale room view).
+    let saved = mergeLook({}, "avatar", "sable");
+    saved = mergeLook(saved, "companion", "foil");
+    expect(saved).toEqual({ avatar: "sable", companion: "foil" });
+  });
+
+  it("clears one choice without touching the other", () => {
+    const saved = mergeLook({ avatar: "sable", companion: "foil" }, "avatar", null);
+    expect(saved).toEqual({ companion: "foil" });
+    expect("avatar" in saved).toBe(false);
   });
 });

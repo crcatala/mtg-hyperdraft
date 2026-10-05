@@ -23,6 +23,7 @@ import type { IconName } from "../icons";
 import type { CardData, Color, LogEntry, LogKind, LogMark, TableCard, TokenDef, ZoneName } from "../../shared/types";
 import { COLORS, ZONE_LABELS } from "../../shared/types";
 import { isControl, shortcutsBlocked } from "../shortcuts";
+import { CompanionIcon, PlayerFace } from "../components/Persona";
 
 export function TableScreen() {
   useTableShortcuts();
@@ -169,6 +170,7 @@ function PlayersHud() {
         return (
           <div key={pid} className={`hud-player${active ? " active" : ""}${pid === me ? " me" : ""}${p && !p.connected ? " offline" : ""}`} style={{ "--hue": seatHue(seat) } as React.CSSProperties}>
             <div className="hud-name">
+              {p && <PlayerFace player={p} size={30} placement="right" className="hud-face" />}
               {pid === me ? <NameEditor /> : <span>{p?.name}</span>}
               {p && !p.connected && (
                 <span className="pill bad" title="Disconnected: their cards stay put until they're back">
@@ -190,6 +192,7 @@ function PlayersHud() {
               <button className="life-btn" onClick={(e) => bump(e.shiftKey ? 5 : 1)} title="+1 (Shift: +5)">
                 <Icon name="plus" />
               </button>
+              {p && <CompanionIcon player={p} size={42} placement="right" />}
             </div>
             <div className="hud-meta">
               <span title="Poison counters" className="poison" onClick={(e) => act({ a: "poison", playerId: pid, delta: e.shiftKey ? -1 : 1 })}>
@@ -387,7 +390,8 @@ function CameraSwitcher() {
       </span>
       {order.map((pid, i) => {
         const mine = pid === me;
-        const name = players.find((p) => p.id === pid)?.name ?? "Player";
+        const look = players.find((p) => p.id === pid);
+        const name = look?.name ?? "Player";
         const active = !overview && current === pid;
         return (
           <Tooltip key={pid} placement="bottom" content={<span className="dock-tip">{mine ? "Your seat" : `${name}'s seat`} {<kbd>{i + 1}</kbd>}</span>}>
@@ -398,7 +402,7 @@ function CameraSwitcher() {
               style={{ "--hue": seatHue(table.seats.indexOf(pid)) } as React.CSSProperties}
               onClick={() => viewFrom(pid)}
             >
-              <span className="seat-dot" />
+              {look ? <PlayerFace player={look} size={20} tip={false} className="camera-face" /> : <span className="seat-dot" />}
               <span className="camera-name">{mine ? "You" : name}</span>
             </button>
           </Tooltip>
