@@ -5,6 +5,7 @@
 
 import { pokeLine, pokeSound, POKE_STEPS } from "../../shared/companionKit";
 import { companionSpot } from "../../shared/tableLayout";
+import { petPositions, resetCarries } from "./companionCarry";
 import { useStore } from "../store";
 import { bodyStyle, reactionFor } from "./companionReactions";
 import { reactionSeconds } from "./companionMotion";
@@ -37,7 +38,7 @@ export function receivePoke(target: string, step: number) {
 }
 
 /**
- * Leaving the table: forget the ladders, pending sulks, reactions, bubbles and the emote wheel. Player ids ("u1", "u2"...) are
+ * Leaving the table: forget the ladders, pending sulks, reactions, bubbles, the emote wheel and any carry. Player ids ("u1", "u2"...) are
  * reused by every room, so otherwise the next table's companions would inherit this one's sulks and bubbles.
  */
 export function resetCompanions() {
@@ -47,6 +48,7 @@ export function resetCompanions() {
   clearReactions();
   clearBubbles();
   resetEmotes();
+  resetCarries();
 }
 
 /** The poke itself, as everyone sees it: the companion's voice for that step, its reaction and its line. */
@@ -57,7 +59,7 @@ function showPoke(target: string, step: number) {
   const companion = player?.companion;
   if (!t || seat < 0 || !companion) return;
   const slot = pokeSound(step);
-  const at = companionSpot(seat, t.seats.length);
+  const at = petPositions.get(target) ?? companionSpot(seat, t.seats.length);
   playReaction(target, slot);
   voice(companion, slot, { variant: player.companionVariant ?? 0, pan: tableApi.screenPan(at.x, at.y) * 0.8 });
   say(target, pokeLine(companion, step), "small");

@@ -7,6 +7,7 @@ import { create } from "zustand";
 import { emoteLine, emoteSound, isEmoteIndex } from "../../shared/companionKit";
 import { cleanEmoteText } from "../../shared/emoteText";
 import { companionSpot } from "../../shared/tableLayout";
+import { petPositions } from "./companionCarry";
 import { useStore } from "../store";
 import { playReaction } from "./companionPlayback";
 import { say, voice } from "./companionTalk";
@@ -24,8 +25,8 @@ export interface WheelState {
 export const useEmoteWheel = create<{ wheel: WheelState | null; lastEmote: number }>(() => ({ wheel: null, lastEmote: -Infinity }));
 
 /**
- * Opens this player's wheel for a right-click at (x, y). Not while dragging something (a card now; the
- * companion itself once it can be picked up) or editing their lines, and only if they have a companion at the table.
+ * Opens this player's wheel for a right-click at (x, y). Not while dragging something (a card, or the companion
+ * itself) or editing their lines, and only if they have a companion at the table.
  */
 export function openEmoteWheel(x: number, y: number) {
   if (document.body.classList.contains("dragging") || useEmoteLines.getState().editing || !myCompanion()) return;
@@ -77,7 +78,7 @@ function showEmote(playerId: string, index: number, text?: string) {
   const companion = player?.companion;
   if (!t || seat < 0 || !companion || !isEmoteIndex(index)) return;
   const slot = emoteSound(index);
-  const at = companionSpot(seat, t.seats.length);
+  const at = petPositions.get(playerId) ?? companionSpot(seat, t.seats.length);
   playReaction(playerId, slot);
   voice(companion, slot, { variant: player.companionVariant ?? 0, pan: tableApi.screenPan(at.x, at.y) * 0.8 });
   say(playerId, text ?? emoteLine(companion, index), "large", emoteBadge(index));

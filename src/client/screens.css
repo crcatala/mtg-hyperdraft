@@ -5302,6 +5302,39 @@ html[data-music-open] .debug-console {
   font-size: 10px;
   opacity: 0.6;
 }
+/* The centre (inside WHEEL_HOLE): "Home", once the companion stands somewhere else. */
+.emote-home {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 84px;
+  height: 84px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--menu-bg, rgba(22, 19, 36, 0.96));
+  border: 1px solid var(--line-2);
+  color: var(--text);
+  font: 800 12px/14px var(--font-ui);
+  cursor: pointer;
+}
+.emote-home:hover,
+.emote-home:focus-visible {
+  border-color: var(--text);
+  outline: none;
+}
+.emote-home .icon {
+  font-size: 22px;
+}
+.emote-home kbd {
+  font-size: 10px;
+  opacity: 0.6;
+}
 .emote-line {
   max-width: 320px;
   padding: 6px 12px;

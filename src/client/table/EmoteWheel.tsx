@@ -2,13 +2,15 @@
 // emoteWheel.ts, sending in companionEmote.ts). Pick with a click, by right-click-dragging onto a wedge and
 // letting go, or with the keys (1-6, arrows + Enter); Esc, a click outside or another right-click closes it.
 // While open it owns the keyboard, so the table's own keys (1-4 views, arrows pan) stand down. Under the ring,
-// "Edit lines" (or E) opens the player's own lines for it (EmoteLinesDialog.tsx); the centre is kept for Home.
+// "Edit lines" (or E) opens the player's own lines for it (EmoteLinesDialog.tsx). In the centre, once the
+// companion has been put down somewhere else, "Home" (or H) sends it back to its spot by the player's mat.
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { EMOTE_SLOTS } from "../../shared/companionKit";
 import { Icon } from "../components/Icon";
 import { useStore } from "../store";
 import { closeEmoteWheel, emoteCooldown, sendEmote, useEmoteWheel, type WheelState } from "./companionEmote";
+import { sendPetHome } from "./companionCarry";
 import { effectiveLine, openEmoteLines, useEmoteLines } from "./emoteLines";
 import { DRAG_PICK_PX, emoteTint, stepWedge, wedgeAt, wedgeCenter, wedgePath, wheelExtrasAbove, WHEEL_R } from "./emoteWheel";
 
@@ -19,11 +21,13 @@ export function EmoteWheel() {
 
 function Wheel({ wheel }: { wheel: WheelState }) {
   const companion = useStore((s) => s.view?.players.find((p) => p.id === s.view?.you)?.companion);
+  const away = useStore((s) => !!s.view?.players.find((p) => p.id === s.view?.you)?.companionAt);
   const lastEmote = useEmoteWheel((s) => s.lastEmote);
   const custom = useEmoteLines((s) => s.custom);
   const ref = useRef<HTMLDivElement>(null);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const editButton = useRef<HTMLButtonElement>(null);
+  const homeButton = useRef<HTMLButtonElement>(null);
   /** The wedge picked out by the keyboard or the pointer (its line shows under the wheel). */
   const [active, setActive] = useState<number | null>(null);
   const [cooling, setCooling] = useState(() => emoteCooldown() > 0);
@@ -45,6 +49,10 @@ function Wheel({ wheel }: { wheel: WheelState }) {
   const edit = () => {
     closeEmoteWheel();
     openEmoteLines();
+  };
+  const home = () => {
+    closeEmoteWheel();
+    sendPetHome();
   };
   const pickRef = useRef(pick);
   pickRef.current = pick;
@@ -90,11 +98,12 @@ function Wheel({ wheel }: { wheel: WheelState }) {
         setActive(i);
         buttons.current[i]?.focus({ preventScroll: true });
       };
-      const onEdit = document.activeElement === editButton.current;
-      // Tab walks the wedges and then "Edit lines" (after the last one); the arrows only walk the wedges.
-      const toEdit = () => {
+      // Tab walks the wedges, then "Home" (if it's showing), then "Edit lines"; the arrows only walk the wedges.
+      const extras = [homeButton.current, editButton.current].filter((b): b is HTMLButtonElement => !!b);
+      const onExtra = extras.indexOf(document.activeElement as HTMLButtonElement);
+      const toExtra = (i: number) => {
         setActive(null);
-        editButton.current?.focus({ preventScroll: true });
+        extras[i]?.focus({ preventScroll: true });
       };
       if (/^[1-6]$/.test(e.key)) {
         e.preventDefault();
@@ -102,21 +111,28 @@ function Wheel({ wheel }: { wheel: WheelState }) {
       } else if (e.key === "e" || e.key === "E") {
         e.preventDefault();
         edit();
+      } else if ((e.key === "h" || e.key === "H") && homeButton.current) {
+        e.preventDefault();
+        home();
       } else if (e.key === "Tab") {
         e.preventDefault();
-        const last = e.shiftKey ? 0 : EMOTE_SLOTS.length - 1;
-        if (onEdit) go(e.shiftKey ? EMOTE_SLOTS.length - 1 : 0);
-        else if (activeRef.current === last || (e.shiftKey && activeRef.current === null)) toEdit();
-        else go(stepWedge(activeRef.current, e.shiftKey ? -1 : 1));
+        const back = e.shiftKey;
+        if (onExtra >= 0) {
+          const next = onExtra + (back ? -1 : 1);
+          if (next >= 0 && next < extras.length) toExtra(next);
+          else go(back ? EMOTE_SLOTS.length - 1 : 0);
+        } else if (back && (activeRef.current === 0 || activeRef.current === null)) toExtra(extras.length - 1);
+        else if (!back && activeRef.current === EMOTE_SLOTS.length - 1) toExtra(0);
+        else go(stepWedge(activeRef.current, back ? -1 : 1));
       } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
-        go(stepWedge(onEdit ? null : activeRef.current, 1));
+        go(stepWedge(onExtra >= 0 ? null : activeRef.current, 1));
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
-        go(stepWedge(onEdit ? null : activeRef.current, -1));
+        go(stepWedge(onExtra >= 0 ? null : activeRef.current, -1));
       } else if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        if (onEdit) edit();
+        if (onExtra >= 0) extras[onExtra].click();
         else if (activeRef.current !== null) pickRef.current(activeRef.current);
       } else if (e.key === "Escape") {
         e.preventDefault();
@@ -175,6 +191,14 @@ function Wheel({ wheel }: { wheel: WheelState }) {
           </button>
         );
       })}
+      {away && (
+        // The centre: not a wedge, so it never takes an emote's place (or its hit area).
+        <button ref={homeButton} className="emote-home" role="menuitem" aria-label="Send companion home" aria-keyshortcuts="H" tabIndex={-1} onClick={home}>
+          <Icon name="home" />
+          Home
+          <kbd>H</kbd>
+        </button>
+      )}
       <div className="emote-under">
         <button
           ref={editButton}

@@ -16,7 +16,7 @@ import { easeInOutCubic, Flights } from "./Flights";
 import type { IconName } from "../icons";
 import { shortcutsBlocked } from "../shortcuts";
 import { CompanionFigure } from "./CompanionFigure";
-import { pokeCompanion } from "./companionPoke";
+import { pressPet } from "./companionCarry";
 import { openEmoteWheel } from "./companionEmote";
 import { accentOf, avatarFace } from "../roster";
 
@@ -305,7 +305,21 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
       ))}
       {peek && <LibraryLook look={peek} libraryCount={player?.zones.library.length ?? 0} seat={seat} seatCount={seatCount} />}
       {!isMe && handCount > 0 && <OpponentHand count={handCount} seat={seat} seatCount={seatCount} viewerAngle={viewerAngle} />}
-      {look?.companion && <CompanionFigure playerId={playerId} companion={look.companion} variant={look.companionVariant ?? 0} at={companionSpot(seat, seatCount)} active={table.turn.playerId === playerId} turnNumber={table.turn.number} offline={offline} onPoke={() => pokeCompanion(playerId)} onEmote={isMe ? openEmoteWheel : undefined} />}
+      {look?.companion && (
+        <CompanionFigure
+          playerId={playerId}
+          companion={look.companion}
+          variant={look.companionVariant ?? 0}
+          at={companionSpot(seat, seatCount)}
+          stored={look.companionAt}
+          active={table.turn.playerId === playerId}
+          turnNumber={table.turn.number}
+          offline={offline}
+          own={isMe}
+          onPress={(e) => pressPet(playerId, e)}
+          onEmote={isMe ? openEmoteWheel : undefined}
+        />
+      )}
     </group>
   );
 }

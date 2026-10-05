@@ -6,6 +6,7 @@ import { useStore } from "./store";
 import { showPing } from "./table/tableUi";
 import { receivePoke } from "./table/companionPoke";
 import { receiveEmote } from "./table/companionEmote";
+import { receivePetCancel, receivePetLand, receivePetMove } from "./table/companionCarry";
 import { rememberExpiry } from "./publicRooms";
 import { forgetRoom, isRoomGone, rememberRoom, snapshotOf } from "./recentRooms";
 
@@ -166,6 +167,15 @@ function open() {
         break;
       case "emote":
         receiveEmote(msg.by, msg.slot, msg.text);
+        break;
+      case "petMove":
+        receivePetMove(msg.by, msg.x, msg.y);
+        break;
+      case "petCancel":
+        receivePetCancel(msg.by);
+        break;
+      case "petLand":
+        receivePetLand(msg.by, msg.at);
         break;
       case "error":
         if (!welcomed) {
