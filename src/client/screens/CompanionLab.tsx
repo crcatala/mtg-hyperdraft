@@ -224,7 +224,6 @@ export function CompanionLab() {
               <Canvas className="cl-canvas" dpr={[1, 2]} camera={{ fov: 34, near: 0.5, far: 200, position: [0, 4, 9] }} gl={{ antialias: true }}>
                 <LabScene cast={cast} variant={variant} />
               </Canvas>
-              <SpeechBubbles />
               <div className="cl-caption" aria-live="polite">
                 {shown && r ? (
                   <>
@@ -313,6 +312,8 @@ export function CompanionLab() {
           </section>
         </div>
       </main>
+      {/* Out here, not in the stage: a panel's backdrop-filter (the Arcane theme) would make it the bubbles' frame. */}
+      <SpeechBubbles />
     </div>
   );
 }
