@@ -1,6 +1,6 @@
 ---
 id: mh-kqys
-status: in_progress
+status: closed
 deps: [mh-x519]
 links: []
 created: 2026-10-05T03:45:29Z
@@ -48,3 +48,11 @@ Players want to say something to each other: cheer, be wholesome, be cheeky, tro
 **2026-10-05T18:58:16Z**
 
 Implemented (agent): protocol emote {slot 0..5} / ServerMessage emote {by, slot}; Room relays to others only when the sender is seated at the table with a companion, EMOTE_COOLDOWN_MS 1200 per player, STATELESS (no write). Client: companionEmote.ts (send/receive/show, 1.5 s cooldown, wheel open state), emoteWheel.ts (pure geometry: wedges clockwise from the top in kit order, hit test, viewport clamp, arrow stepping), EmoteWheel.tsx (DOM wheel; wedges are clip-path buttons so hit areas are exactly the wedges; click, right-drag-release, 1-6, arrows/Tab + Enter, Esc / click outside / right-click again closes; owns the keyboard while open; centre left free for mh-5mz2's Home button; can't open during a card drag). Large bubble: own colour per emote + icon badge, ~1.7x poke size, 3 s, bigger pop + wobble (reduced motion: fade only). 5 new icons (love reuses heart). Verified in two browser sessions, solo, reduced motion, lab; a voice sample starts on both screens per emote. Taunt/sass lines reviewed in context: none hostile. OPEN: (1) human listening check; (2) large bubbles (like poke bubbles) are drawn in the canvas, so DOM HUD panels cover them when a companion sits near a screen corner (default solo view, opponent in 2-seat view): human to decide fix-now (DOM bubble layer) vs mh-ntsj.
+
+**2026-10-05T19:20:17Z**
+
+Human listening check (PR #33), quoted: "i played around and sounds are good to me." Human decision on bubbles hidden under the HUD, quoted: "let's go with Option A" (move bubbles to a DOM layer above the HUD, poke bubbles and lab included).
+
+**2026-10-05T19:20:17Z**
+
+Option A done (agent): SpeechBubbles.tsx renders every bubble as DOM (z-index 40: over HUD panels at 10, under menus, the wheel and dialogs); CompanionFigure's BubbleAnchor writes the head's viewport position each frame (bubbleAnchors); placeBubble slides a bubble inside the window and keeps the tail on the companion (tested). bubbleTexture removed. Verified: solo default view, overview, 2-seat opponent view (over the view switcher), poke bubbles, lab.
