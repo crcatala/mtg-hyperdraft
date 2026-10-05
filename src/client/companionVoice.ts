@@ -76,6 +76,8 @@ export interface VoiceOptions {
 /** A voice that is sounding; stop() cuts it off. */
 export interface Voice {
   stop(): void;
+  /** How long it sounds, at the pitch it was started with. */
+  seconds: number;
 }
 
 /**
@@ -87,14 +89,17 @@ export function playVoice(id: string, slot: string, { variant = 0, pan = 0, gain
   if (!a) return null;
   const takes = bank.get(id)?.get(slot);
   let src: AudioBufferSourceNode | null = null;
+  let seconds = 0;
   if (takes?.length) {
     const key = `${id}/${slot}`;
     const i = take !== undefined && take >= 0 && take < takes.length ? take : pickTake(takes.length, lastTake.get(key) ?? -1);
     lastTake.set(key, i);
-    src = startTake(a, takes[i], { gain, pan, rate: jitter(variantPitch(variant), 0.03) });
+    const rate = jitter(variantPitch(variant), 0.03);
+    src = startTake(a, takes[i], { gain, pan, rate });
+    seconds = (takes[i].buffer.duration - takes[i].offset) / rate;
   }
   emit({ name: slot, pack: null, voice: { companion: id, played: !!src } });
-  return src ? { stop: () => stopSource(src) } : null;
+  return src ? { stop: () => stopSource(src), seconds } : null;
 }
 
 function stopSource(src: AudioBufferSourceNode) {

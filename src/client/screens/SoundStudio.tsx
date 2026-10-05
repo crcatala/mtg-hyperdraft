@@ -229,54 +229,43 @@ export function SoundStudio() {
         </span>
         <span className="topbar-sep" />
         <span className="topbar-title">Sound Studio</span>
+        <div className="ss-tabs" role="tablist" aria-label="What to audition">
+          {(Object.keys(TABS) as TabId[]).map((id) => (
+            <button key={id} role="tab" className={`ss-tab${tab === id ? " on" : ""}`} aria-selected={tab === id} onClick={() => setTab(id)}>
+              <Icon name={id === "packs" ? "music" : "sparkles"} />
+              {TABS[id]}
+            </button>
+          ))}
+        </div>
         <div className="spacer" />
-        <button className={`btn small${muted ? " danger" : ""}`} onClick={toggleMute} aria-pressed={muted}>
+        <button className={`btn small${muted ? " danger" : ""}`} onClick={toggleMute} aria-pressed={muted} title={muted ? "The game's mute applies here too" : "Mute"}>
           <Icon name={muted ? "volume-off" : "volume"} />
           {muted ? "Muted" : "Sound on"}
         </button>
       </header>
 
-      <main className="scroll ss-scroll">
-        <div className="ss-page">
-          <section className="ss-intro">
-            <h1>Sound Studio</h1>
-            <p className="ss-flavor">
-              {tab === "packs" ? "Every sound of every pack, played with the draft's own timings and mix." : "Every companion's voice, slot by slot, with what it says."}
-            </p>
-            <p className="muted">
-              {tab === "packs"
-                ? "Play a sequence, then click any cell in the table to hear that sound and use it in your mix. Each row can come from a different pack. The mix only applies here; in the game each player picks one whole pack."
-                : "Companion voices aren't part of the packs: a companion sounds the same whichever pack you play. Pick a companion, then play any slot or take; the colour variant shifts the pitch the way two copies at one table would."}
-            </p>
-            {muted && (
-              <p className="pill warn ss-muted">
-                Sound is muted (the game's mute applies here too).
-                <button className="btn small" onClick={toggleMute}>
-                  Unmute
-                </button>
-              </p>
-            )}
-          </section>
+      <main className="ss-body">
+        {muted && (
+          <p className="pill warn ss-muted">
+            Sound is muted (the game's mute applies here too).
+            <button className="btn small" onClick={toggleMute}>
+              Unmute
+            </button>
+          </p>
+        )}
 
-          <div className="ss-seg" role="tablist" aria-label="What to audition">
-            {(Object.keys(TABS) as TabId[]).map((id) => (
-              <button key={id} role="tab" className={`btn${tab === id ? " on" : ""}`} aria-selected={tab === id} onClick={() => setTab(id)}>
-                {TABS[id]}
-              </button>
-            ))}
-          </div>
+        {tab === "companions" && <CompanionVoices />}
 
-          {tab === "companions" && <CompanionVoices />}
-
-          {tab === "packs" && (
-            <>
-              <section className="ss-section" aria-labelledby="ss-packs">
-                <div className="ss-head">
+        {tab === "packs" && (
+          <div className="ss-console">
+            <div className="ss-side">
+              <section className="panel ss-panel" aria-labelledby="ss-packs">
+                <header className="ss-head">
                   <h2 id="ss-packs">Packs</h2>
                   <span className="faint">
-                    Pick one to use it for every sound · <kbd>1</kbd>–<kbd>{SOUND_PACKS.length}</kbd>
+                    <kbd>1</kbd>–<kbd>{SOUND_PACKS.length}</kbd> use one for every sound
                   </span>
-                </div>
+                </header>
                 <div className="ss-packs">
                   {SOUND_PACKS.map((p, i) => {
                     const used = STUDIO_SOUNDS.filter((n) => mix[n] === p.id).length;
@@ -299,167 +288,168 @@ export function SoundStudio() {
                 </div>
               </section>
 
-              <section className="ss-transport">
-                <div className="panel ss-panel">
+              <section className="panel ss-panel">
+                <header className="ss-head">
                   <h2>Play a sequence</h2>
-                  <div className="ss-seqs">
-                    {(Object.keys(SEQUENCES) as SequenceId[]).map((id) => (
-                      <button key={id} className={`btn${id === "open" ? " primary" : ""}`} disabled={loading !== null} onClick={() => sequence(id)}>
-                        {id === "open" && <Icon name="play" />}
-                        {loading === id ? "Loading…" : SEQUENCES[id]}
+                </header>
+                <div className="ss-seqs">
+                  {(Object.keys(SEQUENCES) as SequenceId[]).map((id) => (
+                    <button key={id} className={`btn${id === "open" ? " primary" : ""}`} disabled={loading !== null} onClick={() => sequence(id)}>
+                      {id === "open" && <Icon name="play" />}
+                      {loading === id ? "Loading…" : SEQUENCES[id]}
+                    </button>
+                  ))}
+                  <button className="btn ghost" onClick={stop}>
+                    <Icon name="x" />
+                    Stop
+                  </button>
+                </div>
+                <div>
+                  <span className="label">Pack contents</span>
+                  <div className="ss-seg" role="group" aria-label="Pack contents">
+                    {(Object.keys(PACK_CONTENTS) as PackContents[]).map((k) => (
+                      <button key={k} className={`btn small${contents === k ? " on" : ""}`} aria-pressed={contents === k} onClick={() => setContents(k)}>
+                        {PACK_CONTENTS[k].label}
                       </button>
                     ))}
-                    <button className="btn" onClick={stop}>
-                      <Icon name="x" />
-                      Stop
-                    </button>
                   </div>
-                  <div className="ss-opts">
-                    <div>
-                      <span className="label">Pack contents</span>
-                      <div className="ss-seg" role="group" aria-label="Pack contents">
-                        {(Object.keys(PACK_CONTENTS) as PackContents[]).map((k) => (
-                          <button key={k} className={`btn small${contents === k ? " on" : ""}`} aria-pressed={contents === k} onClick={() => setContents(k)}>
-                            {PACK_CONTENTS[k].label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="label">Tear</span>
-                      <div className="ss-seg" role="group" aria-label="Tear">
-                        {(["drag", "click"] as const).map((t) => (
-                          <button key={t} className={`btn small${tear === t ? " on" : ""}`} aria-pressed={tear === t} onClick={() => setTear(t)}>
-                            {t === "drag" ? "Drag (looping rip)" : "Click / Space"}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="faint ss-hint">
-                    <kbd>Space</kbd> open a pack · <kbd>P</kbd> make a pick · <kbd>B</kbd> browse · <kbd>Esc</kbd> stop. A pick is select, select, deselect, select, confirm (pick,
-                    pass and a burn), the next pack arriving and three timer ticks. Browsing is zooming in, turning a double-faced card over, zooming out, hovering the picks list
-                    and tapping.
-                  </p>
                 </div>
-
-                <div className="panel ss-panel">
-                  <div className="ss-head">
-                    <h2>Cue log</h2>
-                    <span className="label">{cues.length ? `${cues[cues.length - 1].t.toFixed(2)} s` : "0.00 s"}</span>
+                <div>
+                  <span className="label">Tear</span>
+                  <div className="ss-seg" role="group" aria-label="Tear">
+                    {(["drag", "click"] as const).map((t) => (
+                      <button key={t} className={`btn small${tear === t ? " on" : ""}`} aria-pressed={tear === t} onClick={() => setTear(t)}>
+                        {t === "drag" ? "Drag (looping rip)" : "Click / Space"}
+                      </button>
+                    ))}
                   </div>
-                  <ol className="ss-log scroll" ref={logRef}>
-                    {cues.length === 0 && (
-                      <li className="ss-log-empty faint">Sounds show up here as they play, with the time since the sequence started and the pack each came from.</li>
-                    )}
-                    {cues.map((c) => (
-                      <li key={c.id}>
-                        <span className="ss-t">{c.t.toFixed(2)}</span>
-                        <span>{c.name}</span>
-                        {c.pack ? (
-                          <span className="ss-who" style={packStyle(c.pack)}>
+                </div>
+                <p className="faint ss-hint">
+                  <kbd>Space</kbd> open · <kbd>P</kbd> pick · <kbd>B</kbd> browse · <kbd>Esc</kbd> stop. A pick is select, select, deselect, select, confirm (pick, pass and a burn), the
+                  next pack and three ticks. Browsing is zooming in, turning a card over, zooming out, hovering the picks list and tapping.
+                </p>
+              </section>
+            </div>
+
+            <section className="panel ss-matrix" aria-labelledby="ss-matrix">
+              <header className="ss-head">
+                <h2 id="ss-matrix">Every sound, every pack</h2>
+                <span className="faint">Click a cell to hear it and put it in your mix · hover for its prompt</span>
+              </header>
+              <div className="ss-table-wrap scroll">
+                <table className="ss-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Sound</th>
+                      {SOUND_PACKS.map((p) => (
+                        <th key={p.id} scope="col" style={packStyle(p.id)}>
+                          <span className="ss-col">
                             <span className="ss-dot" />
-                            {packLabel(c.pack)}
+                            {p.label}
                           </span>
-                        ) : (
-                          <span className="ss-who faint">synth (not loaded)</span>
-                        )}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              </section>
-
-              <section className="ss-section" aria-labelledby="ss-matrix">
-                <div className="ss-head">
-                  <h2 id="ss-matrix">Every sound, every pack</h2>
-                  <span className="faint">Hover a cell for its ElevenLabs prompt. Filled cells are in your mix.</span>
-                </div>
-                <div className="panel ss-table-wrap scroll">
-                  <table className="ss-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Sound</th>
-                        {SOUND_PACKS.map((p) => (
-                          <th key={p.id} scope="col" style={packStyle(p.id)}>
-                            <span className="ss-col">
-                              <span className="ss-dot" />
-                              {p.label}
-                            </span>
-                          </th>
-                        ))}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  {STUDIO_GROUPS.map((g) => (
+                    <tbody key={g.title}>
+                      <tr className="ss-group">
+                        <th colSpan={SOUND_PACKS.length + 1} scope="rowgroup">
+                          {g.title}
+                        </th>
                       </tr>
-                    </thead>
-                    {STUDIO_GROUPS.map((g) => (
-                      <tbody key={g.title}>
-                        <tr className="ss-group">
-                          <th colSpan={SOUND_PACKS.length + 1} scope="rowgroup">
-                            {g.title}
+                      {g.sounds.map((s) => (
+                        <tr key={s.name}>
+                          <th scope="row" className={SOUND_PACKS.some((p) => lit.has(`${p.id}/${s.name}`)) ? "lit" : ""}>
+                            <code>{s.name}</code>
+                            <span className="faint">{s.what}</span>
                           </th>
+                          {SOUND_PACKS.map((p) => (
+                            <td key={p.id}>
+                              <button
+                                className={`ss-cell${mix[s.name] === p.id ? " on" : ""}${lit.has(`${p.id}/${s.name}`) ? " lit" : ""}`}
+                                style={packStyle(p.id)}
+                                title={`${p.label} · ${s.name}\n\n${PROMPTS[p.id]?.[s.name] ?? ""}`}
+                                aria-label={`Play ${s.name} from ${p.label} and use it in the mix`}
+                                aria-pressed={mix[s.name] === p.id}
+                                onClick={() => audition(p.id, s.name)}
+                              >
+                                <Icon name="play" />
+                              </button>
+                            </td>
+                          ))}
                         </tr>
-                        {g.sounds.map((s) => (
-                          <tr key={s.name}>
-                            <th scope="row" className={SOUND_PACKS.some((p) => lit.has(`${p.id}/${s.name}`)) ? "lit" : ""}>
-                              <code>{s.name}</code>
-                              <span className="faint">{s.what}</span>
-                            </th>
-                            {SOUND_PACKS.map((p) => (
-                              <td key={p.id}>
-                                <button
-                                  className={`ss-cell${mix[s.name] === p.id ? " on" : ""}${lit.has(`${p.id}/${s.name}`) ? " lit" : ""}`}
-                                  style={packStyle(p.id)}
-                                  title={`${p.label} · ${s.name}\n\n${PROMPTS[p.id]?.[s.name] ?? ""}`}
-                                  aria-label={`Play ${s.name} from ${p.label} and use it in the mix`}
-                                  aria-pressed={mix[s.name] === p.id}
-                                  onClick={() => audition(p.id, s.name)}
-                                >
-                                  <Icon name="play" />
-                                </button>
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    ))}
-                  </table>
+                      ))}
+                    </tbody>
+                  ))}
+                </table>
+              </div>
+            </section>
+
+            <div className="ss-side">
+              <section className="panel ss-panel ss-logpanel">
+                <header className="ss-head">
+                  <h2>Cue log</h2>
+                  <span className="label">{cues.length ? `${cues[cues.length - 1].t.toFixed(2)} s` : "0.00 s"}</span>
+                </header>
+                <ol className="ss-log scroll" ref={logRef}>
+                  {cues.length === 0 && <li className="ss-log-empty faint">Sounds show up here as they play, with the time since the sequence started and the pack each came from.</li>}
+                  {cues.map((c) => (
+                    <li key={c.id}>
+                      <span className="ss-t">{c.t.toFixed(2)}</span>
+                      <span>{c.name}</span>
+                      {c.pack ? (
+                        <span className="ss-who" style={packStyle(c.pack)}>
+                          <span className="ss-dot" />
+                          {packLabel(c.pack)}
+                        </span>
+                      ) : (
+                        <span className="ss-who faint">synth (not loaded)</span>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </section>
+
+              <section className="panel ss-panel">
+                <header className="ss-head">
+                  <h2>Your mix</h2>
+                  <span className="faint">only applies here</span>
+                </header>
+                <pre className="ss-summary scroll">{mixSummary(mix)}</pre>
+                <div className="row">
+                  <button className="btn small" onClick={copyMix}>
+                    <Icon name="copy" />
+                    Copy mix
+                  </button>
+                  <button className="btn small ghost" onClick={() => choosePack(base)}>
+                    Reset to {packLabel(base)}
+                  </button>
                 </div>
               </section>
 
-              <section className="ss-mix">
-                <div className="panel ss-panel">
-                  <h2>Your mix</h2>
-                  <pre className="ss-summary">{mixSummary(mix)}</pre>
-                  <div className="row">
-                    <button className="btn small" onClick={copyMix}>
-                      <Icon name="copy" />
-                      Copy mix
-                    </button>
-                    <button className="btn small ghost" onClick={() => choosePack(base)}>
-                      Reset to {packLabel(base)}
-                    </button>
-                  </div>
-                </div>
-                <div className="panel ss-panel">
+              <section className="panel ss-panel">
+                <header className="ss-head">
                   <h2>Prompt</h2>
-                  {shown ? (
-                    <div className="ss-prompt">
-                      <span className="ss-who" style={packStyle(shown.pack)}>
-                        <span className="ss-dot" />
-                        {packLabel(shown.pack)} / {shown.name}
-                      </span>
-                      <p>{PROMPTS[shown.pack]?.[shown.name] ?? "No prompt on file."}</p>
-                      <code className="faint">
-                        node scripts/build-sfx.mjs {shown.pack} {shown.name}
-                      </code>
-                    </div>
-                  ) : (
-                    <p className="faint">Click a cell to see the prompt that made it, and the command that regenerates it.</p>
-                  )}
-                </div>
+                </header>
+                {shown ? (
+                  <div className="ss-prompt">
+                    <span className="ss-who" style={packStyle(shown.pack)}>
+                      <span className="ss-dot" />
+                      {packLabel(shown.pack)} / {shown.name}
+                    </span>
+                    <p>{PROMPTS[shown.pack]?.[shown.name] ?? "No prompt on file."}</p>
+                    <code className="faint">
+                      node scripts/build-sfx.mjs {shown.pack} {shown.name}
+                    </code>
+                  </div>
+                ) : (
+                  <p className="faint">Click a cell to see the prompt that made it, and the command that regenerates it.</p>
+                )}
               </section>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
