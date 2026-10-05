@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useStore } from "../src/client/store";
 import { pokeCompanion, receivePoke, resetCompanions } from "../src/client/table/companionPoke";
+import { receiveEmote } from "../src/client/table/companionEmote";
 import { reactionOf } from "../src/client/table/companionPlayback";
 import { useBubbles } from "../src/client/table/companionTalk";
 import { bodyStyle, reactionFor } from "../src/client/table/companionReactions";
@@ -69,6 +70,21 @@ describe("poking at the table (ladder + relay + reactions + bubbles together)", 
     vi.advanceTimersByTime(finaleMs());
     expect(slot()).toBe("sulk");
     // ...and the ladder starts over once the sulk is through.
+    vi.advanceTimersByTime(SULK_MS);
+    expect(pokeCompanion("u2")).toBe(true);
+    expect(slot()).toBe("poke1");
+  });
+
+  it("an emote played during the finale isn't cut off by the sulk; the ladder still sulks (regression)", () => {
+    tapHex(7); // the finale: its sulk is pending
+    vi.advanceTimersByTime(finaleMs() / 2);
+    // Bob answers with an emote while his Hex is still mid-finale.
+    receiveEmote("u2", 5);
+    expect(slot()).toBe("emote6");
+    vi.advanceTimersByTime(finaleMs());
+    expect(slot()).toBe("emote6");
+    // Taps are still ignored until the sulk time is over, then the ladder starts over.
+    expect(pokeCompanion("u2")).toBe(false);
     vi.advanceTimersByTime(SULK_MS);
     expect(pokeCompanion("u2")).toBe(true);
     expect(slot()).toBe("poke1");
