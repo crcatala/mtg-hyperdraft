@@ -38,7 +38,22 @@ export function ContextMenu() {
   const iconColumn = menu.items.some((item) => item.icon);
   return (
     <div ref={ref} className="ctx-menu" style={{ left: pos.x, top: pos.y }} onContextMenu={(e) => e.preventDefault()}>
-      {menu.title && <div className="ctx-title">{menu.title}</div>}
+      {menu.title &&
+        (menu.onTitle ? (
+          <button
+            className="ctx-title ctx-title-btn"
+            title={menu.onTitle.label}
+            onClick={() => {
+              close();
+              menu.onTitle?.onSelect();
+            }}
+          >
+            <span>{menu.title}</span>
+            <Icon name="zoom-in" />
+          </button>
+        ) : (
+          <div className="ctx-title">{menu.title}</div>
+        ))}
       {menu.items.map((item, i) =>
         item.separator ? (
           <div key={i} className="ctx-sep" />

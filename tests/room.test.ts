@@ -72,6 +72,31 @@ describe("room flow", () => {
     expect(room.viewFor(a.playerId).draft?.pack?.cards).toHaveLength(14);
   });
 
+  it("shows every seat how many cards are left in the pack it's picking from", () => {
+    const { room } = newRoom();
+    const a = room.join({ name: "A" });
+    const b = room.join({ name: "B" });
+    room.applyImport(importResult());
+    send(room, a.playerId, { t: "config", draft: { cardsPerPack: 14 } });
+    send(room, a.playerId, { t: "setReady", ready: true });
+    send(room, b.playerId, { t: "setReady", ready: true });
+    const seats = () => room.viewFor(b.playerId).draft!.seats.map(({ queued, packCards }) => ({ queued, packCards }));
+    expect(seats()).toEqual([
+      { queued: 1, packCards: 14 },
+      { queued: 1, packCards: 14 },
+    ]);
+
+    const d = room.viewFor(a.playerId).draft!;
+    const taken = d.need.picks + d.need.burns;
+    const cards = d.pack!.cards;
+    send(room, a.playerId, { t: "pick", packId: d.pack!.id, picks: cards.slice(0, d.need.picks), burns: cards.slice(d.need.picks, taken) });
+    // A's pack went on to B, behind the one B is still picking from.
+    expect(seats()).toEqual([
+      { queued: 0, packCards: 0 },
+      { queued: 2, packCards: 14 },
+    ]);
+  });
+
   it("does not start when the pool is too small", () => {
     const { room } = newRoom();
     const a = room.join({});

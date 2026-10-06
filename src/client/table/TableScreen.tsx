@@ -8,7 +8,7 @@ import { NameEditor } from "../components/TopBar";
 import { PublicRoomChip } from "../components/PublicRoomChip";
 import { Icon } from "../components/Icon";
 import { TableCanvas, seatHue } from "./TableScene";
-import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom } from "./tableUi";
+import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom, zoomHovered } from "./tableUi";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { beginDrag, tableApi } from "./drag";
 import { handLayout } from "./handLayout";
@@ -28,6 +28,7 @@ import type { IconName } from "../icons";
 import type { CardData, Color, LogEntry, LogKind, LogMark, TableCard, TokenDef, ZoneName } from "../../shared/types";
 import { COLORS, ZONE_LABELS } from "../../shared/types";
 import { isControl, shortcutsBlocked } from "../shortcuts";
+import { useDebugAccess } from "../debugAccess";
 import { CompanionIcon, PlayerFace } from "../components/Persona";
 
 export function TableScreen() {
@@ -104,6 +105,9 @@ function useTableShortcuts() {
           if (ui.handHover && !ui.hovered) turnHandCard(ui.handHover);
           else if (ui.handSelected && !ui.hovered && ids.length === 0) turnHandCard(ui.handSelected);
           else if (ids.length === 1) act({ a: "turnFace", id: ids[0] });
+          break;
+        case "z":
+          zoomHovered();
           break;
         case "g":
           moveTo(ids, "graveyard");
@@ -1258,6 +1262,7 @@ const SHORTCUTS: [string, string][] = [
   ["Right-click", "Card, pile and library menus (counters, face down, scry, search, mill…)"],
   ["Shift-click", "Select several cards (then drag or use keys on all of them)"],
   ["Space / T", "Tap or untap the hovered / selected cards"],
+  ["Z", "Zoom in on the hovered card: full size, with its rulings (also first in its right-click menu)"],
   ["F", "Turn face down / face up"],
   ["R", "Transform a double-faced card (on the table, or turn it over in your hand)"],
   ["Tab", "Ping the spot under the pointer — everyone sees and hears it"],
@@ -1273,12 +1278,14 @@ const SHORTCUTS: [string, string][] = [
   ["1–4 · V", "View from a seat (1 is yours) · look down on the whole table"],
   ["Home", "Reset the camera"],
   ["Alt+Shift+T", "Switch UI theme (or open Settings, next to Help)"],
-  ["` (backtick)", "Debug console"],
 ];
+/** Only listed where the debug console is turned on (?debug). */
+const DEBUG_SHORTCUT: [string, string] = ["` (backtick)", "Debug console"];
 
 function HelpOverlay() {
   const help = useTableUi((s) => s.help);
   const set = useTableUi((s) => s.set);
+  const debugTools = useDebugAccess();
   if (!help) return null;
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && set({ help: false })}>
@@ -1291,7 +1298,7 @@ function HelpOverlay() {
           </button>
         </div>
         <dl className="shortcut-list">
-          {SHORTCUTS.map(([k, v]) => (
+          {(debugTools ? [...SHORTCUTS, DEBUG_SHORTCUT] : SHORTCUTS).map(([k, v]) => (
             <div key={k}>
               <dt>
                 <kbd>{k}</kbd>

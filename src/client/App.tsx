@@ -13,15 +13,17 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { DebugConsole } from "./debug/DebugConsole";
 import { useStore } from "./store";
 import { shortcutsBlocked } from "./shortcuts";
+import { debugAccess, useDebugAccess } from "./debugAccess";
 
 export function App() {
   const path = usePath();
   const code = roomCodeFromPath(path);
+  const debugTools = useDebugAccess();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "`" || e.key === "~") {
-        if (shortcutsBlocked()) return;
+        if (!debugAccess() || shortcutsBlocked()) return;
         e.preventDefault();
         const s = useStore.getState();
         s.setDebug({ open: !s.debug.open });
@@ -38,7 +40,7 @@ export function App() {
       <ContextMenu />
       <MusicPlayer />
       <SettingsDialog />
-      <DebugConsole />
+      {debugTools && <DebugConsole />}
     </>
   );
 }

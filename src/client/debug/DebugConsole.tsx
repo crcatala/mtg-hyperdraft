@@ -1,10 +1,12 @@
 // Collapsible playtest console (toggle with the backtick key): phase jumps, bots, render toggles, state.
+// Only mounted once a visit with ?debug has turned it on (debugAccess.ts).
 
 import { useState } from "react";
 import { useStore } from "../store";
 import { Icon } from "../components/Icon";
 import type { DebugCommand } from "../../shared/protocol";
 import { quickstart, SAMPLE_CUBE, STARTER_CUBE } from "../quickstart";
+import { setDebugAccess } from "../debugAccess";
 
 export function DebugConsole() {
   const open = useStore((s) => s.debug.open);
@@ -38,6 +40,16 @@ export function DebugConsole() {
         <b>Debug console</b>
         <span className="faint">` to toggle</span>
         <div className="spacer" />
+        <button
+          className="btn ghost small"
+          title="Hide the debug console in this browser (visit with ?debug to bring it back)"
+          onClick={() => {
+            setDebug({ open: false, forceText: false, slowMotion: false });
+            setDebugAccess(false);
+          }}
+        >
+          Turn off
+        </button>
         <button className="btn ghost small icon-only" aria-label="Close debug console" onClick={() => setDebug({ open: false })}>
           <Icon name="x" />
         </button>

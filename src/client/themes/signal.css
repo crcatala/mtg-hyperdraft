@@ -808,7 +808,8 @@
     border-radius: 1px;
     background: var(--signal);
   }
-  .ring-queue em {
+  .ring-queue em,
+  .ring-count {
     font-family: var(--font-mono);
     font-style: normal;
   }

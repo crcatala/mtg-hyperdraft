@@ -744,7 +744,8 @@ export class Room {
       seat,
       seats: draft.seats.map((id, s) => {
         const p = this.player(id);
-        return { playerId: id, name: p?.name ?? "?", isBot: p?.isBot ?? true, queued: draft.queues[s].length, picks: draft.picks[id]?.length ?? 0 };
+        const queue = draft.queues[s];
+        return { playerId: id, name: p?.name ?? "?", isBot: p?.isBot ?? true, queued: queue.length, packCards: queue[0]?.cards.length ?? 0, picks: draft.picks[id]?.length ?? 0 };
       }),
       pack: pack ? { id: pack.id, cards: pack.cards.slice(), picksTaken: pack.picksTaken, round: pack.round, deadline: pack.deadline } : null,
       need: pack ? turnCounts(pack, config) : { picks: 0, burns: 0 },

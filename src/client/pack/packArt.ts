@@ -48,6 +48,8 @@ export interface PackLabel {
 }
 
 export interface PackArt {
+  /** The UI theme it was made for. */
+  theme: string;
   palette: Palette;
   front: THREE.CanvasTexture;
   back: THREE.CanvasTexture;
@@ -467,6 +469,7 @@ export async function buildPackArt(label: PackLabel, theme = currentTheme()): Pr
   const b = make(false);
   const all = [f.map, f.orm, f.normal, b.map, b.orm, b.normal];
   return {
+    theme,
     palette,
     front: f.map,
     frontOrm: f.orm,
