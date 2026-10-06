@@ -13,12 +13,13 @@ import { accentOf, avatarArt, avatarDef, companionDef, companionSmall, surprise 
 import { saveLook } from "../identity";
 import { cubeCards } from "../cubeList";
 import type { CardData, DraftConfig, GameConfig, Player } from "../../shared/types";
-import { MAX_HUMANS, MAX_SEATS } from "../../shared/types";
-import { cardsNeeded } from "../../shared/draft";
+import { DRAFT_PRESETS, MAX_HUMANS, MAX_SEATS, type DraftMode, type RarityGroup } from "../../shared/types";
+import { cardsNeeded, matchesPreset, RARITY_GROUPS, validatePool } from "../../shared/draft";
 import { quickstart, STARTER_CUBE } from "../quickstart";
 import { presetSource } from "../../shared/presets";
 import { durationLabel, PUBLIC_LIMITS } from "../../shared/publicRooms";
 import { clockTime } from "../expiry";
+import { SetImport } from "../components/SetImport";
 
 const SAMPLE_CUBES = [
   { label: "Vintage Cube", value: "https://cubecobra.com/cube/list/vintage" },
@@ -315,8 +316,9 @@ function CubePanel({ isHost }: { isHost: boolean }) {
                 </button>
               ))}
             </div>
+            <SetImport running={running} onImport={(code) => send({ t: "import", source: `set:${code}` })} />
             <p className="faint small-print">
-              Accepts CubeCobra URLs, one name per line, "4 Card Name", Arena "(SET) 123" lines and CubeCobra CSV exports. Card data is looked up on Scryfall
+              Accepts CubeCobra URLs, one name per line, "4 Card Name", Arena "(SET) 123" lines, CubeCobra CSV exports and "set:WTH". Card data is looked up on Scryfall
               {solo ? " straight from your browser." : " and saved with the lobby."}
             </p>
           </div>
@@ -333,6 +335,65 @@ function CubePanel({ isHost }: { isHost: boolean }) {
 }
 
 const TIMER_OPTIONS = [0, 30, 45, 60, 75, 90, 120];
+const STYLE_NAMES: Record<DraftMode, string> = { cube: "Cube", set: "Set" };
+const STYLE_BLURBS: Record<DraftMode, string> = {
+  cube: "Packs of 15 dealt at random from the whole list, every card once. Made for cubes.",
+  set: "Packs built like boosters (1 rare or mythic, 3 uncommons, 10 commons), and cards can repeat across packs. Made for drafting a set.",
+};
+const SLOT_LABELS: Record<RarityGroup, string> = { rare: "Rares & mythics", uncommon: "Uncommons", common: "Commons" };
+const SLOT_CAPS: Record<RarityGroup, number> = { rare: 15, uncommon: 15, common: 30 };
+
+/** Advanced pack options: rarity counts per pack and duplicates. Open by default once either is in use. */
+function PackContents({ config: d, disabled, onChange }: { config: DraftConfig; disabled: boolean; onChange: (patch: Partial<DraftConfig>) => void }) {
+  const [open, setOpen] = useState(() => !!d.packSlots || d.allowDuplicates);
+  const slots = d.packSlots;
+  const total = slots ? RARITY_GROUPS.reduce((sum, r) => sum + slots[r], 0) : d.cardsPerPack;
+  const summary = [
+    slots ? RARITY_GROUPS.map((r) => `${slots[r]} ${r}`).join(" · ") : "random cards",
+    d.allowDuplicates ? "repeats across packs" : "every card once",
+  ].join(" · ");
+  return (
+    <details className="pack-contents" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>
+        <Icon name={open ? "chevron-down" : "chevron-right"} /> <span className="label">Pack contents</span> <span className="faint small-print">{summary}</span>
+      </summary>
+      <fieldset disabled={disabled} className="pack-contents-body">
+        <label className="field check">
+          <input
+            type="checkbox"
+            checked={!!slots}
+            onChange={(e) => onChange(e.target.checked ? { packSlots: DRAFT_PRESETS.set.packSlots } : { packSlots: null, cardsPerPack: total })}
+          />
+          <span>Build packs by rarity</span>
+        </label>
+        {slots && (
+          <>
+            <div className="settings-grid slot-grid">
+              {RARITY_GROUPS.map((r) => {
+                const others = total - slots[r];
+                return (
+                  <NumberField
+                    key={r}
+                    label={SLOT_LABELS[r]}
+                    value={slots[r]}
+                    min={Math.max(0, 2 - others)}
+                    max={Math.min(SLOT_CAPS[r], 30 - others)}
+                    onChange={(v) => onChange({ packSlots: { ...slots, [r]: v } })}
+                  />
+                );
+              })}
+            </div>
+            <p className="faint small-print">The rare slot picks rares twice as often as mythics, like a real print sheet.</p>
+          </>
+        )}
+        <label className="field check">
+          <input type="checkbox" checked={d.allowDuplicates} onChange={(e) => onChange({ allowDuplicates: e.target.checked })} />
+          <span>Allow duplicates across packs (never twice in one pack)</span>
+        </label>
+      </fieldset>
+    </details>
+  );
+}
 
 function SettingsPanel({ isHost }: { isHost: boolean }) {
   const view = useStore((s) => s.view)!;
@@ -342,6 +403,10 @@ function SettingsPanel({ isHost }: { isHost: boolean }) {
   const setDraft = (patch: Partial<DraftConfig>) => send({ t: "config", draft: patch });
   const setGame = (patch: Partial<GameConfig>) => send({ t: "config", game: patch });
   const needed = cardsNeeded(view.players.length, d);
+  const problem = view.cube ? validatePool(view.cube.stats, view.players.length, d) : null;
+  const slots = d.packSlots;
+  const pickStyle = (mode: DraftMode) => setDraft({ mode, ...DRAFT_PRESETS[mode] });
+  const importedSet = !!view.cube?.source.startsWith("set:");
 
   return (
     <section className="panel lobby-settings">
@@ -350,9 +415,48 @@ function SettingsPanel({ isHost }: { isHost: boolean }) {
         {!isHost && <span className="faint">host controls these</span>}
       </div>
       <ScrollArea className="panel-scroll">
+        <fieldset disabled={!isHost} className="draft-style">
+          <span className="label" id="draft-style-label">
+            Draft style
+          </span>
+          <div className="row wrap">
+            <div className="draft-style-options" role="radiogroup" aria-labelledby="draft-style-label">
+              {(["cube", "set"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  role="radio"
+                  aria-checked={d.mode === mode}
+                  className={`btn small${d.mode === mode ? " on" : ""}`}
+                  onClick={() => pickStyle(mode)}
+                  title={d.mode === mode ? `Reset to the ${STYLE_NAMES[mode]} defaults` : undefined}
+                >
+                  {STYLE_NAMES[mode]}
+                </button>
+              ))}
+            </div>
+            {!matchesPreset(d, d.mode) && <span className="pill">Modified · pick {STYLE_NAMES[d.mode]} again to reset</span>}
+          </div>
+          <p className="faint small-print">{STYLE_BLURBS[d.mode]}</p>
+          {isHost && importedSet && d.mode !== "set" && (
+            <div className="style-hint">
+              <span>You imported a whole set. Set style is recommended: packs like real boosters, and cards can repeat across packs.</span>
+              <button className="btn small violet" onClick={() => pickStyle("set")}>
+                Use set style
+              </button>
+            </div>
+          )}
+        </fieldset>
         <fieldset disabled={!isHost} className="settings-grid">
           <NumberField label="Packs per player" value={d.packsPerPlayer} min={1} max={6} onChange={(v) => setDraft({ packsPerPlayer: v })} />
-          <NumberField label="Cards per pack" value={d.cardsPerPack} min={2} max={30} onChange={(v) => setDraft({ cardsPerPack: v })} />
+          <NumberField
+            label="Cards per pack"
+            value={d.cardsPerPack}
+            min={2}
+            max={30}
+            onChange={(v) => setDraft({ cardsPerPack: v })}
+            disabled={!!slots}
+            hint={slots ? "Set by the rarity counts under Pack contents." : undefined}
+          />
           <NumberField label="Picks per turn" value={d.picksPerTurn} min={1} max={5} onChange={(v) => setDraft({ picksPerTurn: v })} />
           <NumberField label="Burns per turn" value={d.burnsPerTurn} min={0} max={5} onChange={(v) => setDraft({ burnsPerTurn: v })} hint="Discard extra cards each pick — speeds up small pods." />
           <label className="field">
@@ -380,24 +484,23 @@ function SettingsPanel({ isHost }: { isHost: boolean }) {
               )}
             </div>
           </label>
-          <label className="field check">
-            <input type="checkbox" checked={d.allowDuplicates} onChange={(e) => setDraft({ allowDuplicates: e.target.checked })} />
-            <span>Allow duplicate cards across packs</span>
-          </label>
           <label className="field">
             <span className="label">Foil chance per pack: {Math.round(d.foilChance * 100)}%</span>
             <input type="range" min={0} max={1} step={0.05} value={d.foilChance} onChange={(e) => setDraft({ foilChance: Number(e.target.value) })} />
           </label>
         </fieldset>
-        <p className={`pool-check ${view.cube && view.cube.size >= needed ? "ok" : ""}`}>
-          {view.players.length} seat(s) × {d.packsPerPlayer} packs × {d.cardsPerPack} cards = <b>{needed}</b> cards needed
+        <PackContents config={d} disabled={!isHost} onChange={setDraft} />
+        <p className={`pool-check ${view.cube && !problem ? "ok" : ""}`}>
+          {view.players.length} seat(s) × {d.packsPerPlayer} packs × {d.cardsPerPack} cards
+          {d.allowDuplicates ? " (cards can repeat across packs)" : <> = <b>{needed}</b> cards needed</>}
           {view.cube && (
             <>
               {" "}
-              · cube has <b>{view.cube.size}</b> {view.cube.size >= needed || d.allowDuplicates ? <Icon name="check" title="Enough cards" /> : <Icon name="x" title="Not enough cards" />}
+              · cube has <b>{view.cube.size}</b> {problem ? <Icon name="x" title="Not enough cards" /> : <Icon name="check" title="Enough cards" />}
             </>
           )}
         </p>
+        {problem && view.cube && <p className="pool-check">{problem}</p>}
 
         <div className="section-head">
           <h2>Game settings</h2>
@@ -412,7 +515,23 @@ function SettingsPanel({ isHost }: { isHost: boolean }) {
   );
 }
 
-function NumberField({ label, value, min, max, onChange, hint }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; hint?: string }) {
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+  hint,
+  disabled,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+  hint?: string;
+  disabled?: boolean;
+}) {
   const [draft, setDraft] = useState<string | null>(null);
   const commit = (raw: string) => {
     setDraft(null);
@@ -423,18 +542,19 @@ function NumberField({ label, value, min, max, onChange, hint }: { label: string
     <div className="field" title={hint}>
       <span className="label">{label}</span>
       <div className="stepper">
-        <button type="button" className="btn small icon-only" aria-label={`Decrease ${label.toLowerCase()}`} onClick={() => value > min && onChange(value - 1)}>
+        <button type="button" className="btn small icon-only" aria-label={`Decrease ${label.toLowerCase()}`} disabled={disabled} onClick={() => value > min && onChange(value - 1)}>
           <Icon name="minus" />
         </button>
         <input
           className="input"
           inputMode="numeric"
+          disabled={disabled}
           value={draft ?? String(value)}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={(e) => commit(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && commit((e.target as HTMLInputElement).value)}
         />
-        <button type="button" className="btn small icon-only" aria-label={`Increase ${label.toLowerCase()}`} onClick={() => value < max && onChange(value + 1)}>
+        <button type="button" className="btn small icon-only" aria-label={`Increase ${label.toLowerCase()}`} disabled={disabled} onClick={() => value < max && onChange(value + 1)}>
           <Icon name="plus" />
         </button>
       </div>

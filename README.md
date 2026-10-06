@@ -2,7 +2,7 @@
 
 Browser-based **Magic: The Gathering cube drafting + 3D tabletop** for up to 4 friends (plus bot drafters).
 
-Create a lobby → share the code → import a cube (CubeCobra link or pasted list) → everyone readies up →
+Create a lobby → share the code → import a cube (CubeCobra link, pasted list or a whole set by code) → everyone readies up →
 rip packs and draft → build decks (unlimited basics) → play on a shared freeform 3D table.
 
 Anyone can **play solo against bots** straight away: it runs entirely in the browser, no server or sign-up.
@@ -47,15 +47,16 @@ npm run build        # production build (dist/)
 src/
   shared/        Pure TypeScript, no DOM/Workers APIs — unit tested
     types.ts         data model (cards, lobby config, draft, decks, table)
-    importParser.ts  CubeCobra URL / plain list / "4 Name" / Arena "(SET) 123" / CubeCobra CSV
+    importParser.ts  CubeCobra URL / "set:WTH" / plain list / "4 Name" / Arena "(SET) 123" / CubeCobra CSV
     cardSources.ts   Scryfall /cards/collection (75 per request) + fuzzy fallback, CubeCobra cubeJSON
-    draft.ts         booster draft engine: packs, passing L/R/L, burns, pick timers, bots
+    setSource.ts     whole-set import: one plain booster printing per card (no alt art, promos, basics)
+    draft.ts         booster draft engine: packs (random or by rarity slots), passing L/R/L, burns, pick timers, bots
     autopick.ts      card scoring (CubeCobra ELO + rarity + colour commitment)
     deck.ts          auto-lands (by mana symbols), auto-build
     table.ts         tabletop actions + per-player views that hide hands/libraries/face-down cards
     room.ts          whole room state machine: lobby → drafting → deckbuilding → playing
     protocol.ts      zod-validated client messages, server messages, per-player RoomView
-    importCube.ts    import pipeline (preset/CubeCobra/list → Scryfall), shared by the DO and solo mode
+    importCube.ts    import pipeline (preset/CubeCobra/set/list → Scryfall), shared by the DO and solo mode
     presets.ts       cubes bundled as static snapshots (public/presets/*.json)
     roomCode.ts      signed room codes (HMAC check characters)
     invites.ts       invite codes, quotas, "My rooms" ledger, idle expiry

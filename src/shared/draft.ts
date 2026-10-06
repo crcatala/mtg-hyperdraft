@@ -3,9 +3,10 @@
 // Each seat has a queue of packs. You pick from the head of your queue, then the pack moves to your
 // neighbour's queue (left = seat + 1). A round ends when every pack of that round is empty.
 
-import type { CardInstance, CardMap, DraftConfig, DraftState, Pack } from "./types";
+import type { CardData, CardInstance, CardMap, DraftConfig, DraftMode, DraftState, Pack, RarityGroup } from "./types";
+import { DEFAULT_CONFIG, DRAFT_PRESETS } from "./types";
 import { pickScore, colorAffinity } from "./autopick";
-import { shuffle, type Rng } from "./rng";
+import type { Rng } from "./rng";
 
 export interface DraftEnv {
   config: DraftConfig;
@@ -20,15 +21,138 @@ export function cardsNeeded(seatCount: number, config: DraftConfig): number {
   return seatCount * config.packsPerPlayer * config.cardsPerPack;
 }
 
+export const RARITY_GROUPS: RarityGroup[] = ["rare", "uncommon", "common"];
+const GROUP_NAMES: Record<RarityGroup, string> = { rare: "rares & mythics", uncommon: "uncommons", common: "commons" };
+
+/** Which pack slot a card fills: mythics and specials share the rare slot. */
+export function rarityGroup(card: CardData | undefined): RarityGroup {
+  if (card?.rarity === "common" || !card) return "common";
+  return card.rarity === "uncommon" ? "uncommon" : "rare";
+}
+
+export interface CardCount {
+  copies: number;
+  unique: number;
+}
+/** What a cube's pool can fill: total and per rarity group, counting copies and distinct cards. */
+export interface PoolStats extends CardCount {
+  byRarity: Record<RarityGroup, CardCount>;
+}
+
+export function poolStats(pool: string[], cards: CardMap): PoolStats {
+  const byRarity = Object.fromEntries(RARITY_GROUPS.map((r) => [r, { copies: 0, unique: 0 }])) as Record<RarityGroup, CardCount>;
+  const seen = new Set<string>();
+  for (const id of pool) {
+    const group = byRarity[rarityGroup(cards[id])];
+    group.copies++;
+    if (!seen.has(id)) {
+      seen.add(id);
+      group.unique++;
+    }
+  }
+  return { copies: pool.length, unique: seen.size, byRarity };
+}
+
 /** Returns an error message when the pool can't fill the packs, else null. */
-export function validatePool(poolSize: number, seatCount: number, config: DraftConfig): string | null {
-  if (poolSize === 0) return "Import a cube first.";
+export function validatePool(stats: PoolStats, seatCount: number, config: DraftConfig): string | null {
+  if (stats.copies === 0) return "Import a cube first.";
   if (config.picksPerTurn < 1) return "Picks per turn must be at least 1.";
-  const needed = cardsNeeded(seatCount, config);
-  if (!config.allowDuplicates && poolSize < needed) {
-    return `Need ${needed} cards for ${seatCount} seats × ${config.packsPerPlayer} packs × ${config.cardsPerPack} cards, but the cube has ${poolSize}. Use smaller packs, fewer packs, or allow duplicates.`;
+  const packs = seatCount * config.packsPerPlayer;
+  const slots = config.packSlots;
+  if (!slots) {
+    const needed = cardsNeeded(seatCount, config);
+    if (!config.allowDuplicates && stats.copies < needed) {
+      return `Need ${needed} cards for ${seatCount} seats × ${config.packsPerPlayer} packs × ${config.cardsPerPack} cards, but the cube has ${stats.copies}. Use smaller packs, fewer packs, or allow duplicates.`;
+    }
+    if (config.allowDuplicates && stats.unique < config.cardsPerPack) {
+      return `Packs of ${config.cardsPerPack} need ${config.cardsPerPack} different cards, but the cube only has ${stats.unique}.`;
+    }
+    return null;
+  }
+  for (const r of RARITY_GROUPS) {
+    const per = slots[r];
+    if (per === 0) continue;
+    const name = GROUP_NAMES[r];
+    if (config.allowDuplicates) {
+      const have = stats.byRarity[r].unique;
+      if (have < per) return `Each pack needs ${per} different ${name}, but the cube only has ${have}. Lower the ${r} count.`;
+    } else {
+      const have = stats.byRarity[r].copies;
+      if (have < per * packs) {
+        return `${packs} packs × ${per} ${name} = ${per * packs} needed, but the cube has ${have}. Allow duplicates across packs, or lower the ${r} count.`;
+      }
+    }
   }
   return null;
+}
+
+/** Fills in settings added since a room was saved, and keeps cardsPerPack in step with the rarity slots. */
+export function normalizeDraftConfig(config: DraftConfig): DraftConfig {
+  const c = { ...DEFAULT_CONFIG.draft, ...config };
+  if (c.packSlots) c.cardsPerPack = RARITY_GROUPS.reduce((sum, r) => sum + c.packSlots![r], 0);
+  return c;
+}
+
+/** Whether the settings a draft style covers still match it (else the lobby shows it as modified). */
+export function matchesPreset(config: DraftConfig, mode: DraftMode): boolean {
+  const p = DRAFT_PRESETS[mode];
+  const slotsMatch = p.packSlots && config.packSlots ? RARITY_GROUPS.every((r) => p.packSlots![r] === config.packSlots![r]) : p.packSlots === config.packSlots;
+  return config.packsPerPlayer === p.packsPerPlayer && config.cardsPerPack === p.cardsPerPack && config.allowDuplicates === p.allowDuplicates && slotsMatch;
+}
+
+/** Rare slots favour rares 2:1 over mythics, like a real print sheet. */
+function slotWeight(card: CardData | undefined): number {
+  return card?.rarity === "mythic" ? 1 : 2;
+}
+
+/**
+ * Takes `n` cards out of `source` at random (weighted), avoiding cards already in `pack` while it can.
+ * Mutates `source`.
+ */
+function draw(source: string[], n: number, pack: string[], rng: Rng, weight: (id: string) => number): string[] {
+  const out: string[] = [];
+  for (let k = 0; k < n && source.length > 0; k++) {
+    const taken = new Set([...pack, ...out]);
+    let candidates = source.map((_, i) => i).filter((i) => !taken.has(source[i]));
+    if (candidates.length === 0) candidates = source.map((_, i) => i); // Only copies left: better a repeat than a short pack.
+    const total = candidates.reduce((sum, i) => sum + weight(source[i]), 0);
+    let roll = rng() * total;
+    let at = candidates[candidates.length - 1];
+    for (const i of candidates) {
+      roll -= weight(source[i]);
+      if (roll < 0) {
+        at = i;
+        break;
+      }
+    }
+    out.push(source[at]);
+    source.splice(at, 1);
+  }
+  return out;
+}
+
+/**
+ * The card ids of `count` packs. Without duplicates every pack draws from one shared pool, so a card
+ * (copy) is dealt once; with duplicates every pack draws from the whole pool afresh. Either way a pack
+ * never holds the same card twice while the pool can avoid it. With rarity slots, each slot draws from
+ * its own rarity group, commons first and the rare last, like a real booster.
+ */
+export function dealPacks(count: number, pool: string[], env: Pick<DraftEnv, "config" | "cards" | "rng">): string[][] {
+  const { config, cards, rng } = env;
+  const slots = config.packSlots;
+  const groups = slots
+    ? (["common", "uncommon", "rare"] as const).map((r) => ({ ids: pool.filter((id) => rarityGroup(cards[id]) === r), n: slots[r], rare: r === "rare" }))
+    : [{ ids: pool.slice(), n: config.cardsPerPack, rare: false }];
+  const packs: string[][] = [];
+  for (let p = 0; p < count; p++) {
+    const pack: string[] = [];
+    for (const g of groups) {
+      const source = config.allowDuplicates ? g.ids.slice() : g.ids;
+      pack.push(...draw(source, g.n, pack, rng, g.rare ? (id) => slotWeight(cards[id]) : () => 1));
+    }
+    packs.push(pack);
+  }
+  return packs;
 }
 
 export function passTarget(seat: number, round: number, seatCount: number, config: DraftConfig): number {
@@ -38,18 +162,13 @@ export function passTarget(seat: number, round: number, seatCount: number, confi
 
 export function createDraft(seats: string[], pool: string[], env: DraftEnv): DraftState {
   const { config, rng } = env;
-  const needed = cardsNeeded(seats.length, config);
-  const dealt = config.allowDuplicates
-    ? Array.from({ length: needed }, () => pool[Math.floor(rng() * pool.length)])
-    : shuffle(pool, rng).slice(0, needed);
+  const dealt = dealPacks(seats.length * config.packsPerPlayer, pool, env);
 
   const unopened: Pack[][] = [];
-  let cursor = 0;
   for (let round = 0; round < config.packsPerPlayer; round++) {
     const packs: Pack[] = [];
     for (let seat = 0; seat < seats.length; seat++) {
-      const cardIds = dealt.slice(cursor, cursor + config.cardsPerPack);
-      cursor += config.cardsPerPack;
+      const cardIds = dealt[round * seats.length + seat];
       const foilIndex = rng() < config.foilChance ? Math.floor(rng() * cardIds.length) : -1;
       const iids = cardIds.map((cardId, i) => {
         const iid = env.nextId("c");

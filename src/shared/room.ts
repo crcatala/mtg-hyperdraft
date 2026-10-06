@@ -4,7 +4,7 @@
 import type { ClientMessage, CubeSummary, DebugCommand, DraftView, RoomView, ServerMessage } from "./protocol";
 import type { CardData, CardInstance, CardMap, DeckState, LobbyConfig, Player, RoomState, BasicLand } from "./types";
 import { DEFAULT_CONFIG, MAX_HUMANS, MAX_SEATS } from "./types";
-import { advance, autoPick, createDraft, DraftError, makePick, nextDeadline, pauseClock, resumeClock, seatOf, turnCounts, validatePool, type DraftEnv } from "./draft";
+import { advance, autoPick, createDraft, DraftError, makePick, nextDeadline, normalizeDraftConfig, pauseClock, poolStats, resumeClock, seatOf, turnCounts, validatePool, type DraftEnv } from "./draft";
 import { autoBuild, deckSize, newDeck } from "./deck";
 import { applyTableAction, createTable, logSceneChange, handDragId, realIdsFor, resolveTableAction, shownId, syncStandIns, TableError, tableViewFor, type TableEnv } from "./table";
 import { randomCode, type Rng } from "./rng";
@@ -108,6 +108,8 @@ export class Room {
     // Games saved before stand-in ids existed get them now.
     if (state.table) syncStandIns(state.table, deps.rng);
     this.normalizeLooks();
+    // Rooms saved before draft styles existed get the new settings' defaults.
+    state.config.draft = normalizeDraftConfig(state.config.draft);
   }
 
   /** Tidies looks after loading a saved room: drops retired ids, deals bots theirs, and sorts out variants. */
@@ -190,7 +192,7 @@ export class Room {
     const seats = this.state.players.length;
     if (seats === 0) return "Waiting for players.";
     if (!this.state.cube) return "The host needs to import a cube.";
-    return validatePool(this.state.cube.pool.length, seats, this.state.config.draft);
+    return validatePool(poolStats(this.state.cube.pool, this.cards), seats, this.state.config.draft);
   }
 
   // --- membership -----------------------------------------------------------------------------
@@ -375,9 +377,10 @@ export class Room {
         this.requireHost(playerId);
         this.requirePhase("lobby");
         const next: LobbyConfig = {
-          draft: { ...this.state.config.draft, ...msg.draft },
+          draft: normalizeDraftConfig({ ...this.state.config.draft, ...msg.draft }),
           game: { ...this.state.config.game, ...msg.game },
         };
+        if (next.draft.cardsPerPack < 2 || next.draft.cardsPerPack > 30) throw new RoomError("Packs need between 2 and 30 cards.");
         this.state.config = next;
         this.unreadyAll();
         result.changed = true;
@@ -744,6 +747,7 @@ export class Room {
       source: cube.source,
       size: cube.pool.length,
       uniqueCards: new Set(cube.pool).size,
+      stats: poolStats(cube.pool, this.cards),
       notFound: cube.notFound,
       warnings: cube.warnings,
       importedAt: cube.importedAt,
