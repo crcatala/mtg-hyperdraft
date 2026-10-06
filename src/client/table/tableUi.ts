@@ -84,6 +84,10 @@ interface TableUi {
   handSelected: string | null;
   /** Hand card the zoom carousel was opened on. */
   handZoom: string | null;
+  /** Card under the pointer in the zone viewer (Z zooms it). */
+  zoneHover: string | null;
+  /** Zone viewer card the zoom carousel was opened on; it browses the cards the viewer lists. */
+  zoneZoom: string | null;
   /** Face each double-faced hand card is turned to; it enters the battlefield that way. */
   handFaces: Record<string, number>;
   /** Where dropped battlefield cards are headed until the server confirms, so they don't snap back. */
@@ -111,6 +115,8 @@ export const useTableUi = create<TableUi>((set) => ({
   handHover: null,
   handSelected: null,
   handZoom: null,
+  zoneHover: null,
+  zoneZoom: null,
   handFaces: {},
   settling: {},
   pings: [],
@@ -194,9 +200,20 @@ export function zoomCard(card: TableCard) {
   useTableUi.getState().set({ logZoom: { key: `table:${card.id}`, cardId: data.id, face: card.face, title: "Battlefield" } });
 }
 
-/** Z: zooms in on the hovered card, in your hand or on the battlefield. */
+/** Opens a card listed in the zone viewer (graveyard, exile, a search…) in the zoom carousel. */
+export function zoomZoneCard(card: TableCard) {
+  if (zoomData(card)) useTableUi.getState().set({ zoneZoom: card.id });
+}
+
+/** Z: zooms in on the hovered card, in the zone viewer, your hand or on the battlefield. */
 export function zoomHovered() {
   const ui = useTableUi.getState();
+  // The viewer covers the table, so what the 3D scene last saw under the pointer doesn't count.
+  if (ui.viewer) {
+    const card = ui.zoneHover ? table()?.cards[ui.zoneHover] : undefined;
+    if (card) zoomZoneCard(card);
+    return;
+  }
   if (ui.handHover && !ui.hovered) return ui.set({ handZoom: ui.handHover });
   const card = ui.hovered ? table()?.cards[ui.hovered] : undefined;
   if (card?.zone === "battlefield") zoomCard(card);
@@ -362,6 +379,36 @@ export function handMenu(card: TableCard, x: number, y: number) {
       { separator: true, label: "" },
       { label: "Reveal to everyone", onSelect: () => act({ a: "reveal", ids: [id] }) },
     ],
+  });
+}
+
+/**
+ * Menu for a card listed in the zone viewer: zoom in, and (where you may move it) where to put it.
+ * Anyone's graveyard and exile are public, so anyone may move cards out of them.
+ */
+export function zoneCardMenu(card: TableCard, viewer: ZoneViewerState, x: number, y: number) {
+  const canMove = viewer.playerId === me() || viewer.zone === "graveyard" || viewer.zone === "exile";
+  const zoom = zoomData(card) ? () => zoomZoneCard(card) : undefined;
+  if (!zoom && !canMove) return;
+  const destinations: [string, ZoneName, boolean?][] = [
+    ["To hand", "hand"],
+    ["To battlefield", "battlefield"],
+    ["To graveyard", "graveyard"],
+    ["Exile", "exile"],
+    ["Top of library", "library"],
+    ["Bottom of library", "library", true],
+  ];
+  const moves: MenuItem[] = canMove
+    ? destinations
+        .filter(([, z]) => z !== card.zone || z === "library")
+        .map(([label, zone, bottom]) => ({ label, onSelect: () => moveTo([card.id], zone, bottom ? { bottom: true } : {}) }))
+    : [];
+  useStore.getState().openMenu({
+    x,
+    y,
+    title: cardLabel(card),
+    onTitle: zoom && { label: "Zoom in", onSelect: zoom },
+    items: [...(zoom ? [{ label: "Zoom in", icon: "zoom-in" as const, hint: "Z", onSelect: zoom }, ...(moves.length ? [{ separator: true, label: "" }] : [])] : []), ...moves],
   });
 }
 

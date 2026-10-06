@@ -8,7 +8,7 @@ import { NameEditor } from "../components/TopBar";
 import { PublicRoomChip } from "../components/PublicRoomChip";
 import { Icon } from "../components/Icon";
 import { TableCanvas, seatHue } from "./TableScene";
-import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom, zoomHovered } from "./tableUi";
+import { act, askNumber, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom, zoneCardMenu, zoomHovered } from "./tableUi";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { beginDrag, tableApi } from "./drag";
 import { handLayout } from "./handLayout";
@@ -28,7 +28,7 @@ import { Tooltip } from "../components/Tooltip";
 import { logSegments } from "../../shared/logText";
 import { activePeek } from "../../shared/table";
 import type { IconName } from "../icons";
-import type { CardData, Color, LogEntry, LogKind, LogMark, TableCard, TokenDef, ZoneName } from "../../shared/types";
+import type { CardData, Color, LogEntry, LogKind, LogMark, TokenDef } from "../../shared/types";
 import { COLORS, ZONE_LABELS } from "../../shared/types";
 import { isControl, shortcutsBlocked } from "../shortcuts";
 import { useDebugAccess } from "../debugAccess";
@@ -54,7 +54,7 @@ export function TableScreen() {
       <Hand />
       <HandDragGhost />
       <HandZoom />
-      <PreviewPane width={300} top={130} />
+      <TablePreview />
       <ZoneViewer />
       <TokenDialog />
       <AskDialog />
@@ -85,7 +85,7 @@ function useTableShortcuts() {
       if (shortcutsBlocked() || (e.key === " " && isControl(el))) return;
       const ui = useTableUi.getState();
       // Dialogs and the zoom carousels own the keyboard while open.
-      if (ui.ask || ui.handZoom || ui.logZoom) return;
+      if (ui.ask || ui.handZoom || ui.logZoom || ui.zoneZoom) return;
       const k = e.key.toLowerCase();
       const ids = targetIds();
       switch (k) {
@@ -164,7 +164,7 @@ function useTableShortcuts() {
         case "escape":
           // Esc closes an open menu first (it listens for Esc itself), not the dialog behind it.
           if (useStore.getState().menu) return;
-          ui.set({ selected: [], handSelected: null, viewer: null, tokenDialog: false, help: false });
+          ui.set({ selected: [], handSelected: null, viewer: null, zoneHover: null, tokenDialog: false, help: false });
           break;
         default:
           return;
@@ -893,6 +893,12 @@ function HandDragGhost() {
 
 // --- dialogs --------------------------------------------------------------------------------
 
+/** The docked hover preview. While the zone viewer is open it rises above the dialog, whose cards it previews. */
+function TablePreview() {
+  const overDialog = useTableUi((s) => !!s.viewer);
+  return <PreviewPane width={300} top={130} className={overDialog ? "over-dialog" : undefined} />;
+}
+
 function ZoneViewer() {
   const viewer = useTableUi((s) => s.viewer);
   const setViewer = useTableUi((s) => s.setViewer);
@@ -927,6 +933,12 @@ function ZoneViewer() {
     wasOpen.current = libraryOpen;
     ended.current = false;
   }, [libraryOpen]);
+  // A preview left over from the table (or from the viewer's last card) doesn't belong over the dialog.
+  const open = !!viewer;
+  useEffect(() => {
+    setPreview({});
+    if (!open) useTableUi.getState().set({ zoneHover: null, zoneZoom: null });
+  }, [open, setPreview]);
   // Back after a refresh in the middle of a look: pick it up where it was.
   const resumed = useRef(false);
   useEffect(() => {
@@ -954,26 +966,6 @@ function ZoneViewer() {
     setViewer(null);
   };
 
-  const menuFor = (card: TableCard, x: number, y: number) => {
-    if (!mine && viewer.zone !== "graveyard" && viewer.zone !== "exile") return;
-    const destinations: [string, ZoneName, boolean?][] = [
-      ["To hand", "hand"],
-      ["To battlefield", "battlefield"],
-      ["To graveyard", "graveyard"],
-      ["Exile", "exile"],
-      ["Top of library", "library"],
-      ["Bottom of library", "library", true],
-    ];
-    useStore.getState().openMenu({
-      x,
-      y,
-      title: cardLabel(card),
-      items: destinations
-        .filter(([, z]) => z !== card.zone || z === "library")
-        .map(([label, zone, bottom]) => ({ label, onSelect: () => moveTo([card.id], zone, bottom ? { bottom: true } : {}) })),
-    });
-  };
-
   const title = searching
     ? "Searching library"
     : looking
@@ -982,8 +974,8 @@ function ZoneViewer() {
   const count = looking ? `${ids.length} of ${peek!.n} left` : `${ids.length}`;
   const shown = viewer.zone === "graveyard" || viewer.zone === "exile" ? ids.slice().reverse() : ids;
   const hint = looking
-    ? "Click a card for every option. Each card you place leaves this list; whatever is left stays on top of your library, in this order."
-    : `${mine || viewer.zone === "graveyard" || viewer.zone === "exile" ? "Right-click (or click) a card for options. " : ""}${viewer.zone === "graveyard" || viewer.zone === "exile" ? "Most recent first." : viewer.zone === "library" ? "Top of library first." : ""}`;
+    ? "Click a card for every option (Z zooms in). Each card you place leaves this list; whatever is left stays on top of your library, in this order."
+    : `${mine || viewer.zone === "graveyard" || viewer.zone === "exile" ? "Right-click (or click) a card for options · Z zooms in. " : "Click a card or press Z to zoom in. "}${viewer.zone === "graveyard" || viewer.zone === "exile" ? "Most recent first." : viewer.zone === "library" ? "Top of library first." : ""}`;
 
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && close()}>
@@ -1012,13 +1004,20 @@ function ZoneViewer() {
               <div key={id} className="zone-slot">
                 <div
                   className="zone-card"
-                  onClick={(e) => menuFor(card, e.clientX, e.clientY)}
+                  data-zid={id}
+                  onClick={(e) => zoneCardMenu(card, viewer, e.clientX, e.clientY)}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    menuFor(card, e.clientX, e.clientY);
+                    zoneCardMenu(card, viewer, e.clientX, e.clientY);
                   }}
-                  onPointerEnter={() => data && setPreview({ cardId: data.id })}
-                  onPointerLeave={() => setPreview({})}
+                  onPointerEnter={() => {
+                    useTableUi.getState().set({ zoneHover: id });
+                    if (data && !card.hidden) setPreview({ cardId: data.id, foil: card.foil });
+                  }}
+                  onPointerLeave={() => {
+                    if (useTableUi.getState().zoneHover === id) useTableUi.getState().set({ zoneHover: null });
+                    setPreview({});
+                  }}
                 >
                   <CardView card={data} token={card.token} back={card.hidden} width={140} flippable />
                 </div>
@@ -1044,8 +1043,39 @@ function ZoneViewer() {
           {ids.length === 0 && <p className="muted">Nothing here.</p>}
         </div>
       </div>
+      <ZoneZoom ids={shown} title={title} />
     </div>
   );
+}
+
+/**
+ * Zoom carousel over the cards the zone viewer lists, in the same order, opened from a card's menu
+ * (or Z). Cards you can't see (face down, tokens with no card data) are left out.
+ */
+function ZoneZoom({ ids, title }: { ids: string[]; title: string }) {
+  const zoom = useTableUi((s) => s.zoneZoom);
+  const tableCards = useStore((s) => s.view?.table?.cards);
+  const cards = useStore((s) => s.cards);
+  const items = useMemo<CarouselItem[]>(() => {
+    const out: CarouselItem[] = [];
+    for (const id of ids) {
+      const card = tableCards?.[id];
+      const data = card && !card.hidden && card.cardId ? cards[card.cardId] : undefined;
+      if (data) out.push({ key: id, card: data, foil: card!.foil });
+    }
+    return out;
+    // The list is compared by content: solo mode updates the same arrays in place.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids.join(), tableCards, cards]);
+  const originFor = useCallback((key: string) => document.querySelector(`.zone-card[data-zid="${CSS.escape(key)}"] .card`)?.getBoundingClientRect() ?? null, []);
+  const close = useCallback(() => useTableUi.getState().set({ zoneZoom: null }), []);
+  // The zoom state blocks the table's shortcuts (Esc included), so it must never outlive the carousel:
+  // gone with the viewer (closed, or its player left), it's cleared here.
+  useEffect(() => close, [close]);
+  // Cards can leave the pile while zoomed (anyone may take them out of a graveyard): the carousel
+  // keeps browsing what's left, and closes itself once nothing is.
+  if (!zoom) return null;
+  return <CardCarousel key={zoom} items={items} startKey={zoom} title={title} originFor={originFor} onClose={close} />;
 }
 
 function ordinal(n: number): string {
@@ -1284,7 +1314,7 @@ const SHORTCUTS: [string, string][] = [
   ["Right-click", "Card, pile and library menus (counters, face down, scry, search, mill…)"],
   ["Shift-click", "Select several cards (then drag or use keys on all of them)"],
   ["Space / T", "Tap or untap the hovered / selected cards"],
-  ["Z", "Zoom in on the hovered card: full size, with its rulings (also first in its right-click menu)"],
+  ["Z", "Zoom in on the hovered card (table, hand, or a pile you're viewing): full size, with its rulings (also first in its right-click menu)"],
   ["F", "Turn face down / face up"],
   ["R", "Transform a double-faced card (on the table, or turn it over in your hand)"],
   ["Tab", "Ping the spot under the pointer — everyone sees and hears it"],

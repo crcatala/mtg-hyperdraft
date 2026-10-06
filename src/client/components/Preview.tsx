@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { FacePair } from "./FacePair";
 
-export function PreviewPane({ width = 320, side = "auto" as "auto" | "left" | "right", top = 80 }) {
+export function PreviewPane({ width = 320, side = "auto" as "auto" | "left" | "right", top = 80, className = "" }) {
   const preview = useStore((s) => s.preview);
   const card = useStore((s) => (preview.cardId ? s.cards[preview.cardId] : undefined));
   const [pointerRight, setPointerRight] = useState(false);
@@ -20,7 +20,7 @@ export function PreviewPane({ width = 320, side = "auto" as "auto" | "left" | "r
   if (!card) return null;
   const onLeft = side === "left" || (side === "auto" && pointerRight);
   return (
-    <div className="preview-pane" style={{ top, [onLeft ? "left" : "right"]: 16 }} key={`${preview.cardId}:${preview.face}`}>
+    <div className={`preview-pane${className ? ` ${className}` : ""}`} style={{ top, [onLeft ? "left" : "right"]: 16 }} key={`${preview.cardId}:${preview.face}`}>
       <FacePair card={card} face={preview.face} foil={preview.foil} width={width} imageSize="large" otherSide={onLeft ? "right" : "left"} />
     </div>
   );
