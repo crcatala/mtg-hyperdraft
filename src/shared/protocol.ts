@@ -128,7 +128,10 @@ export interface DraftSeatView {
   playerId: string;
   name: string;
   isBot: boolean;
+  /** Packs waiting for this seat, the one being picked from included. */
   queued: number;
+  /** Cards left in the pack this seat is picking from (0 while waiting for one). */
+  packCards: number;
   picks: number;
 }
 

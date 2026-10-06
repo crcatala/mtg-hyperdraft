@@ -12,6 +12,7 @@ import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { AnchoredPreview } from "../components/AnchoredPreview";
 import { ManaCost } from "../components/Mana";
 import type { CardData, CardInstance, CardMap, Rarity } from "../../shared/types";
+import type { DraftSeatView } from "../../shared/protocol";
 import { sfx, setMuted, useMuted } from "../sfx";
 import { hasBackFace } from "../cardStyle";
 import { RARITY_RANK, REVEAL_FX_MS, revealSchedule, standouts, TEAR_MS } from "../revealSchedule";
@@ -682,7 +683,7 @@ function SeatRing() {
         return (
           <div className="ring-item" key={s.playerId}>
             {i > 0 && <span className="ring-arrow">{arrow}</span>}
-            <div className={`ring-seat${i === d.seat ? " me" : ""}${s.queued === 0 ? " idle" : ""}`} title={`${s.name}: ${s.queued} pack(s) waiting, ${s.picks} picks`}>
+            <div className={`ring-seat${i === d.seat ? " me" : ""}${s.queued === 0 ? " idle" : ""}`} title={seatTitle(s)}>
               <span className="ring-name">
                 {p && <PlayerFace player={p} size={22} className="ring-face" />}
                 {s.isBot && <Icon name="bot" className="ring-bot" title="Bot" />}
@@ -690,10 +691,20 @@ function SeatRing() {
                 {p && !p.isBot && !p.connected ? " (offline)" : ""}
               </span>
               <span className="ring-queue">
-                {Array.from({ length: Math.min(s.queued, 6) }, (_, k) => (
-                  <i key={k} />
-                ))}
-                {s.queued === 0 && <em>waiting</em>}
+                {s.queued > 0 ? (
+                  <>
+                    {/* A small stack stands for the pack; the count says how many cards are left in it. */}
+                    <span className="ring-stack" aria-hidden>
+                      {Array.from({ length: Math.min(s.packCards, 3) }, (_, k) => (
+                        <i key={k} />
+                      ))}
+                    </span>
+                    <b className="ring-count">×{s.packCards}</b>
+                    {s.queued > 1 && <em className="ring-more">+{s.queued - 1}</em>}
+                  </>
+                ) : (
+                  <em>waiting</em>
+                )}
               </span>
             </div>
           </div>
@@ -701,6 +712,12 @@ function SeatRing() {
       })}
     </div>
   );
+}
+
+function seatTitle(s: DraftSeatView): string {
+  if (s.queued === 0) return `${s.name}: waiting for a pack, ${s.picks} picks`;
+  const more = s.queued > 1 ? `, ${s.queued - 1} more pack${s.queued > 2 ? "s" : ""} waiting` : "";
+  return `${s.name}: ${s.packCards} card${s.packCards === 1 ? "" : "s"} left in their pack${more}, ${s.picks} picks`;
 }
 
 function PickTimer({ deadline }: { deadline: number }) {
