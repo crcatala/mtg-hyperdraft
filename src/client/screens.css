@@ -1738,6 +1738,35 @@ body.dragging * {
   margin: 8px 3px;
   background: var(--line-2);
 }
+/* Phones: icons only (each keeps its name as aria-label and tooltip) so the whole toolbar fits on screen. */
+@media (max-width: 560px) {
+  .table-dock {
+    right: 8px;
+    top: 8px;
+  }
+  .dock-actions {
+    padding: 4px;
+  }
+  .dock-btn {
+    min-width: 38px;
+    padding: 9px 4px;
+  }
+  .dock-label {
+    display: none;
+  }
+  .dock-sep {
+    margin: 6px 2px;
+  }
+}
+@media (max-width: 380px) {
+  .dock-btn {
+    min-width: 33px;
+    padding: 8px 3px;
+  }
+  .dock-actions {
+    gap: 1px;
+  }
+}
 .dock-tip {
   display: inline-flex;
   align-items: center;

@@ -13,6 +13,7 @@ import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS,
 import { beginDrag, tableApi } from "./drag";
 import { DRAG_LIFT, livePoses, motionScale, reducedMotion, useMotion } from "./motion";
 import { easeInOutCubic, Flights } from "./Flights";
+import { introProgress, pauseIntro, resumeIntro, type IntroClock } from "./cameraIntro";
 import type { IconName } from "../icons";
 import { shortcutsBlocked } from "../shortcuts";
 import { CompanionFigure } from "./CompanionFigure";
@@ -151,7 +152,21 @@ function CameraRig({ seat, seatCount }: { seat: number; seatCount: number }) {
   const curTarget = useRef(home.target.clone());
   // Opening shot: the camera starts out wide on the room around the table and glides down to the seat. Any
   // camera input (or reduced motion) skips it.
-  const intro = useRef<{ start: number; from: Pose } | null>(reducedMotion() ? null : { start: -1, from: introPose(home, seatCount) });
+  const intro = useRef<(IntroClock & { from: Pose }) | null>(reducedMotion() ? null : { start: -1, from: introPose(home, seatCount) });
+
+  // A pointer held down (grabbing a card, the hand, a pile) holds the opening shot still until it's released.
+  useEffect(() => {
+    const down = () => intro.current && pauseIntro(intro.current, performance.now());
+    const up = () => intro.current && resumeIntro(intro.current, performance.now());
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+    };
+  }, []);
 
   useEffect(() => {
     rig.current = { target: home.target.clone(), az: home.az, polar: home.polar, dist: home.dist };
@@ -231,7 +246,9 @@ function CameraRig({ seat, seatCount }: { seat: number; seatCount: number }) {
     if (shot) {
       const now = performance.now();
       if (shot.start < 0) shot.start = now;
-      const u = Math.min(1, (now - shot.start) / INTRO_MS);
+      // Paused: leave the camera exactly where it is.
+      if (shot.pausedAt !== undefined) return;
+      const u = introProgress(shot, now, INTRO_MS);
       const e = easeInOutCubic(u);
       const to = rig.current;
       const p: Pose = {
