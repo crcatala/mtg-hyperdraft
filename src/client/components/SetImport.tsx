@@ -62,8 +62,8 @@ export function SetImport({ running, onImport }: { running: boolean; onImport: (
   return (
     <div className="set-import">
       <div className="set-import-head">
-        <label className="label" htmlFor={`${listId}-input`}>
-          Or draft a whole set — name or set code
+        <label className="field-name" htmlFor={`${listId}-input`}>
+          Set name or code
         </label>
         <a className="faint small-print" href="https://scryfall.com/sets" target="_blank" rel="noreferrer">
           All sets on Scryfall <Icon name="external" />
@@ -75,6 +75,7 @@ export function SetImport({ running, onImport }: { running: boolean; onImport: (
           className="input set-search-input"
           placeholder="Duskmourn, MH3, WTH…"
           maxLength={60}
+          autoFocus
           autoComplete="off"
           spellCheck={false}
           role="combobox"
@@ -163,10 +164,10 @@ function SetIcon({ set }: { set: ScryfallSet }) {
 function SetLookupStatus({ lookup }: { lookup: SetLookup }) {
   switch (lookup.state) {
     case "idle":
-      return <span className="faint small-print">Every card from one set's boosters, one copy each: no alternate art, promos or basics.</span>;
+      return <span className="field-hint">One copy of every card in the set's boosters: no alternate art, promos or basics.</span>;
     case "choose":
       return (
-<span className="faint small-print">Pick a set from the list.</span>
+<span className="field-hint">Pick a set from the list.</span>
       );
     case "checking":
       return (
