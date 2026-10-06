@@ -978,6 +978,99 @@
     opacity: 0;
   }
 }
+/* A passed pack's standout cards (rare or better and rarer than the rest of it, at most two), once
+   they've landed: a streak of light runs once around the edge while the rarity glow swells and
+   settles. The pack is sorted rarest first and each waits its turn (--shine-delay), so the second
+   follows the first from the left. */
+@property --trace-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+.arrive-shine {
+  --head: #ffe39a;
+  --glow: var(--r-rare);
+  --tail: rgba(244, 197, 91, 0.6);
+  --tail-from: 250deg;
+  --time: 1.05s;
+  --at: calc(var(--slide-delay, 0ms) + 380ms + var(--shine-delay, 0ms));
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: 4.75% / 3.4%;
+  pointer-events: none;
+}
+.arrive-shine.r-mythic {
+  --head: #ffc49a;
+  --glow: var(--r-mythic);
+  --tail: var(--violet-2);
+  --tail-from: 200deg;
+  --time: 1.35s;
+}
+.arrive-shine.r-special {
+  --head: #f0c8ff;
+  --glow: var(--r-special);
+  --tail: rgb(var(--violet-rgb) / 0.8);
+  --tail-from: 220deg;
+  --time: 1.2s;
+}
+/* The glow lives on the wrapper: a filter on the masked layer itself would be masked away too. */
+.arrive-shine span {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 8px var(--glow));
+}
+.arrive-shine span::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 4px;
+  background: conic-gradient(from var(--trace-angle), transparent var(--tail-from), var(--tail) 290deg, var(--head) 332deg, #fff 344deg 356deg, transparent 360deg);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: shine-trace var(--time) cubic-bezier(0.45, 0, 0.25, 1) var(--at) both;
+}
+.arrive-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 30px 4px var(--glow);
+  opacity: 0;
+  animation: shine-swell calc(var(--time) + 0.4s) ease-out var(--at) both;
+}
+/* The head starts at the top-left corner (about 324° on a 63:88 card) and goes once round, clockwise. */
+@keyframes shine-trace {
+  0% {
+    --trace-angle: -32deg;
+    opacity: 0;
+  }
+  12%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    --trace-angle: 368deg;
+    opacity: 0;
+  }
+}
+@keyframes shine-swell {
+  35% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .arrive-shine {
+    display: none;
+  }
+}
 /* departures */
 /* Flown into the picks list by script (flyToPicks); this just keeps it above the rest. */
 .fan-slot.to-tray {

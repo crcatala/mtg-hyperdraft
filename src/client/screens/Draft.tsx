@@ -14,7 +14,7 @@ import { ManaCost } from "../components/Mana";
 import type { CardData, CardInstance, CardMap, Rarity } from "../../shared/types";
 import { sfx, setMuted, useMuted } from "../sfx";
 import { hasBackFace } from "../cardStyle";
-import { RARITY_RANK, REVEAL_FX_MS, revealSchedule, TEAR_MS } from "../revealSchedule";
+import { RARITY_RANK, REVEAL_FX_MS, revealSchedule, standouts, TEAR_MS } from "../revealSchedule";
 import { hasOpened, markOpened } from "../openedPacks";
 import PackScene from "../pack/PackScene";
 import { PackBoundary } from "../pack/PackBoundary";
@@ -514,6 +514,13 @@ function PackFan(props: PackFanProps) {
   for (let i = 0; i < ids.length; i += layout.perRow) rows.push(ids.slice(i, i + layout.perRow));
 
   const showCards = stage === "dealing" || stage === "revealed";
+  // A pack passed on from a neighbour: its standout cards (the ones the opening would highlight)
+  // catch the light once as they land. `ids` is rarest first; standouts() wants rarest last.
+  const standout = useMemo(() => {
+    const order = ids.slice().reverse();
+    const flags = standouts(order.map((iid) => RARITY_RANK[cards[instances[iid]?.cardId]?.rarity ?? "common"]));
+    return new Set(order.filter((_, k) => flags[k]));
+  }, [ids, instances, cards]);
   // The 3D pack's last effects (sparks, rays) play on behind the first cards being dealt.
   const [lingering, setLingering] = useState(true);
   const show3d = props.mode3d && (stage === "sealed" || stage === "tearing" || (stage === "dealing" && lingering));
@@ -561,12 +568,14 @@ function PackFan(props: PackFanProps) {
               const isSel = selected.includes(iid);
               const isBurn = burning.includes(iid);
               const rarity = card?.rarity ?? "common";
+              const shine = arrival !== "fresh" && stage === "revealed" && standout.has(iid);
               const leaveClass = leaving ? (isSel ? "to-tray" : isBurn ? "burned" : `pass-${passDirection}`) : "";
               const style = {
                 "--rot": `${off * 1.6}deg`,
                 "--arc": `${Math.abs(off) ** 1.6 * 1.6}px`,
                 "--delay": `${index * 18}ms`,
                 "--slide-delay": `${index * 28}ms`,
+                "--shine-delay": `${index * 150}ms`,
                 "--from-x": `${-(i - mid) * (layout.width + 14)}px`,
                 "--from-y": `${-(r - (rows.length - 1) / 2) * layout.width * 1.4}px`,
                 width: layout.width,
@@ -589,6 +598,11 @@ function PackFan(props: PackFanProps) {
                     <div className="flip-face flip-front">
                       <CardView card={card} foil={inst?.foil} width={layout.width} tilt flippable selected={isSel} className={isBurn ? "burn" : ""} />
                       {revealing && <div className="reveal-glint" />}
+                      {shine && (
+                        <div className={`arrive-shine r-${rarity}`}>
+                          <span />
+                        </div>
+                      )}
                     </div>
                   </div>
                   {revealing && RARITY_RANK[rarity] >= 1 && <div className={`reveal-ring r-${rarity}`} />}
