@@ -778,12 +778,12 @@
   .stepper .input {
     font-family: var(--font-mono);
   }
-  .pool-check {
+  .pool-status {
+    border-radius: 3px;
     font-family: var(--font-mono);
     font-size: 11.5px;
-    color: #f5d27a;
   }
-  .pool-check.ok {
+  .pool-status.ok {
     color: #7deaa9;
   }
 

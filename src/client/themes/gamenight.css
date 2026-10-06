@@ -692,7 +692,7 @@
     letter-spacing: 0.03em;
     color: var(--brass-hi);
   }
-  .pool-check.ok {
+  .pool-status.ok {
     color: #a8dcba;
   }
 
