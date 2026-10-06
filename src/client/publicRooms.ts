@@ -23,16 +23,28 @@ export async function fetchPublicStatus(): Promise<PublicStatus> {
   return status;
 }
 
-/** The last status this browser fetched, so Home can lay out the hosting section before the fresh one arrives. */
-export function loadPublicStatus(): PublicStatus | null {
+/**
+ * The last status this browser fetched, so Home can lay out the hosting section before the fresh one arrives. Null
+ * if there's none, or it doesn't have the shape this build expects (it may be from an older one).
+ */
+export function loadPublicStatus(now = Date.now()): PublicStatus | null {
   try {
-    const status = JSON.parse(localStorage.getItem(STATUS_KEY) ?? "null") as PublicStatus | null;
-    if (!status) return null;
+    const o = JSON.parse(localStorage.getItem(STATUS_KEY) ?? "null") as Record<string, unknown> | null;
+    if (typeof o?.enabled !== "boolean") return null;
+    if (!o.enabled) return { enabled: false };
+    const num = (v: unknown) => (typeof v === "number" ? v : undefined);
     // A pool that was full or booked then may well be open by now.
-    const now = Date.now();
-    if (status.reopensAt && status.reopensAt <= now) status.reopensAt = null;
-    if (status.nextFreeAt && status.nextFreeAt <= now) status.nextFreeAt = null;
-    return status;
+    const future = (v: unknown) => (typeof v === "number" && v > now ? v : null);
+    return {
+      enabled: true,
+      slots: num(o.slots),
+      used: num(o.used),
+      nextFreeAt: future(o.nextFreeAt),
+      nextRoomMs: num(o.nextRoomMs),
+      reopensAt: future(o.reopensAt),
+      idleMs: num(o.idleMs),
+      turnstileSiteKey: typeof o.turnstileSiteKey === "string" ? o.turnstileSiteKey : null,
+    };
   } catch {
     return null;
   }

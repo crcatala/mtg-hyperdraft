@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { roomExists } from "../net";
 import { loadName, saveName } from "../identity";
 import { createRoom, deleteRoom, fetchInvite, forgetInvite, InviteError, loadInvite, loadInviteInfo, saveInvite } from "../invite";
@@ -128,13 +128,19 @@ function useInvite() {
   const toast = useStore((s) => s.toast);
   const [key, setKey] = useState(loadInvite);
   const [info, setInfo] = useState(() => loadInviteInfo(key));
+  // Bumped by "forget invite": an answer still in flight then is for an invite that's gone.
+  const forgets = useRef(0);
 
   const refresh = useCallback(
     async (k: string) => {
+      const asked = forgets.current;
       try {
-        setInfo(await fetchInvite(k));
+        const fresh = await fetchInvite(k);
+        if (forgets.current !== asked) return false;
+        setInfo(fresh);
         return true;
       } catch (e) {
+        if (forgets.current !== asked) return false;
         if (e instanceof InviteError && e.status === 401) {
           forgetInvite();
           setKey(null);
@@ -152,6 +158,7 @@ function useInvite() {
   }, [key, refresh]);
 
   const forget = () => {
+    forgets.current++;
     forgetInvite();
     setKey(null);
     setInfo(null);
@@ -266,7 +273,8 @@ function HostSection({ needName, invite }: { needName: () => boolean; invite: In
         </p>
       ) : (
         <p className="faint small-print home-note">
-          Checking your invite… ·{" "}
+          {/* Shaped like the line above, so it wraps the same on narrow screens. */}
+          Invite <b>…</b> · –/– rooms in 24h · –/– saved ·{" "}
           <button className="link-btn" onClick={invite.forget}>
             forget invite
           </button>

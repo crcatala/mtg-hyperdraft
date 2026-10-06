@@ -54,7 +54,7 @@ export interface RoomEntry extends RoomSnapshot {
 }
 
 const EMPTY: RoomSnapshot = { phase: "lobby", players: [], bots: 0, cubeName: null, cardCount: 0, expiresAt: null };
-const PHASES: readonly Phase[] = ["lobby", "drafting", "deckbuilding", "playing"];
+export const PHASES: readonly Phase[] = ["lobby", "drafting", "deckbuilding", "playing"];
 
 /** Closes that mean the room itself is gone, so it comes off the list. Not refusals or outages. */
 const GONE: ReadonlySet<number> = new Set([CLOSE.notFound, CLOSE.deleted, CLOSE.expired]);
