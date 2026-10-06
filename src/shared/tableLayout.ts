@@ -11,12 +11,16 @@ export const MAT_D = 13;
 
 export type PileZone = Exclude<ZoneName, "battlefield" | "hand">;
 
-/** Pile zone centres in local mat coordinates (relative to the mat centre). */
+/**
+ * Pile zone centres in local mat coordinates (relative to the mat centre). Library, graveyard and exile sit together
+ * left of the battlefield, as players typically keep them (the tournament rules allow either side, so long as the three
+ * stay together); the sideboard is kept apart on the other side so it can't be mixed up with them.
+ */
 export const PILE_LOCAL: Record<PileZone, { x: number; y: number }> = {
-  library: { x: 11.1, y: 4.2 },
-  graveyard: { x: 11.1, y: 0 },
-  exile: { x: 11.1, y: -4.2 },
-  sideboard: { x: -11.1, y: 4.2 },
+  library: { x: -11.1, y: 4.2 },
+  graveyard: { x: -11.1, y: 0 },
+  exile: { x: -11.1, y: -4.2 },
+  sideboard: { x: 11.1, y: 4.2 },
 };
 
 /** Battlefield area inside the mat (local coordinates). */
@@ -49,8 +53,8 @@ export function localToTable(p: Vec2, seat: number, seatCount: number): Vec2 {
   return rotate({ x: p.x, y: p.y + seatRadius(seatCount) }, seatAngle(seat, seatCount));
 }
 
-/** Where a player's companion stands: by the back-left corner of their mat (seat-local coordinates). */
-export const COMPANION_LOCAL: Vec2 = { x: -MAT_W / 2 - 1.3, y: -MAT_D / 2 + 2.4 };
+/** Where a player's companion stands: by the back-right corner of their mat, clear of the piles (seat-local coordinates). */
+export const COMPANION_LOCAL: Vec2 = { x: MAT_W / 2 + 1.3, y: -MAT_D / 2 + 2.4 };
 export const companionSpot = (seat: number, seatCount: number): Vec2 => localToTable(COMPANION_LOCAL, seat, seatCount);
 
 /**
