@@ -6,13 +6,15 @@ import { frontFaceName, type ImportEntry } from "./importParser";
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
-const SCRYFALL = "https://api.scryfall.com";
-const HEADERS = {
+export const SCRYFALL = "https://api.scryfall.com";
+export const HEADERS = {
   // Scryfall asks API clients to identify themselves and send an Accept header.
   "User-Agent": "HyperDraft/0.1 (private MTG cube drafting with friends)",
   Accept: "application/json",
 };
 const BATCH = 75; // Scryfall /cards/collection maximum.
+/** Scryfall's hard limit for /cards/search, /cards/named and /cards/collection is 2 a second; going over locks us out for 30s. */
+export const SCRYFALL_CARD_DELAY_MS = 500;
 const MAX_FUZZY = 25;
 
 export interface ResolveResult {
@@ -24,7 +26,7 @@ export interface ResolveResult {
 }
 
 export interface ResolveOptions {
-  /** Pause between Scryfall requests (they ask for 50–100ms). */
+  /** Pause between Scryfall requests (defaults to their 500ms limit for card lookups). */
   delayMs?: number;
   onProgress?: (message: string) => void;
 }
@@ -45,7 +47,7 @@ export async function resolveEntries(
   fetchFn: FetchLike,
   opts: ResolveOptions = {},
 ): Promise<ResolveResult> {
-  const delay = opts.delayMs ?? 100;
+  const delay = opts.delayMs ?? SCRYFALL_CARD_DELAY_MS;
   const warnings: string[] = [];
   const cardsById = new Map<string, CardData>();
   const resolved = new Map<ImportEntry, string>();
@@ -170,6 +172,7 @@ export async function fetchCubeCobra(id: string, fetchFn: FetchLike): Promise<{ 
 
 interface ScryfallFace {
   name: string;
+  oracle_id?: string;
   mana_cost?: string;
   type_line?: string;
   oracle_text?: string;
@@ -193,6 +196,12 @@ export interface ScryfallCard extends ScryfallFace {
   keywords?: string[];
   card_faces?: ScryfallFace[];
   all_parts?: { id: string; name: string; component: string }[];
+  // Printing details, used to pick a set's plain booster printings (see setSource.ts).
+  booster?: boolean;
+  promo?: boolean;
+  variation?: boolean;
+  border_color?: string;
+  frame_effects?: string[];
 }
 
 function pickImages(uris?: Record<string, string>): CardImages | undefined {

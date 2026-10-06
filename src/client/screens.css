@@ -465,6 +465,41 @@
   gap: 10px;
   color: var(--gold-2);
 }
+.set-import {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.set-import .label {
+  margin-bottom: 0;
+}
+.set-code-input {
+  width: 9.5em;
+  flex: none;
+}
+.set-code-input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+.set-check {
+  margin: 0;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+}
+.set-check .small-print {
+  margin: 0;
+}
+.set-check .pill {
+  line-height: 1.35;
+}
+.set-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  background-color: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
 .settings-grid {
   border: 0;
   margin: 0;

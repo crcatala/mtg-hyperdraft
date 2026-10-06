@@ -19,6 +19,8 @@ import { quickstart, STARTER_CUBE } from "../quickstart";
 import { presetSource } from "../../shared/presets";
 import { durationLabel, PUBLIC_LIMITS } from "../../shared/publicRooms";
 import { clockTime } from "../expiry";
+import { readSetInput, useSetLookup, type SetLookup } from "../setLookup";
+import { setLabel } from "../../shared/setSource";
 
 const SAMPLE_CUBES = [
   { label: "Vintage Cube", value: "https://cubecobra.com/cube/list/vintage" },
@@ -315,8 +317,9 @@ function CubePanel({ isHost }: { isHost: boolean }) {
                 </button>
               ))}
             </div>
+            <SetImport running={running} />
             <p className="faint small-print">
-              Accepts CubeCobra URLs, one name per line, "4 Card Name", Arena "(SET) 123" lines and CubeCobra CSV exports. Card data is looked up on Scryfall
+              Accepts CubeCobra URLs, one name per line, "4 Card Name", Arena "(SET) 123" lines, CubeCobra CSV exports and "set:WTH". Card data is looked up on Scryfall
               {solo ? " straight from your browser." : " and saved with the lobby."}
             </p>
           </div>
@@ -330,6 +333,85 @@ function CubePanel({ isHost }: { isHost: boolean }) {
       </ScrollArea>
     </section>
   );
+}
+
+/** Draft a whole set by its code, checked on Scryfall as you type. */
+function SetImport({ running }: { running: boolean }) {
+  const send = useStore((s) => s.send);
+  const [input, setInput] = useState("");
+  const lookup = useSetLookup(input);
+  const read = readSetInput(input);
+  // A verified code, or one Scryfall couldn't be asked about (the import itself will check again).
+  const target = "code" in read && (lookup.state === "ok" || (lookup.state === "bad" && lookup.retry)) ? read.code : null;
+  const submit = () => {
+    if (!running && target) send({ t: "import", source: `set:${target}` });
+  };
+  return (
+    <div className="set-import">
+      <label className="label" htmlFor="set-code">
+        Or draft a whole set — set code
+      </label>
+      <div className="row">
+        <input
+          id="set-code"
+          className="input code-input set-code-input"
+          placeholder="WTH"
+          maxLength={10}
+          autoComplete="off"
+          spellCheck={false}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          disabled={running}
+          aria-invalid={lookup.state === "bad" && !lookup.retry}
+          aria-describedby="set-check"
+        />
+        <button className="btn" disabled={running || !target} onClick={submit}>
+          Import set
+        </button>
+      </div>
+      <p id="set-check" className="set-check" aria-live="polite">
+        <SetLookupStatus lookup={lookup} />
+      </p>
+    </div>
+  );
+}
+
+function SetLookupStatus({ lookup }: { lookup: SetLookup }) {
+  switch (lookup.state) {
+    case "idle":
+      return <span className="faint small-print">Every card from one set's boosters, one copy each: no alternate art, promos or basics.</span>;
+    case "checking":
+      return (
+        <span className="faint small-print">
+          <span className="spinner" /> Checking {lookup.code.toUpperCase()} on Scryfall…
+        </span>
+      );
+    case "bad":
+      return (
+        <span className={`pill ${lookup.retry ? "warn" : "bad"}`}>
+          <Icon name={lookup.retry ? "offline" : "x"} /> {lookup.message}
+        </span>
+      );
+    case "ok": {
+      const { set } = lookup;
+      const upcoming = !!set.released_at && set.released_at > new Date().toISOString().slice(0, 10);
+      return (
+        <span className={`pill ${upcoming ? "warn" : "ok"}`}>
+          {set.icon_svg_uri ? <span className="set-icon" style={{ "--icon": `url("${set.icon_svg_uri}")` } as React.CSSProperties} /> : <Icon name="check" />}
+          {setLabel(set)}
+          {set.released_at && <span className="set-date"> · {upcoming ? "releases " : ""}{releaseDate(set.released_at)}</span>}
+          {upcoming && " · card list may be incomplete"}
+        </span>
+      );
+    }
+  }
+}
+
+/** "2024-08-02" → "Aug 2024". */
+function releaseDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
 const TIMER_OPTIONS = [0, 30, 45, 60, 75, 90, 120];

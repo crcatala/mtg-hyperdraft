@@ -1,5 +1,5 @@
 // Parses the text a host pastes into "Import cube" into lookup entries.
-// Supported: CubeCobra URL/ID, one-name-per-line, "4 Name", "4x Name", Arena "1 Name (SET) 123",
+// Supported: CubeCobra URL/ID, a whole set ("set:WTH" or a Scryfall set link), one-name-per-line, "4 Name", "4x Name", Arena "1 Name (SET) 123",
 // bracket printings "Name [set-123]", and CubeCobra's CSV export.
 
 export interface ImportEntry {
@@ -15,17 +15,36 @@ export interface ImportEntry {
 
 export type ImportSource =
   | { kind: "cubecobra"; id: string }
+  | { kind: "set"; code: string }
   | { kind: "list"; entries: ImportEntry[]; warnings: string[] };
 
 const CUBECOBRA_URL = /cubecobra\.com\/(?:cube\/[a-z]+|c)\/([A-Za-z0-9_-]+)/i;
 const CUBECOBRA_PREFIX = /^cubecobra:\s*([A-Za-z0-9_-]+)$/i;
+const SET_PREFIX = /^(?:set|e):\s*(\S+)$/i;
+const SCRYFALL_SET_URL = /^(?:https?:\/\/)?(?:www\.)?scryfall\.com\/sets\/([A-Za-z0-9]+)(?:[/?#]\S*)?$/i;
 
+/** Scryfall set codes are 3–6 letters and digits ("wth", "mh3", "plst"). */
+const SET_CODE = /^[a-z0-9]{3,6}$/;
+
+/** "WTH", " set:mh3 " → "wth", "mh3"; null when it can't be a set code. */
+export function normalizeSetCode(input: string): string | null {
+  const code = input.trim().replace(SET_PREFIX, "$1").toLowerCase();
+  return SET_CODE.test(code) ? code : null;
+}
+
+/** Throws a player-facing Error for a "set:" import whose code can't be a set code. */
 export function parseImport(text: string): ImportSource {
   const trimmed = text.trim();
   const url = trimmed.match(CUBECOBRA_URL);
   if (url && !trimmed.includes("\n")) return { kind: "cubecobra", id: url[1] };
   const prefixed = trimmed.match(CUBECOBRA_PREFIX);
   if (prefixed) return { kind: "cubecobra", id: prefixed[1] };
+  const set = trimmed.match(SET_PREFIX) ?? trimmed.match(SCRYFALL_SET_URL);
+  if (set) {
+    const code = normalizeSetCode(set[1]);
+    if (!code) throw new Error(`"${set[1]}" isn't a set code. Set codes are 3–6 letters or numbers, like WTH or MH3.`);
+    return { kind: "set", code };
+  }
 
   const lines = trimmed.split(/\r?\n/);
   if (lines.length > 0 && looksLikeCsvHeader(lines[0])) return parseCsv(lines);

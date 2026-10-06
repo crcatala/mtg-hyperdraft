@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseImport, parseLine, splitCsvLine } from "../src/shared/importParser";
+import { normalizeSetCode, parseImport, parseLine, splitCsvLine } from "../src/shared/importParser";
 
 describe("parseImport", () => {
   it("detects CubeCobra URLs and prefixed ids", () => {
@@ -7,6 +7,25 @@ describe("parseImport", () => {
     expect(parseImport("https://cubecobra.com/cube/overview/LSVCube?tab=1")).toEqual({ kind: "cubecobra", id: "LSVCube" });
     expect(parseImport("https://cubecobra.com/c/629d64a43f631e4104551365")).toEqual({ kind: "cubecobra", id: "629d64a43f631e4104551365" });
     expect(parseImport("cubecobra: thepaupercube")).toEqual({ kind: "cubecobra", id: "thepaupercube" });
+  });
+
+  it("detects whole-set imports", () => {
+    expect(parseImport("set:WTH")).toEqual({ kind: "set", code: "wth" });
+    expect(parseImport("  set: mh3 ")).toEqual({ kind: "set", code: "mh3" });
+    expect(parseImport("e:plst")).toEqual({ kind: "set", code: "plst" });
+    expect(parseImport("https://scryfall.com/sets/dsk")).toEqual({ kind: "set", code: "dsk" });
+    expect(parseImport("scryfall.com/sets/BLB?order=set")).toEqual({ kind: "set", code: "blb" });
+    expect(() => parseImport("set:way-too-long")).toThrow(/isn't a set code/);
+    // A one-card list is still a list, even when the name looks like a code.
+    expect(parseImport("Opt")).toMatchObject({ kind: "list", entries: [{ name: "Opt" }] });
+  });
+
+  it("normalizes set codes", () => {
+    expect(normalizeSetCode(" WTH ")).toBe("wth");
+    expect(normalizeSetCode("set:MH3")).toBe("mh3");
+    expect(normalizeSetCode("ab")).toBeNull();
+    expect(normalizeSetCode("abcdefg")).toBeNull();
+    expect(normalizeSetCode("w th")).toBeNull();
   });
 
   it("parses plain names, counts, comments and sections", () => {
