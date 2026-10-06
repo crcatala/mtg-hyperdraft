@@ -64,10 +64,13 @@ export function useSetLookup(input: string, catalog: ScryfallSet[] | null): SetL
     let live = true;
     // Each keystroke restarts the wait, so only the code the host settles on reaches Scryfall.
     const timer = setTimeout(() => {
-      void checkSet(code, (url, init) => fetch(url, init)).then((check) => {
-        if (check.ok || !check.retry) settled.set(code, check);
-        if (live) setResult({ code, check });
-      });
+      void checkSet(code, (url, init) => fetch(url, init))
+        // checkSet shouldn't throw, but a stuck "Checking…" would be worse than a retryable error.
+        .catch((): SetCheck => ({ ok: false, message: "Couldn't check that set code on Scryfall.", retry: true }))
+        .then((check) => {
+          if (check.ok || !check.retry) settled.set(code, check);
+          if (live) setResult({ code, check });
+        });
     }, DEBOUNCE_MS);
     return () => {
       live = false;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScryfallCard } from "../src/shared/cardSources";
-import { checkSet, fetchSetCards, mainSetPrintings, setProblem, type ScryfallSet } from "../src/shared/setSource";
+import { checkSet, fetchSetCards, mainSetPrintings, MAX_SET_PRINTINGS, setProblem, type ScryfallSet } from "../src/shared/setSource";
 import { importCube } from "../src/shared/importCube";
 import { readSetInput } from "../src/client/setLookup";
 
@@ -68,10 +68,15 @@ describe("setProblem", () => {
     expect(setProblem({ ...SET, set_type: "memorabilia" })).toMatch(/memorabilia/);
     expect(setProblem({ ...SET, set_type: "promo" })).toMatch(/main set's code/);
     expect(setProblem({ ...SET, card_count: 0 })).toMatch(/no cards on Scryfall yet/);
+    expect(setProblem({ ...SET, code: "plst", name: "The List", set_type: "masters", card_count: 5663 })).toBe(
+      "The List (PLST) has 5,663 printings, too many to import as one set.",
+    );
+    expect(setProblem({ ...SET, card_count: MAX_SET_PRINTINGS })).toBeNull();
   });
 });
 
-function scryfall(cards: ScryfallCard[], set: ScryfallSet | null = SET, pageSize = 2) {
+/** `reportedTotal`: what the first search page claims as total_cards (defaults to the truth). */
+function scryfall(cards: ScryfallCard[], set: ScryfallSet | null = SET, pageSize = 2, reportedTotal?: number) {
   const log: string[] = [];
   const fetchFn = async (url: string) => {
     log.push(url);
@@ -81,7 +86,8 @@ function scryfall(cards: ScryfallCard[], set: ScryfallSet | null = SET, pageSize
       const data = cards.slice((page - 1) * pageSize, page * pageSize);
       if (data.length === 0) return new Response("{}", { status: 404 });
       const more = page * pageSize < cards.length;
-      return new Response(JSON.stringify({ data, has_more: more, next_page: more ? `${url.replace(/&page=\d+/, "")}&page=${page + 1}` : undefined }));
+      const next = more ? `${url.replace(/&page=\d+/, "")}&page=${page + 1}` : undefined;
+      return new Response(JSON.stringify({ data, has_more: more, next_page: next, total_cards: reportedTotal ?? cards.length }));
     }
     if (url.endsWith("/cards/collection")) return new Response(JSON.stringify({ data: [] }));
     return new Response("nope", { status: 500 });
@@ -105,6 +111,11 @@ describe("checkSet", () => {
     expect(await checkSet("tst", offline)).toMatchObject({ ok: false, retry: true });
     expect(await checkSet("tst", async () => new Response("", { status: 503 }))).toMatchObject({ ok: false, retry: true });
   });
+
+  it("treats an unreadable answer like an unreachable Scryfall instead of throwing", async () => {
+    const proxyPage = async () => new Response("<html>Bad gateway</html>", { status: 200 });
+    expect(await checkSet("tst", proxyPage)).toEqual({ ok: false, message: "Couldn't read Scryfall's answer for that set code.", retry: true });
+  });
 });
 
 describe("fetchSetCards", () => {
@@ -118,6 +129,19 @@ describe("fetchSetCards", () => {
     expect(log.filter((u) => u.includes("/cards/search"))).toHaveLength(3);
     expect(log[1]).toContain("q=set%3Atst&unique=prints");
     expect(progress[0]).toBe("Looking up set TST on Scryfall…");
+  });
+
+  it("refuses sets too big to page through, before fetching them", async () => {
+    const cards = Array.from({ length: 4 }, (_, i) => print(`Big ${i}`));
+    const { fetchFn, log } = scryfall(cards, SET, 2, MAX_SET_PRINTINGS + 1);
+    await expect(fetchSetCards("tst", fetchFn, undefined, 0)).rejects.toThrow(`Testing Grounds (TST) has ${(MAX_SET_PRINTINGS + 1).toLocaleString("en-US")} printings`);
+    expect(log.filter((u) => u.includes("/cards/search"))).toHaveLength(1);
+  });
+
+  it("never drafts a truncated set when Scryfall under-reports its size", async () => {
+    const cards = Array.from({ length: MAX_SET_PRINTINGS + 10 }, (_, i) => print(`Card ${i}`));
+    const { fetchFn } = scryfall(cards, SET, 175, 100);
+    await expect(fetchSetCards("tst", fetchFn, undefined, 0)).rejects.toThrow(`has more than ${MAX_SET_PRINTINGS.toLocaleString("en-US")} printings`);
   });
 
   it("fails readably for unknown and empty sets", async () => {
@@ -141,6 +165,28 @@ describe("importCube with a set code", () => {
     const { fetchFn, log } = scryfall([]);
     await expect(importCube("set: not-a-set", fetchFn, () => {})).rejects.toThrow(/isn't a set code/);
     expect(log).toEqual([]);
+  });
+});
+
+describe("importCube pacing", () => {
+  it("waits out Scryfall's rate limit between the card lookups and the basic lands", async () => {
+    let last = 0;
+    const calls: number[] = [];
+    const strict = async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/cards/collection")) {
+        const now = Date.now();
+        calls.push(now);
+        if (last && now - last < 450) return new Response("{}", { status: 429 });
+        last = now;
+        const ids = JSON.parse(String(init!.body)).identifiers as { name: string }[];
+        return new Response(JSON.stringify({ data: ids.map((ident) => print(ident.name, { oracle_id: undefined })) }));
+      }
+      return new Response("{}", { status: 404 });
+    };
+    const res = await importCube("Lightning Bolt\nCounterspell", strict, () => {});
+    expect(res.pool).toHaveLength(2);
+    expect(calls).toHaveLength(2);
+    expect(calls[1] - calls[0]).toBeGreaterThanOrEqual(450);
   });
 });
 

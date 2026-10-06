@@ -24,6 +24,11 @@ export function setLabel(set: ScryfallSet): string {
   return `${set.name} (${set.code.toUpperCase()})`;
 }
 
+const PAGE_SIZE = 175; // Scryfall search results per page.
+const MAX_PAGES = 12; // The biggest draftable sets (Commander Masters, ~1,070 printings) need 7.
+/** More printings than this is a catch-all list (The List, Secret Lair), not a set to draft; paging it would take too long. */
+export const MAX_SET_PRINTINGS = MAX_PAGES * PAGE_SIZE;
+
 /** Why a set can't be drafted, or null when it can. */
 export function setProblem(set: ScryfallSet): string | null {
   const label = setLabel(set);
@@ -39,7 +44,13 @@ export function setProblem(set: ScryfallSet): string | null {
       return `${label} only has promo printings of other sets' cards. Try the main set's code instead.`;
   }
   if (set.card_count === 0) return `${label} has no cards on Scryfall yet.`;
+  if (set.card_count > MAX_SET_PRINTINGS) return tooBig(set, set.card_count);
   return null;
+}
+
+/** `atLeast`: paging stopped at the cap, so the real count is higher. */
+function tooBig(set: ScryfallSet, printings: number, atLeast = false): string {
+  return `${setLabel(set)} has ${atLeast ? "more than " : ""}${printings.toLocaleString("en-US")} printings, too many to import as one set.`;
 }
 
 /** Looks a set code up on Scryfall and checks it can be drafted. Never throws. */
@@ -52,12 +63,17 @@ export async function checkSet(code: string, fetchFn: FetchLike): Promise<SetChe
   }
   if (res.status === 404) return { ok: false, message: `No Magic set has the code "${code.toUpperCase()}".` };
   if (!res.ok) return { ok: false, message: `Scryfall set lookup failed (${res.status}).`, retry: true };
-  const set = (await res.json()) as ScryfallSet;
+  let set: ScryfallSet;
+  try {
+    set = (await res.json()) as ScryfallSet;
+  } catch {
+    // A cut-off or non-JSON body (a proxy's error page, say): as good as not reaching Scryfall.
+    return { ok: false, message: "Couldn't read Scryfall's answer for that set code.", retry: true };
+  }
   const problem = setProblem(set);
   return problem ? { ok: false, message: problem } : { ok: true, set };
 }
 
-const MAX_PAGES = 12; // 175 printings a page; the biggest real sets need about 7.
 /** Layouts that aren't cards you put in a deck. */
 const EXTRA_LAYOUTS = new Set(["token", "double_faced_token", "emblem", "art_series", "planar", "scheme", "vanguard"]);
 /** Alternate-art treatments (Booster Fun, collector-booster variants). */
@@ -111,12 +127,18 @@ export async function fetchSetCards(
     await sleep(delayMs);
     onProgress(`Fetching ${setLabel(set)} cards${all.length ? ` (${all.length} so far)` : ""}…`);
     const res: Response = await fetchFn(url, { headers: HEADERS });
-    if (res.status === 404) break; // Scryfall's "no cards matched".
+    if (res.status === 404) {
+      url = null; // Scryfall's "no cards matched".
+      break;
+    }
     if (!res.ok) throw new Error(`Scryfall card search failed (${res.status}).`);
-    const body = (await res.json()) as { data: ScryfallCard[]; has_more?: boolean; next_page?: string };
+    const body = (await res.json()) as { data: ScryfallCard[]; has_more?: boolean; next_page?: string; total_cards?: number };
+    if (page === 0 && (body.total_cards ?? 0) > MAX_SET_PRINTINGS) throw new Error(tooBig(set, body.total_cards!));
     all.push(...body.data);
     url = body.has_more && body.next_page ? body.next_page : null;
   }
+  // Never draft a silently truncated set.
+  if (url) throw new Error(tooBig(set, all.length, true));
 
   const cards = mainSetPrintings(all);
   if (cards.length === 0) throw new Error(`${setLabel(set)} has no regular booster cards to draft.`);
