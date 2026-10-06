@@ -194,6 +194,14 @@ export function zoomCard(card: TableCard) {
   useTableUi.getState().set({ logZoom: { key: `table:${card.id}`, cardId: data.id, face: card.face, title: "Battlefield" } });
 }
 
+/** Z: zooms in on the hovered card, in your hand or on the battlefield. */
+export function zoomHovered() {
+  const ui = useTableUi.getState();
+  if (ui.handHover && !ui.hovered) return ui.set({ handZoom: ui.handHover });
+  const card = ui.hovered ? table()?.cards[ui.hovered] : undefined;
+  if (card?.zone === "battlefield") zoomCard(card);
+}
+
 export function moveTo(ids: string[], to: ZoneName, extra: Partial<Extract<TableAction, { a: "move" }>> = {}) {
   if (ids.length === 0) return;
   act({ a: "move", ids, to, ...extra });

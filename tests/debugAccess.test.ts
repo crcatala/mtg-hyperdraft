@@ -1,17 +1,42 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEBUG_KEY, debugAccess, debugParam, initDebugAccess, setDebugAccess } from "../src/client/debugAccess";
+import { DEBUG_KEY, debugAccess, debugParam, initDebugAccess, setDebugAccess, withoutDebugParam } from "../src/client/debugAccess";
 import appSrc from "../src/client/App.tsx?raw";
 
 describe("debug console access", () => {
   let store: Map<string, string>;
+  // The address bar: replaceState rewrites it, and a reload starts the app again from whatever it says.
+  let url: { pathname: string; search: string; hash: string };
 
-  const boot = (search = "") => {
-    vi.stubGlobal("location", { search });
+  /** Opens the app at `path` (a fresh page load). */
+  const visit = (path: string) => {
+    const u = new URL(path, "http://hd.test");
+    url = { pathname: u.pathname, search: u.search, hash: u.hash };
     initDebugAccess();
   };
+  const boot = (search = "") => visit(`/${search}`);
+  const reload = () => initDebugAccess();
 
   beforeEach(() => {
     store = new Map();
+    url = { pathname: "/", search: "", hash: "" };
+    vi.stubGlobal("location", {
+      get pathname() {
+        return url.pathname;
+      },
+      get search() {
+        return url.search;
+      },
+      get hash() {
+        return url.hash;
+      },
+    });
+    vi.stubGlobal("history", {
+      state: null,
+      replaceState: (_: unknown, __: string, next: string) => {
+        const u = new URL(next, "http://hd.test");
+        url = { pathname: u.pathname, search: u.search, hash: u.hash };
+      },
+    });
     vi.stubGlobal("localStorage", {
       getItem: (k: string) => store.get(k) ?? null,
       setItem: (k: string, v: string) => void store.set(k, v),
@@ -54,6 +79,25 @@ describe("debug console access", () => {
     setDebugAccess(false);
     boot();
     expect(debugAccess()).toBe(false);
+  });
+
+  it("stays off after Turn off, even reloading the page that was opened with ?debug", () => {
+    visit("/r/ABCD?debug");
+    expect(debugAccess()).toBe(true);
+    setDebugAccess(false);
+    reload();
+    expect(debugAccess()).toBe(false);
+  });
+
+  it("takes ?debug out of the address bar, keeping the rest of it", () => {
+    visit("/r/ABCD?as=2&debug&theme=signal#log");
+    expect(url).toEqual({ pathname: "/r/ABCD", search: "?as=2&theme=signal", hash: "#log" });
+    visit("/?debug=0");
+    expect(url.search).toBe("");
+    // Nothing to take out: the address is left alone.
+    visit("/r/ABCD?as=3");
+    expect(url.search).toBe("?as=3");
+    expect(withoutDebugParam("?debug=1&as=2")).toBe("?as=2");
   });
 
   it("still applies for the visit when storage is blocked", () => {

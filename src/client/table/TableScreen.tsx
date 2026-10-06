@@ -8,7 +8,7 @@ import { NameEditor } from "../components/TopBar";
 import { PublicRoomChip } from "../components/PublicRoomChip";
 import { Icon } from "../components/Icon";
 import { TableCanvas, seatHue } from "./TableScene";
-import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom, zoomCard } from "./tableUi";
+import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom, zoomHovered } from "./tableUi";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { beginDrag, tableApi } from "./drag";
 import { handLayout } from "./handLayout";
@@ -106,15 +106,9 @@ function useTableShortcuts() {
           else if (ui.handSelected && !ui.hovered && ids.length === 0) turnHandCard(ui.handSelected);
           else if (ids.length === 1) act({ a: "turnFace", id: ids[0] });
           break;
-        case "z": {
-          // Zoom in on the hovered card: in your hand, or one on the table.
-          if (ui.handHover && !ui.hovered) ui.set({ handZoom: ui.handHover });
-          else {
-            const card = ui.hovered ? useStore.getState().view?.table?.cards[ui.hovered] : undefined;
-            if (card?.zone === "battlefield") zoomCard(card);
-          }
+        case "z":
+          zoomHovered();
           break;
-        }
         case "g":
           moveTo(ids, "graveyard");
           break;

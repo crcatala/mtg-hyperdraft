@@ -19,10 +19,26 @@ export function debugParam(search: string): boolean | null {
 const listeners = new Set<() => void>();
 let enabled = false;
 
-/** Startup: the URL wins (and is remembered), then what this browser remembers; off by default. */
+/** The URL without its ?debug, other params kept. */
+export function withoutDebugParam(search: string): string {
+  const params = new URLSearchParams(search);
+  params.delete("debug");
+  const rest = params.toString();
+  return rest ? `?${rest}` : "";
+}
+
+/**
+ * Startup: the URL wins (and is remembered), then what this browser remembers; off by default.
+ * ?debug is a one-off switch, so it's taken out of the address bar: left there, a reload would turn
+ * the console back on after its Turn off button.
+ */
 export function initDebugAccess() {
   const asked = debugParam(location.search);
-  if (asked !== null) return setDebugAccess(asked);
+  if (asked !== null) {
+    setDebugAccess(asked);
+    history.replaceState(history.state, "", location.pathname + withoutDebugParam(location.search) + location.hash);
+    return;
+  }
   try {
     enabled = localStorage.getItem(DEBUG_KEY) === "1";
   } catch {
