@@ -43,6 +43,8 @@ export interface MenuState {
   x: number;
   y: number;
   title?: string;
+  /** Makes the title a button (e.g. a card's name zooms in on it). */
+  onTitle?: { label: string; onSelect: () => void };
   items: MenuItem[];
 }
 

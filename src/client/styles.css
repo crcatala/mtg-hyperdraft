@@ -429,6 +429,33 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.ctx-title-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ctx-title-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ctx-title-btn .icon {
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0.6;
+}
+.ctx-title-btn:hover {
+  color: var(--text);
+}
+.ctx-title-btn:hover .icon {
+  opacity: 1;
+}
 .ctx-item {
   display: flex;
   align-items: center;

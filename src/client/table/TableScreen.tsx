@@ -8,7 +8,7 @@ import { NameEditor } from "../components/TopBar";
 import { PublicRoomChip } from "../components/PublicRoomChip";
 import { Icon } from "../components/Icon";
 import { TableCanvas, seatHue } from "./TableScene";
-import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom } from "./tableUi";
+import { act, askNumber, cardLabel, clickHandCard, handMenu, moveTo, pileMenu, pingAt, seatsFromMe, targetIds, toggleTap, turnHandCard, useTableUi, viewFrom, zoomCard } from "./tableUi";
 import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { beginDrag, tableApi } from "./drag";
 import { handLayout } from "./handLayout";
@@ -106,6 +106,15 @@ function useTableShortcuts() {
           else if (ui.handSelected && !ui.hovered && ids.length === 0) turnHandCard(ui.handSelected);
           else if (ids.length === 1) act({ a: "turnFace", id: ids[0] });
           break;
+        case "z": {
+          // Zoom in on the hovered card: in your hand, or one on the table.
+          if (ui.handHover && !ui.hovered) ui.set({ handZoom: ui.handHover });
+          else {
+            const card = ui.hovered ? useStore.getState().view?.table?.cards[ui.hovered] : undefined;
+            if (card?.zone === "battlefield") zoomCard(card);
+          }
+          break;
+        }
         case "g":
           moveTo(ids, "graveyard");
           break;
@@ -1259,6 +1268,7 @@ const SHORTCUTS: [string, string][] = [
   ["Right-click", "Card, pile and library menus (counters, face down, scry, search, mill…)"],
   ["Shift-click", "Select several cards (then drag or use keys on all of them)"],
   ["Space / T", "Tap or untap the hovered / selected cards"],
+  ["Z", "Zoom in on the hovered card: full size, with its rulings (also first in its right-click menu)"],
   ["F", "Turn face down / face up"],
   ["R", "Transform a double-faced card (on the table, or turn it over in your hand)"],
   ["Tab", "Ping the spot under the pointer — everyone sees and hears it"],

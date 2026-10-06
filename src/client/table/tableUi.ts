@@ -181,6 +181,19 @@ export function cardLabel(card: TableCard): string {
   return card.cardId ? cards[card.cardId]?.name ?? "Card" : "Card";
 }
 
+/** The card data to show for a table card in the zoom carousel, if this player may see it. */
+function zoomData(card: TableCard) {
+  if (card.hidden || !card.cardId) return undefined;
+  return useStore.getState().cards[card.cardId];
+}
+
+/** Opens a battlefield card in the zoom carousel (the one the hand and the game log use). */
+export function zoomCard(card: TableCard) {
+  const data = zoomData(card);
+  if (!data) return;
+  useTableUi.getState().set({ logZoom: { key: `table:${card.id}`, cardId: data.id, face: card.face, title: "Battlefield" } });
+}
+
 export function moveTo(ids: string[], to: ZoneName, extra: Partial<Extract<TableAction, { a: "move" }>> = {}) {
   if (ids.length === 0) return;
   act({ a: "move", ids, to, ...extra });
@@ -293,7 +306,9 @@ export function battlefieldMenu(card: TableCard, x: number, y: number) {
   const many = ids.length > 1;
   const data = card.cardId ? useStore.getState().cards[card.cardId] : undefined;
   const counters = Object.entries(card.counters);
+  const zoom = !many && zoomData(card) ? () => zoomCard(card) : undefined;
   const items: MenuItem[] = [
+    ...(zoom ? [{ label: "Zoom in", icon: "zoom-in" as const, hint: "Z", onSelect: zoom }, { separator: true, label: "" }] : []),
     { label: card.tapped ? "Untap" : "Tap", hint: "T / dbl-click", onSelect: () => toggleTap(ids) },
     { label: card.faceDown ? "Turn face up" : "Turn face down", hint: "F", onSelect: () => act({ a: "flip", ids }) },
     ...(hasBackFace(data) && !many ? [{ label: "Transform / flip over", hint: "R", onSelect: () => act({ a: "turnFace", id: card.id }) }] : []),
@@ -311,7 +326,7 @@ export function battlefieldMenu(card: TableCard, x: number, y: number) {
     ...(!many && !card.faceDown ? [{ label: "Create token copy", onSelect: () => act({ a: "clone", id: card.id }) }] : []),
     { label: "Ping this card", icon: "pin", hint: "Tab", onSelect: () => pingAt(card.x, card.y) },
   ];
-  useStore.getState().openMenu({ x, y, title: many ? `${ids.length} cards` : cardLabel(card), items });
+  useStore.getState().openMenu({ x, y, title: many ? `${ids.length} cards` : cardLabel(card), onTitle: zoom && { label: "Zoom in", onSelect: zoom }, items });
 }
 
 export function handMenu(card: TableCard, x: number, y: number) {
@@ -319,11 +334,15 @@ export function handMenu(card: TableCard, x: number, y: number) {
   const data = card.cardId ? useStore.getState().cards[card.cardId] : undefined;
   const dfc = hasBackFace(data);
   const back = (useTableUi.getState().handFaces[id] ?? 0) !== 0;
+  const zoom = () => useTableUi.getState().set({ handZoom: id });
   useStore.getState().openMenu({
     x,
     y,
     title: cardLabel(card),
+    onTitle: { label: "Zoom in", onSelect: zoom },
     items: [
+      { label: "Zoom in", icon: "zoom-in", hint: "Z", onSelect: zoom },
+      { separator: true, label: "" },
       { label: dfc ? `Play ${back ? "back" : "front"} face` : "Play", hint: "drag", onSelect: () => playFromHand(id) },
       ...(dfc ? [{ label: `Turn over (show ${back ? "front" : "back"})`, hint: "R", onSelect: () => turnHandCard(id) }] : []),
       { label: "Play face down", onSelect: () => moveTo([id], "battlefield", { faceDown: true }) },
