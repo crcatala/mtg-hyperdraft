@@ -6,13 +6,14 @@ import type { CardData, CardInstance, CardMap, DeckState, LobbyConfig, Player, R
 import { DEFAULT_CONFIG, MAX_HUMANS, MAX_SEATS } from "./types";
 import { advance, autoPick, createDraft, DraftError, makePick, nextDeadline, normalizeDraftConfig, pauseClock, poolStats, resumeClock, seatOf, turnCounts, validatePool, type DraftEnv } from "./draft";
 import { autoBuild, deckSize, newDeck } from "./deck";
-import { applyTableAction, createTable, logSceneChange, handDragId, realIdsFor, resolveTableAction, shownId, syncStandIns, TableError, tableViewFor, type TableEnv } from "./table";
+import { applyTableAction, createTable, logSceneChange, logTreat, handDragId, realIdsFor, resolveTableAction, shownId, syncStandIns, TableError, tableViewFor, type TableEnv } from "./table";
 import { randomCode, type Rng } from "./rng";
 import type { RoomSummary } from "./invites";
 import { PUBLIC_LIMITS } from "./publicRooms";
 import { AVATAR_IDS, COMPANION_IDS, isAvatarId, isCompanionId, lowestFreeVariant, pickFree } from "./roster";
 import { cleanEmoteText } from "./emoteText";
-import { petSpotValid } from "./tableLayout";
+import { companionSpot, petSpotValid } from "./tableLayout";
+import { glimmersLeft, pickLanding, showMs, treatDef, VEND_HOLD_MS, type TreatShowSpec } from "./treats";
 import { environmentLabel, resolveScene, tableStyleLabel } from "./scene";
 
 export interface RoomDeps {
@@ -99,6 +100,11 @@ export class Room {
   private lastPing = new Map<string, number>();
   private lastPoke = new Map<string, number>();
   private lastEmote = new Map<string, number>();
+  /**
+   * Who is browsing the Treatomancer's menu, until when. In memory only: a hold lost to a restart just ends (a
+   * purchase doesn't need one). The show it leads to is stored instead (RoomState.treatShowUntil).
+   */
+  private vend: { by: string; until: number } | null = null;
 
   constructor(
     public state: RoomState,
@@ -262,6 +268,8 @@ export class Room {
     const p = this.player(playerId);
     if (!p || p.connected === connected) return false;
     p.connected = connected;
+    // Someone who drops out while browsing the Treatomancer lets go of it (everyone sees that in the next view).
+    if (!connected && this.vend?.by === playerId) this.vend = null;
     // A host who leaves the lobby hands the crown to the next connected human.
     if (!connected && p.isHost && this.state.phase === "lobby") {
       const next = this.humans().find((h) => h.connected && h.id !== p.id);
@@ -501,7 +509,7 @@ export class Room {
       case "poke": {
         // Cosmetic and ephemeral, like a ping: relayed, never stored. Only a companion that's on the table can be poked.
         const table = this.state.table;
-        if (this.state.phase !== "playing" || !table || !table.seats.includes(msg.target) || !this.player(msg.target)?.companion) return;
+        if (this.showing() || this.state.phase !== "playing" || !table || !table.seats.includes(msg.target) || !this.player(msg.target)?.companion) return;
         const now = this.deps.now();
         if (now - (this.lastPoke.get(playerId) ?? -Infinity) < POKE_COOLDOWN_MS) return;
         this.lastPoke.set(playerId, now);
@@ -511,7 +519,7 @@ export class Room {
 
       case "emote": {
         // Also cosmetic and ephemeral: the sender's own companion, so they must be at the table with one.
-        if (!this.atTableWithCompanion(playerId)) return;
+        if (!this.atTableWithCompanion(playerId) || this.showing()) return;
         // A player's own line is cleaned here too (the sender's tab can't be trusted to have); text that doesn't
         // survive drops the whole emote, before it can use up the cooldown.
         const text = msg.text === undefined ? undefined : cleanEmoteText(msg.text);
@@ -526,7 +534,7 @@ export class Room {
       case "petMove":
       case "petCancel": {
         // Carrying your own companion around: relayed like a drag, never stored.
-        if (!this.atTableWithCompanion(playerId)) return;
+        if (!this.atTableWithCompanion(playerId) || this.showing()) return;
         const out: ServerMessage = msg.t === "petMove" ? { t: "petMove", by: playerId, x: msg.x, y: msg.y } : { t: "petCancel", by: playerId };
         result.outbound.push({ to: "others", msg: out });
         return;
@@ -537,6 +545,7 @@ export class Room {
         // joiners see it where it was left. Only ever the sender's own, and only somewhere it may stand (on the
         // table, off everyone else's mat).
         if (!this.atTableWithCompanion(playerId)) throw new RoomError("You have no companion at the table.");
+        if (this.showing()) throw new RoomError("Hold on, the companions are chasing a treat!");
         if (msg.at === null) {
           if (!me.companionAt) return;
           delete me.companionAt;
@@ -569,12 +578,78 @@ export class Room {
         return;
       }
 
+      case "vend": {
+        this.requirePhase("playing");
+        if (!this.state.table!.seats.includes(playerId)) throw new RoomError("You're not seated at this table.");
+        const now = this.deps.now();
+        const holder = this.vendHolder();
+        const tell = (msg: ServerMessage) => {
+          result.outbound.push({ to: "self", msg });
+          result.outbound.push({ to: "others", msg });
+        };
+        if (!msg.open) {
+          if (holder?.by !== playerId) return;
+          this.vend = null;
+          tell({ t: "vend", by: null });
+          return;
+        }
+        if (this.showing() || (holder && holder.by !== playerId)) {
+          // Someone beat them to it: tell them who (their screen may not know yet), and why not.
+          result.outbound.push({ to: "self", msg: holder ? { t: "vend", by: holder.by, until: holder.until } : { t: "vend", by: null } });
+          throw new RoomError(holder ? `${this.player(holder.by)?.name ?? "Someone"} is browsing the Treatomancer.` : "The Treatomancer is busy. Wait for the treat to be gobbled.");
+        }
+        this.vend = { by: playerId, until: now + VEND_HOLD_MS };
+        tell({ t: "vend", by: playerId, until: this.vend.until });
+        return;
+      }
+
+      case "treat": {
+        // Bought with stored glimmers (one write), then a show that's played everywhere and never stored.
+        this.requirePhase("playing");
+        const table = this.state.table!;
+        if (!table.seats.includes(playerId)) throw new RoomError("You're not seated at this table.");
+        const holder = this.vendHolder();
+        if (this.showing()) throw new RoomError("Wait for the last treat to be gobbled first.");
+        if (holder && holder.by !== playerId) throw new RoomError(`${this.player(holder.by)?.name ?? "Someone"} is browsing the Treatomancer.`);
+        const treat = treatDef(msg.treat)!;
+        const tp = table.players[playerId];
+        const left = glimmersLeft(tp);
+        if (left < treat.cost) throw new RoomError("Not enough glimmers for that one.");
+        tp.glimmers = left - treat.cost;
+        const n = table.seats.length;
+        const racers = table.seats.flatMap((pid, seat) => {
+          const p = this.player(pid);
+          if (!p?.companion) return [];
+          const at = p.companionAt ?? companionSpot(seat, n);
+          return [{ id: pid, companion: p.companion, x: Math.round(at.x * 100) / 100, y: Math.round(at.y * 100) / 100 }];
+        });
+        const show: TreatShowSpec = { by: playerId, treat: treat.id, seed: Math.floor(this.deps.rng() * 2 ** 31), at: pickLanding(n, this.deps.rng), racers };
+        this.vend = null;
+        this.state.treatShowUntil = this.deps.now() + showMs(show) + 300;
+        logTreat(table, playerId, treat.name, treat.cost, this.tableEnv());
+        result.outbound.push({ to: "self", msg: { t: "treat", show } });
+        result.outbound.push({ to: "others", msg: { t: "treat", show } });
+        result.changed = true;
+        return;
+      }
+
       case "debug": {
         this.debug(playerId, msg.cmd);
         result.changed = true;
         return;
       }
     }
+  }
+
+  /** Who holds the Treatomancer, if anyone still does (a hold runs out after VEND_HOLD_MS). */
+  private vendHolder(): { by: string; until: number } | null {
+    if (this.vend && (this.vend.until <= this.deps.now() || this.state.phase !== "playing")) this.vend = null;
+    return this.vend;
+  }
+
+  /** Whether a treat show is playing (the companions are busy). */
+  private showing(): boolean {
+    return this.state.phase === "playing" && (this.state.treatShowUntil ?? 0) > this.deps.now();
   }
 
   /** Whether a player is seated at the table with a companion (so it's on the table, theirs to move or emote with). */
@@ -802,6 +877,8 @@ export class Room {
       instances,
       table: this.state.table ? tableViewFor(this.state.table, viewer) : null,
       scene: resolveScene(this.state.scene),
+      vend: this.vendHolder(),
+      showUntil: this.showing() ? this.state.treatShowUntil! : null,
       expiresAt: this.state.expiresAt ?? null,
       serverNow: this.deps.now(),
     };

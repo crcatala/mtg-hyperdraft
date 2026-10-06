@@ -49,7 +49,7 @@ const HEARTBEAT_STALE_MS = 90 * 1000;
  */
 const PRESENCE_SWEEP_MS = 60 * 1000;
 /** Messages that never change room state, so they don't spend the room's write budget. */
-const STATELESS: ReadonlySet<ClientMessage["t"]> = new Set(["ping", "drag", "point", "poke", "emote", "petMove", "petCancel"]);
+const STATELESS: ReadonlySet<ClientMessage["t"]> = new Set(["ping", "drag", "point", "poke", "emote", "petMove", "petCancel", "vend"]);
 const FLOOD_MESSAGE = "You were disconnected for sending too many messages. Wait a minute, then reload to rejoin.";
 
 export class RoomDurableObject extends DurableObject<Env> {

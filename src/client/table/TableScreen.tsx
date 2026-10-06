@@ -19,6 +19,8 @@ import { EmoteLinesDialog } from "./EmoteLinesDialog";
 import { ScenePicker } from "./ScenePicker";
 import { EmoteWheel } from "./EmoteWheel";
 import { SpeechBubbles } from "./SpeechBubbles";
+import { TreatHud } from "./TreatMenu";
+import { openVend, resetTreats } from "./treatShow";
 import { relativeTime, RELATIVE_TIME_REFRESH_MS } from "../relativeTime";
 import { countNewEntries, logKeys } from "./logFeed";
 import { AnchoredPreview } from "../components/AnchoredPreview";
@@ -36,10 +38,12 @@ export function TableScreen() {
   useTableShortcuts();
   useEffect(() => startTableMotion(), []);
   useEffect(() => resetCompanions, []);
+  useEffect(() => resetTreats, []);
   return (
     <div className="screen table-screen">
       <TableCanvas />
       <SpeechBubbles />
+      <TreatHud />
       <EmoteWheel />
       <EmoteLinesDialog />
       <PlayersHud />
@@ -134,6 +138,10 @@ function useTableShortcuts() {
           break;
         case "v":
           ui.set({ overview: !ui.overview });
+          break;
+        case "b":
+          // The Treatomancer's menu (clicking the machine does the same).
+          if (!e.repeat) openVend();
           break;
         case "w":
           // The emote wheel, on this player's own companion (right-click it does the same).
@@ -607,6 +615,7 @@ const LOG_ICONS: Record<LogKind, IconName> = {
   roll: "dice",
   reveal: "eye",
   scene: "scene",
+  treat: "treat",
 };
 
 /** A card link under the pointer, previewed beside the log. */
@@ -1282,6 +1291,7 @@ const SHORTCUTS: [string, string][] = [
   ["Click a companion", "Poke it — anyone's; keep poking and it gets cheeky"],
   ["Hold your companion", "Pick it up and put it down anywhere off the other mats"],
   ["W · right-click yours", "Your companion's emote wheel (1–6 to pick, E edit lines, S settings, H sends it home)"],
+  ["B · click the gumball machine", "The Treatomancer: spend glimmers on a treat, and the companions race for it"],
   ["G / X / H", "Send to graveyard / exile / hand"],
   ["C / Shift+C", "Add / remove a +1/+1 counter"],
   ["D / Shift+D", "Draw a card / draw X"],

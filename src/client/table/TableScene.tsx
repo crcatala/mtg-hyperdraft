@@ -17,6 +17,8 @@ import { introProgress, pauseIntro, resumeIntro, type IntroClock } from "./camer
 import type { IconName } from "../icons";
 import { shortcutsBlocked } from "../shortcuts";
 import { CompanionFigure } from "./CompanionFigure";
+import { Treatomancer } from "./Treatomancer";
+import { TreatFlight } from "./TreatFlight";
 import { pressPet } from "./companionCarry";
 import { openEmoteWheel } from "./companionEmote";
 import { accentOf, avatarFace } from "../roster";
@@ -88,6 +90,8 @@ function Scene() {
       <RemoteHandDrags table={table} shadowY={shadowY} />
       <Pings table={table} />
       <Flights />
+      <Treatomancer povSeat={povSeat} seatCount={n} />
+      <TreatFlight />
     </>
   );
 }

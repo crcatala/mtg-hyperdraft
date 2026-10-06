@@ -185,6 +185,38 @@ export const SIGNATURES: Readonly<Record<string, Readonly<Record<string, Partial
   },
 };
 
+/**
+ * Reactions for the Treatomancer's race (treatShow.ts), shared by every companion (their body style still makes
+ * each one move its own way). Kept out of REACTION_IDS: they have no voice slot or line of their own.
+ */
+export const TREAT_REACTIONS: Readonly<Record<string, Reaction>> = {
+  // Something flew out of the machine: a startled perk-up.
+  alert: { duration: 0.8, motions: [m("puff", 0, 0.35, { a: 1 }), m("hop", 0.05, 0.4, { a: 0.7 })], fx: [f("bang", "pop", 0, { dur: 0.7 })] },
+  // Running for it: quick little bounds, leaning in (loops while it runs).
+  dash: { duration: 0.32, loop: true, motions: [m("hop", 0, 0.32, { a: 0.55 }), m("boing", 0, 0.32, { n: 1, a: 0.5 })], fx: [] },
+  // Face-plant, lie there dazed, get back up.
+  trip: {
+    duration: 1.2,
+    motions: [m("faint", 0, 1.15, { a: 1.05, dir: -1 }), m("vibrate", 0.4, 0.4, { a: 0.6 })],
+    fx: [f("bang", "pop", 0, { dur: 0.5 }), f("star", "orbit", 0.25, { n: 3, dur: 0.9, x: 0.4, y: -0.45 }), f("smoke", "puff", 0.05, { n: 2, y: -0.75, size: 0.8 })],
+  },
+  // Got it, and it's food: chomp chomp, a happy wiggle.
+  feast: {
+    duration: 2.4,
+    motions: [m("nod", 0, 0.9, { n: 4, a: 1 }), m("puff", 0.85, 0.4, { a: 0.9 }), m("hop", 1.15, 0.6, { n: 2, a: 1 }), m("wiggle", 1.6, 0.8, { n: 3 })],
+    fx: [f("sparkle", "burst", 0.1, { n: 4, dur: 0.6 }), f("heart", "rise", 1.0, { n: 3 }), f("note", "rise", 1.6)],
+  },
+  // Got it, and it's a keepsake: hugs it and spins round with it.
+  hug: {
+    duration: 2.4,
+    motions: [m("flatten", 0, 0.9, { a: 0.3 }), m("wiggle", 0.1, 0.8, { n: 2, a: 0.6 }), m("spin", 0.95, 0.6), m("hop", 1.5, 0.6, { n: 2, a: 0.9 })],
+    fx: [f("heart", "burst", 0.1, { n: 4 }), f("sparkle", "orbit", 0.9, { n: 3, dur: 0.9 }), f("heart", "rise", 1.6, { n: 2 })],
+  },
+  // Too slow: a sulky slump.
+  pout: { duration: 1.6, motions: [m("droop", 0, 1.6, { a: 1 }), m("shake", 0.2, 0.6, { n: 3, a: 0.6 })], fx: [f("sweat", "drip", 0.1), f("smoke", "puff", 0.6, { size: 0.7 })] },
+};
+export const TREAT_REACTION_IDS: readonly string[] = Object.keys(TREAT_REACTIONS);
+
 /** A companion's body style (an even default for unknown ids). */
 export const bodyStyle = (id: string | undefined): BodyStyle => (id && BODY_STYLES[id]) || DEFAULT_STYLE;
 
@@ -193,6 +225,7 @@ export const signatureSlots = (id: string | undefined): string[] => Object.keys(
 
 /** What a companion does in a slot: its signature if it has one, else the shared default; undefined for an unknown slot. */
 export function reactionFor(id: string | undefined, slot: string): Reaction | undefined {
+  if (TREAT_REACTIONS[slot]) return TREAT_REACTIONS[slot];
   const base = DEFAULT_REACTIONS[slot];
   if (!base || !REACTION_IDS.includes(slot)) return undefined;
   const sig = id ? SIGNATURES[id]?.[slot] : undefined;

@@ -645,6 +645,11 @@ export function logSceneChange(table: TableState, playerId: string, change: { ta
   log(table, playerId, "scene", line, env);
 }
 
+export function logTreat(table: TableState, playerId: string, treat: string, cost: number, env: TableEnv) {
+  const who = player(playerId, env.names[playerId] ?? "Someone");
+  log(table, playerId, "treat", logText`${who} ${verb("fed the Treatomancer")} ${num(cost)} glimmer${cost === 1 ? "" : "s"}: ${num(treat, "good")}!`, env);
+}
+
 function clampCount(n: number) {
   return Math.max(1, Math.min(60, Math.floor(n) || 1));
 }

@@ -15,6 +15,7 @@ import { resetEmotes } from "./companionEmote";
 import { tableApi } from "./drag";
 import { clearLadder, newLadder, observePoke, tapLadder } from "./pokeLadder";
 import { table } from "./tableUi";
+import { showBusy } from "./treatState";
 
 const ladder = newLadder();
 /** The sulk that follows a finale, per companion (cancelled by a newer poke). */
@@ -22,6 +23,7 @@ const sulks = new Map<string, ReturnType<typeof setTimeout>>();
 
 /** This player taps `target`'s companion. Returns false when the tap is ignored (it's sulking, or too soon). */
 export function pokeCompanion(target: string): boolean {
+  if (showBusy()) return false;
   const step = tapLadder(ladder, target, performance.now());
   if (step === null) return false;
   showPoke(target, step);
@@ -34,6 +36,7 @@ export function pokeCompanion(target: string): boolean {
  * One that arrives while the companion sulks (sent before its sender saw the finale) is dropped.
  */
 export function receivePoke(target: string, step: number) {
+  if (showBusy()) return;
   if (observePoke(ladder, target, step, performance.now())) showPoke(target, step);
 }
 

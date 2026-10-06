@@ -15,6 +15,7 @@ import { tableApi } from "./drag";
 import { closeEmoteLines, customLine, useEmoteLines } from "./emoteLines";
 import { cooldownLeft, emoteBadge, wheelCenter } from "./emoteWheel";
 import { me, table } from "./tableUi";
+import { showBusy } from "./treatState";
 
 /** The open wheel: where it's centred (CSS px), and where the right-click that opened it was. */
 export interface WheelState {
@@ -29,7 +30,7 @@ export const useEmoteWheel = create<{ wheel: WheelState | null; lastEmote: numbe
  * itself) or editing their lines, and only if they have a companion at the table.
  */
 export function openEmoteWheel(x: number, y: number) {
-  if (document.body.classList.contains("dragging") || useEmoteLines.getState().editing || !myCompanion()) return;
+  if (document.body.classList.contains("dragging") || useEmoteLines.getState().editing || !myCompanion() || showBusy()) return;
   useStore.getState().closeMenu();
   useEmoteWheel.setState({ wheel: { at: wheelCenter(x, y, window.innerWidth, window.innerHeight), from: { x, y } } });
 }
@@ -58,7 +59,7 @@ export const emoteCooldown = (now = performance.now()): number => cooldownLeft(u
  */
 export function sendEmote(index: number): boolean {
   const now = performance.now();
-  if (!isEmoteIndex(index) || cooldownLeft(useEmoteWheel.getState().lastEmote, now) > 0 || !myCompanion()) return false;
+  if (!isEmoteIndex(index) || cooldownLeft(useEmoteWheel.getState().lastEmote, now) > 0 || !myCompanion() || showBusy()) return false;
   useEmoteWheel.setState({ lastEmote: now });
   const text = customLine(index) ?? undefined;
   showEmote(me(), index, text);
