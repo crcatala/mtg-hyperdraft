@@ -630,6 +630,21 @@ function applyAction(table: TableState, playerId: string, action: TableAction, e
   }
 }
 
+/**
+ * Someone changed the table or the environment around it (cosmetic, see shared/scene.ts; the room keeps the
+ * choice): one line so everyone knows who did it. Takes the display names.
+ */
+export function logSceneChange(table: TableState, playerId: string, change: { table?: string; env?: string }, env: TableEnv) {
+  const who = player(playerId, env.names[playerId] ?? "Someone");
+  const line =
+    change.table && change.env
+      ? logText`${who} ${verb("set the scene")}: ${num(change.table)} in the ${num(change.env)}.`
+      : change.table
+        ? logText`${who} ${verb("changed the table")} to ${num(change.table)}.`
+        : logText`${who} ${verb("moved the game")} to the ${num(change.env ?? "")}.`;
+  log(table, playerId, "scene", line, env);
+}
+
 function clampCount(n: number) {
   return Math.max(1, Math.min(60, Math.floor(n) || 1));
 }

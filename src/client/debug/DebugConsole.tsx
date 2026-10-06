@@ -154,6 +154,9 @@ export function DebugConsole() {
           <a href="/dev/companion-lab" target="_blank" rel="noreferrer">
             Open Companion Lab (new tab)
           </a>
+          <a href="/dev/scene-lab" target="_blank" rel="noreferrer">
+            Open Scene Lab (new tab)
+          </a>
         </div>
       </section>
 

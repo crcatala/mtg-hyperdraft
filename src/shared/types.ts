@@ -1,6 +1,8 @@
 // Core data model shared by the client and the room Durable Object.
 // Everything here must stay JSON-serializable: it is persisted to DO storage and sent over the wire.
 
+import type { SceneChoice } from "./scene";
+
 export type Rarity = "common" | "uncommon" | "rare" | "mythic" | "special";
 export const RARITY_ORDER: Rarity[] = ["common", "uncommon", "rare", "mythic", "special"];
 
@@ -302,7 +304,8 @@ export type LogKind =
   | "mulligan"
   | "turn"
   | "roll"
-  | "reveal";
+  | "reveal"
+  | "scene";
 
 /**
  * A styled span of a log line's text, `[start, end, kind, …]` (a compact tuple: the whole log goes
@@ -396,4 +399,9 @@ export interface RoomState {
   draft: DraftState | null;
   decks: Record<string, DeckState>;
   table: TableState | null;
+  /**
+   * The table and environment everyone plays in (cosmetic). Kept by the room, not the game, so the next game
+   * starts where this one was. Absent until someone first changes it (and in rooms saved before it existed).
+   */
+  scene?: SceneChoice;
 }

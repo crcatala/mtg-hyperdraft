@@ -484,6 +484,11 @@
 
   /* ---------- home: a two-column launch screen ---------- */
 
+  /* The grove behind the launch screen: shaded under the text column, clearer towards the panel. */
+  .home {
+    --home-scrim: linear-gradient(90deg, rgb(14 15 16 / 0.88), rgb(14 15 16 / 0.62) 50%, rgb(14 15 16 / 0.45)), linear-gradient(0deg, rgb(14 15 16 / 0.7), transparent 30%);
+  }
+
   .home-fan {
     display: none;
   }
@@ -1119,7 +1124,8 @@
   .dock-actions,
   .camera-switch,
   .log-panel,
-  .dice-menu {
+  .dice-menu,
+  .scene-menu {
     border-radius: 4px;
     background: rgb(14 15 16 / 0.92);
     border-color: rgb(var(--fg-rgb) / 0.12);
@@ -1154,6 +1160,17 @@
   .dice-opt:hover {
     background: rgb(var(--signal-rgb) / 0.1);
     border-color: rgb(var(--signal-rgb) / 0.5);
+  }
+  .scene-opt,
+  .scene-swatch {
+    border-radius: 3px;
+  }
+  .scene-h {
+    font-family: var(--font-mono);
+    font-weight: 500;
+  }
+  .scene-opt[aria-pressed="true"] {
+    border-color: var(--signal);
   }
   .camera-label {
     font-family: var(--font-mono);

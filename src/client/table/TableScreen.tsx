@@ -16,6 +16,7 @@ import { reducedMotion, startTableMotion, useMotion } from "./motion";
 import { resetCompanions } from "./companionPoke";
 import { openMyEmoteWheel } from "./companionEmote";
 import { EmoteLinesDialog } from "./EmoteLinesDialog";
+import { ScenePicker } from "./ScenePicker";
 import { EmoteWheel } from "./EmoteWheel";
 import { SpeechBubbles } from "./SpeechBubbles";
 import { relativeTime, RELATIVE_TIME_REFRESH_MS } from "../relativeTime";
@@ -334,21 +335,19 @@ function DockButton({ icon, label, tip, keys, on, onClick }: { icon: IconName; l
   );
 }
 
-function ActionBar() {
-  const set = useTableUi((s) => s.set);
-  const [dice, setDice] = useState(false);
-  const diceRef = useRef<HTMLDivElement>(null);
-  // Clicking anywhere else closes the dice menu.
+/** A dock menu's open state: clicking anywhere outside `ref` closes it, and so does Esc. */
+function useDockMenu(ref: React.RefObject<HTMLElement | null>) {
+  const [open, setOpen] = useState(false);
   useEffect(() => {
-    if (!dice) return;
+    if (!open) return;
     const onDown = (e: PointerEvent) => {
-      if (!diceRef.current?.contains(e.target as Node)) setDice(false);
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
-    // Esc closes it too (capture phase, so the table doesn't also clear its selection).
+    // Capture phase, so the table doesn't also clear its selection.
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();
-      setDice(false);
+      setOpen(false);
     };
     window.addEventListener("pointerdown", onDown);
     window.addEventListener("keydown", onKey, true);
@@ -356,7 +355,16 @@ function ActionBar() {
       window.removeEventListener("pointerdown", onDown);
       window.removeEventListener("keydown", onKey, true);
     };
-  }, [dice]);
+  }, [open, ref]);
+  return [open, setOpen] as const;
+}
+
+function ActionBar() {
+  const set = useTableUi((s) => s.set);
+  const diceRef = useRef<HTMLDivElement>(null);
+  const [dice, setDice] = useDockMenu(diceRef);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const [scene, setScene] = useDockMenu(sceneRef);
   return (
     <div className="dock-actions panel" role="toolbar" aria-label="Table actions">
       <DockButton icon="draw" label="Draw" tip="Draw a card" keys="D" onClick={() => act({ a: "draw", n: 1 })} />
@@ -384,6 +392,10 @@ function ActionBar() {
         )}
       </div>
       <span className="dock-sep" aria-hidden />
+      <div className="scene-wrap" ref={sceneRef}>
+        <DockButton icon="scene" label="Scene" tip="Table and surroundings, for everyone" on={scene} onClick={() => setScene((o) => !o)} />
+        {scene && <ScenePicker />}
+      </div>
       <DockButton icon="help" label="Help" tip="Table controls" keys="?" onClick={() => set({ help: true })} />
       <DockButton icon="gear" label="Settings" tip="Settings: theme and sound" onClick={() => useStore.getState().setSettingsOpen(true)} />
     </div>
@@ -594,6 +606,7 @@ const LOG_ICONS: Record<LogKind, IconName> = {
   turn: "skip",
   roll: "dice",
   reveal: "eye",
+  scene: "scene",
 };
 
 /** A card link under the pointer, previewed beside the log. */
@@ -1277,6 +1290,7 @@ const SHORTCUTS: [string, string][] = [
   ["Arrows · Q/E · wheel", "Pan · rotate · zoom the camera (or drag empty table / middle mouse)"],
   ["1–4 · V", "View from a seat (1 is yours) · look down on the whole table"],
   ["Home", "Reset the camera"],
+  ["Scene button", "Pick the table and its surroundings, for everyone at the table"],
   ["Alt+Shift+T", "Switch UI theme (or open Settings, next to Help)"],
 ];
 /** Only listed where the debug console is turned on (?debug). */

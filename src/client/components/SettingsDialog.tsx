@@ -142,6 +142,10 @@ function AppearanceTab() {
           </button>
         ))}
       </div>
+      <h3 className="settings-h">Table &amp; environment</h3>
+      <p className="faint settings-note">
+        The 3D table and the room around it are shared by everyone at the table, so they're picked in a game: the <b>Scene</b> button on the table's toolbar, next to Help.
+      </p>
     </section>
   );
 }

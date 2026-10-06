@@ -1,5 +1,6 @@
 // Minimal path router: "/" (home), "/solo", "/r/CODE" (room), "/dev/icons" (icon gallery),
-// "/dev/sound-studio" (sound packs) and "/dev/companion-lab" (companion reactions).
+// "/dev/sound-studio" (sound packs), "/dev/companion-lab" (companion reactions) and "/dev/scene-lab" (tables and
+// environments).
 // Keeps ?as= for multi-tab testing.
 
 import { useSyncExternalStore } from "react";

@@ -111,6 +111,8 @@ export const ICONS = {
 
   // --- camera ---
   eye: [stroke("M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"), stroke(circle(12, 12, 3)), solid(circle(12, 12, 1.2))],
+  /** Scene: a framed landscape under a moon (the table's surroundings). */
+  scene: [stroke(roundRect(3, 4.5, 18, 15, 2)), stroke("M3.5 17l5-5.5 3.5 3.5 2.5-2.5 6 5.5"), solid(circle(15.5, 9, 1.6))],
   /** Overview: the round table from above, one seat on each side. */
   overview: [stroke(circle(12, 12, 5.5)), stroke("M9.5 2.8h5"), stroke("M9.5 21.2h5"), stroke("M2.8 9.5v5"), stroke("M21.2 9.5v5")],
   /** Open book: rules and rulings. */

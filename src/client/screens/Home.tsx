@@ -9,6 +9,9 @@ import { navigate } from "../router";
 import { useStore } from "../store";
 import { Icon } from "../components/Icon";
 import { ThemePicker } from "../components/ThemePicker";
+import { TitleBackdrop } from "../scene/TitleBackdrop";
+import { canUse3d } from "../pack/support";
+import { useTheme } from "../theme";
 import { ROOM_CODE_LENGTH, ROOM_CODE_RE } from "../../shared/roomCode";
 import type { InviteInfo, RoomRecord } from "../../shared/invites";
 import { durationLabel, type PublicStatus } from "../../shared/publicRooms";
@@ -19,6 +22,8 @@ export function Home() {
   const [busy, setBusy] = useState(false);
   const toast = useStore((s) => s.toast);
   const invite = useInvite();
+  const theme = useTheme();
+  const scene = canUse3d();
 
   const needName = () => {
     if (name.trim()) {
@@ -43,7 +48,8 @@ export function Home() {
   };
 
   return (
-    <div className="screen home">
+    <div className={`screen home${scene ? " has-scene" : ""}`}>
+      {scene && <TitleBackdrop theme={theme} />}
       <div className="home-fan" aria-hidden>
         {[0, 1, 2, 3, 4].map((i) => (
           <div key={i} className="home-fan-card" style={{ "--i": i } as React.CSSProperties} />
