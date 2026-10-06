@@ -407,4 +407,9 @@ export interface RoomState {
    * starts where this one was. Absent until someone first changes it (and in rooms saved before it existed).
    */
   scene?: SceneChoice;
+  /**
+   * While a Treatomancer show plays (shared/treats.ts), when it ends: nobody may touch the companions or buy until
+   * then. Stored with the purchase (no extra write), so a room rebuilt mid-show (hibernation, a deploy) still knows.
+   */
+  treatShowUntil?: number;
 }

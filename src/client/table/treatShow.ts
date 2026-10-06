@@ -10,7 +10,7 @@
 import { BEATS, LAND_AT, LOSER_LINES, RACE_AT, treatDef, tripLine, tripTime, winLine, type TreatShowSpec } from "../../shared/treats";
 import { serverNow, useStore } from "../store";
 import { treatSound } from "../treatSounds";
-import { cancelPet } from "./companionCarry";
+import { cancelPet, cancelPress } from "./companionCarry";
 import { closeEmoteWheel } from "./companionEmote";
 import { playReaction, stopReaction } from "./companionPlayback";
 import { say, voice } from "./companionTalk";
@@ -99,7 +99,9 @@ export function syncVendFromView() {
 
 /** A treat was bought: play the show. */
 export function receiveTreat(spec: TreatShowSpec) {
-  // Anything in hand ends: a carried companion goes back, the emote wheel closes.
+  // Anything in hand ends: a press on a companion (before it could lift it), a carried companion (it goes back),
+  // the emote wheel.
+  cancelPress();
   cancelPet();
   closeEmoteWheel();
   clearShowTimers();

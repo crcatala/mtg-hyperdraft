@@ -168,8 +168,11 @@ export function pressPet(target: string, e: { clientX: number; clientY: number; 
   };
 }
 
-/** Ends the press in progress as if it was taken away: a carry goes back where it was. */
-function cancelPress() {
+/**
+ * Ends the press in progress as if it was taken away: a carry goes back where it was, and a press still waiting to
+ * become one (a hold, a drag) never does. A treat show starting does this, so nobody's companion is lifted mid-race.
+ */
+export function cancelPress() {
   if (!press) return;
   const r = stepGesture(press.g, { type: "cancel" });
   press.end();
@@ -188,7 +191,7 @@ export function liftPet(clientX: number, clientY: number): boolean {
   const pid = me();
   const t = table();
   const player = useStore.getState().view?.players.find((p) => p.id === pid);
-  if (!t || !t.seats.includes(pid) || !player?.companion || carries.has(pid)) return false;
+  if (!t || !t.seats.includes(pid) || !player?.companion || carries.has(pid) || showBusy()) return false;
   const from = petPositions.get(pid);
   const pt = tableApi.screenToTable(clientX, clientY);
   if (!from) return false;

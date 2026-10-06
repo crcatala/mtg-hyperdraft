@@ -101,11 +101,10 @@ export class Room {
   private lastPoke = new Map<string, number>();
   private lastEmote = new Map<string, number>();
   /**
-   * The Treatomancer (not persisted: a hold or a show lost to a restart just ends). `vend`: who is browsing its
-   * menu, until when; `showUntil`: a treat show is playing, and the companions are busy until then.
+   * Who is browsing the Treatomancer's menu, until when. In memory only: a hold lost to a restart just ends (a
+   * purchase doesn't need one). The show it leads to is stored instead (RoomState.treatShowUntil).
    */
   private vend: { by: string; until: number } | null = null;
-  private showUntil = 0;
 
   constructor(
     public state: RoomState,
@@ -623,7 +622,7 @@ export class Room {
         });
         const show: TreatShowSpec = { by: playerId, treat: treat.id, seed: Math.floor(this.deps.rng() * 2 ** 31), at: pickLanding(n, this.deps.rng), racers };
         this.vend = null;
-        this.showUntil = this.deps.now() + showMs(show) + 300;
+        this.state.treatShowUntil = this.deps.now() + showMs(show) + 300;
         logTreat(table, playerId, treat.name, treat.cost, this.tableEnv());
         result.outbound.push({ to: "self", msg: { t: "treat", show } });
         result.outbound.push({ to: "others", msg: { t: "treat", show } });
@@ -647,7 +646,7 @@ export class Room {
 
   /** Whether a treat show is playing (the companions are busy). */
   private showing(): boolean {
-    return this.state.phase === "playing" && this.showUntil > this.deps.now();
+    return this.state.phase === "playing" && (this.state.treatShowUntil ?? 0) > this.deps.now();
   }
 
   /** Whether a player is seated at the table with a companion (so it's on the table, theirs to move or emote with). */
@@ -875,7 +874,7 @@ export class Room {
       table: this.state.table ? tableViewFor(this.state.table, viewer) : null,
       scene: resolveScene(this.state.scene),
       vend: this.vendHolder(),
-      showUntil: this.showing() ? this.showUntil : null,
+      showUntil: this.showing() ? this.state.treatShowUntil! : null,
       expiresAt: this.state.expiresAt ?? null,
       serverNow: this.deps.now(),
     };

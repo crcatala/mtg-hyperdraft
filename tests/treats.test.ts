@@ -277,6 +277,25 @@ describe("the Treatomancer in a room", () => {
     expect(msgs(send(room, b, { t: "vend", open: true }), "vend")[0].msg).toMatchObject({ by: b });
   });
 
+  it("keeps the show locked when the room is rebuilt from storage mid-show (hibernation, a deploy)", () => {
+    const { room, deps, a, b } = game();
+    const res = send(room, a, { t: "treat", treat: "moonlit-macaron" });
+    expect(res.changed).toBe(true);
+    const show = (msgs(res, "treat")[0].msg as { show: TreatShowSpec }).show;
+    // What the Durable Object saved with the purchase, loaded into a fresh Room as on wake-up.
+    deps.advance(2000);
+    const woken = new Room(JSON.parse(JSON.stringify(room.state)), room.cards, deps);
+    // Someone reloading now sees the machine busy, and can't buy over the race (or touch the companions).
+    expect(woken.viewFor(b).showUntil).toBeGreaterThan(deps.now());
+    expect(errorOf(send(woken, b, { t: "treat", treat: "cursed-sock" }))?.message).toBe("Wait for the last treat to be gobbled first.");
+    expect(errorOf(send(woken, b, { t: "vend", open: true }))).toBeDefined();
+    expect(send(woken, b, { t: "poke", target: a, step: 0 }).outbound).toEqual([]);
+    // And it ends on time.
+    deps.advance(showMs(show));
+    expect(woken.viewFor(b).showUntil).toBeNull();
+    expect(send(woken, b, { t: "treat", treat: "cursed-sock" }).changed).toBe(true);
+  });
+
   it("is only for players at the table, and only takes treats it sells", () => {
     const deps = testDeps();
     const room = new Room(createRoomState("ABCDEF", deps.now()), {}, deps);

@@ -207,7 +207,9 @@ hugs it if it's a keepsake, and says one of its own three lines about it; the re
 - **The same race on every screen.** The room picks a seed and a landing spot and sends them with the racers' start
   spots (`treat`); `planShow` in `shared/treats.ts` works out every speed, trip and the winner from that alone, so
   nothing about the race itself goes over the wire. The glimmers left are stored per player on the table
-  (`TablePlayer.glimmers`, one write per purchase, logged); the hold and the show are in the room's memory only.
+  (`TablePlayer.glimmers`, one write per purchase, logged). The show's end time is saved in that same write
+  (`RoomState.treatShowUntil`), so a room rebuilt mid-show (hibernation, a deploy) stays locked; the browsing hold is
+  in memory only (a purchase doesn't need one).
 - Each player has their own copy of the machine (`machineSpot`): the cameras frame each mat too tightly for one shared
   machine to be in everyone's shot. Only where the capsule flies *from* differs between screens; landings keep clear of
   every seat's machine.

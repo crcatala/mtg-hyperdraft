@@ -29,6 +29,7 @@ import { resetCompanions } from "../src/client/table/companionPoke";
 import { voiceSlotLine } from "../src/shared/companionKit";
 import { companionSpot, matCenter } from "../src/shared/tableLayout";
 import type { ClientMessage, RoomView } from "../src/shared/protocol";
+import { receiveTreat, resetTreats } from "../src/client/table/treatShow";
 
 /** A two-seat table: "me" (Alice, Sir Ribbit) and "u2" (Bob, Hex). Only what the carry flow reads. */
 function seatTable(myAt?: { x: number; y: number }) {
@@ -246,6 +247,7 @@ describe("one press at a time, from one pointer (touch: a second finger)", () =>
     petPositions.set("u2", U2_HOME);
   });
   afterEach(() => {
+    resetTreats();
     // Everything, the poke ladder included (its throttle would otherwise carry over to the next test).
     resetCompanions();
     clearReactions();
@@ -262,6 +264,28 @@ describe("one press at a time, from one pointer (touch: a second finger)", () =>
     vi.advanceTimersByTime(HOLD_MS);
     expect(isCarried("me")).toBe(true);
   }
+
+  it("a treat show starting mid-press cancels it: the hold never lifts the companion, the release never pokes", () => {
+    pressPet("me", { clientX: HOME.x, clientY: HOME.y, pointerId: 1 });
+    vi.advanceTimersByTime(HOLD_MS / 2);
+    receiveTreat({ by: "u2", treat: "moonlit-macaron", seed: 1, at: OPEN, racers: [{ id: "me", companion: "ribbit", ...HOME }, { id: "u2", companion: "hex", ...U2_HOME }] });
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(isCarried("me")).toBe(false);
+    fire("pointermove", 1, 3, 3);
+    fire("pointerup", 1, 3, 3);
+    expect(isCarried("me")).toBe(false);
+    expect(sent.filter((m) => m.t === "petMove" || m.t === "poke" || m.t === "setPetPos")).toEqual([]);
+    expect(classes.has("dragging")).toBe(false);
+  });
+
+  it("can't lift a companion while the room says a show is on (a screen that joined mid-show)", () => {
+    const view = useStore.getState().view!;
+    useStore.setState({ view: { ...view, showUntil: Date.now() + 10_000 }, clockOffset: 0 });
+    expect(liftPet(HOME.x, HOME.y)).toBe(false);
+    pressPet("me", { clientX: HOME.x, clientY: HOME.y, pointerId: 1 });
+    vi.advanceTimersByTime(HOLD_MS);
+    expect(isCarried("me")).toBe(false);
+  });
 
   it("ignores another pointer's moves and release; its own release drops it where it is", () => {
     liftWithPointer1();
