@@ -1,6 +1,7 @@
 # <img src="public/favicon.svg" alt="" width="40" height="40"> HyperDraft
 
 [![CI](https://github.com/crcatala/mtg-hyperdraft/actions/workflows/ci.yml/badge.svg)](https://github.com/crcatala/mtg-hyperdraft/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Crack packs, draft a cube with up to three friends, build your deck, and battle on a shared 3D table,
 all in the browser.**
@@ -185,7 +186,7 @@ numbers behind these estimates.
 
 This is a personal project. Bug reports and ideas are welcome as GitHub issues, but pull requests
 generally aren't accepted. See [CONTRIBUTING.md](CONTRIBUTING.md). To report a vulnerability, see
-[SECURITY.md](SECURITY.md).
+[SECURITY.md](SECURITY.md). Forks are welcome under the [MIT License](LICENSE).
 
 ## Credits
 
@@ -204,3 +205,10 @@ generally aren't accepted. See [CONTRIBUTING.md](CONTRIBUTING.md). To report a v
 
 Magic: The Gathering is a trademark of Wizards of the Coast LLC. Keep it free: don't paywall or monetize
 anything built on this data.
+
+## License
+
+HyperDraft's source code is available under the [MIT License](LICENSE). The license covers this
+project's own code. Card data, card images and Magic: The Gathering intellectual property belong to their
+owners, and the third-party data, fonts, music and other generated assets keep the terms described in
+[Credits](#credits).

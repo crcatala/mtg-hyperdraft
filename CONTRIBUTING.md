@@ -27,6 +27,7 @@ Please don't report security vulnerabilities in a public issue. See [SECURITY.md
 
 ## Forks
 
-You're welcome to fork HyperDraft and host your own copy for your friends. Please keep it free, and keep
-the [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy) notice and the credits in
+You're welcome to fork HyperDraft, adapt it and host your own copy under the terms of the
+[MIT License](LICENSE). Please keep it free, and keep the
+[Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy) notice and the credits in
 the [README](README.md#credits).

@@ -2,6 +2,7 @@
   "name": "mtg-hyperdraft",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "HyperDraft — browser MTG cube drafting + 3D tabletop for up to 4 friends (React Three Fiber + Cloudflare Durable Objects)",
   "type": "module",
   "scripts": {
