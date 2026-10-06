@@ -107,8 +107,15 @@ export interface Player {
 export type PassPattern = "alternate" | "left";
 export type TimerStyle = "fixed" | "shrinking";
 
+/** "cube": any cards at random. "set": packs built like real boosters. */
+export type DraftMode = "cube" | "set";
+/** The rarity groups a pack can be built from: the rare slot also holds mythics and specials. */
+export type RarityGroup = "rare" | "uncommon" | "common";
+export type PackSlots = Record<RarityGroup, number>;
+
 export interface DraftConfig {
-  mode: "cube";
+  /** The preset the host last picked (DRAFT_PRESETS); the settings it covers may have been tweaked since. */
+  mode: DraftMode;
   packsPerPlayer: number;
   cardsPerPack: number;
   picksPerTurn: number;
@@ -117,7 +124,10 @@ export interface DraftConfig {
   /** 0 = no time limit. For "shrinking", this is the time for the first pick of a full pack. */
   pickTimerSec: number;
   timerStyle: TimerStyle;
+  /** Cards may repeat across packs (never within one pack). */
   allowDuplicates: boolean;
+  /** Build every pack from these rarity counts (cardsPerPack is their sum); null = any cards at random. */
+  packSlots: PackSlots | null;
   /** Chance that a pack contains one foil card (purely cosmetic). */
   foilChance: number;
 }
@@ -144,6 +154,7 @@ export const DEFAULT_CONFIG: LobbyConfig = {
     pickTimerSec: 0,
     timerStyle: "fixed",
     allowDuplicates: false,
+    packSlots: null,
     foilChance: 0.35,
   },
   game: {
@@ -151,6 +162,13 @@ export const DEFAULT_CONFIG: LobbyConfig = {
     minDeckSize: 40,
     openingHandSize: 7,
   },
+};
+
+/** What picking a draft style sets. Everything else (picks, burns, timers, passing) is left alone. */
+export const DRAFT_PRESETS: Record<DraftMode, Pick<DraftConfig, "packsPerPlayer" | "cardsPerPack" | "allowDuplicates" | "packSlots">> = {
+  cube: { packsPerPlayer: 3, cardsPerPack: 15, allowDuplicates: false, packSlots: null },
+  // A draft booster without its basic land: one rare (or mythic), three uncommons, ten commons.
+  set: { packsPerPlayer: 3, cardsPerPack: 14, allowDuplicates: true, packSlots: { rare: 1, uncommon: 3, common: 10 } },
 };
 
 export const MAX_HUMANS = 4;

@@ -16,6 +16,7 @@ import type {
   TableState,
   BasicCounts,
 } from "./types";
+import type { PoolStats } from "./draft";
 
 const id = z.string().min(1).max(64);
 const basicCounts = z.object({
@@ -70,6 +71,10 @@ const draftConfigPatch = z
     pickTimerSec: z.number().int().min(0).max(600),
     timerStyle: z.enum(["fixed", "shrinking"]),
     allowDuplicates: z.boolean(),
+    packSlots: z
+      .object({ rare: z.number().int().min(0).max(15), uncommon: z.number().int().min(0).max(15), common: z.number().int().min(0).max(30) })
+      .nullable(),
+    mode: z.enum(["cube", "set"]),
     foilChance: z.number().min(0).max(1),
   })
   .partial();
@@ -150,6 +155,8 @@ export interface CubeSummary {
   source: string;
   size: number;
   uniqueCards: number;
+  /** What the pool can fill, per rarity (the lobby's pool check). */
+  stats: PoolStats;
   notFound: string[];
   warnings: string[];
   importedAt: number;

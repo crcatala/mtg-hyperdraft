@@ -4,6 +4,7 @@ import { basicIds, makeCube, testDeps } from "./fixtures";
 import type { ClientMessage } from "../src/shared/protocol";
 import { EMOTE_TEXT_MAX } from "../src/shared/emoteText";
 import { matCenter, tableRadius } from "../src/shared/tableLayout";
+import { DRAFT_PRESETS } from "../src/shared/types";
 
 function importResult(n = 400): ImportResult {
   const cards = Object.values(makeCube(n));
@@ -53,6 +54,29 @@ describe("room flow", () => {
     const table = room.viewFor(host.playerId).table!;
     expect(table.seats).toEqual([host.playerId]);
     expect(table.players[host.playerId].zones.hand).toHaveLength(7);
+  });
+
+  it("applies draft styles and keeps pack size in step with rarity slots", () => {
+    const { room } = newRoom();
+    const host = room.join({ name: "Alice" });
+    room.applyImport(importResult());
+    send(room, host.playerId, { t: "config", draft: { mode: "set", ...DRAFT_PRESETS.set } });
+    expect(room.state.config.draft).toMatchObject({ mode: "set", cardsPerPack: 14, allowDuplicates: true });
+    send(room, host.playerId, { t: "config", draft: { packSlots: { rare: 2, uncommon: 3, common: 10 } } });
+    expect(room.state.config.draft.cardsPerPack).toBe(15);
+    expect(room.viewFor(host.playerId).cube?.stats.byRarity.common.copies).toBe(172);
+    const err = send(room, host.playerId, { t: "config", draft: { packSlots: { rare: 1, uncommon: 0, common: 0 } } });
+    expect(err.outbound[0].msg).toMatchObject({ t: "error", message: expect.stringMatching(/between 2 and 30/) });
+    expect(room.state.config.draft.cardsPerPack).toBe(15);
+  });
+
+  it("fills in draft settings missing from rooms saved before they existed", () => {
+    const deps = testDeps();
+    const state = createRoomState("ABCDEF", deps.now());
+    const { packSlots: _, ...old } = state.config.draft;
+    state.config.draft = old as typeof state.config.draft;
+    const room = new Room(state, {}, deps);
+    expect(room.state.config.draft.packSlots).toBeNull();
   });
 
   it("waits for every human to be ready and resets ready on config changes", () => {

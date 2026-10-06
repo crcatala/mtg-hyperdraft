@@ -48,7 +48,7 @@ src/
     importParser.ts  CubeCobra URL / "set:WTH" / plain list / "4 Name" / Arena "(SET) 123" / CubeCobra CSV
     cardSources.ts   Scryfall /cards/collection (75 per request) + fuzzy fallback, CubeCobra cubeJSON
     setSource.ts     whole-set import: one plain booster printing per card (no alt art, promos, basics)
-    draft.ts         booster draft engine: packs, passing L/R/L, burns, pick timers, bots
+    draft.ts         booster draft engine: packs (random or by rarity slots), passing L/R/L, burns, pick timers, bots
     autopick.ts      card scoring (CubeCobra ELO + rarity + colour commitment)
     deck.ts          auto-lands (by mana symbols), auto-build
     table.ts         tabletop actions + per-player views that hide hands/libraries/face-down cards
