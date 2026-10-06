@@ -5,6 +5,7 @@
 import type { InviteInfo } from "../shared/invites";
 
 const KEY = "hyperdraft:invite";
+const INFO_KEY = "hyperdraft:invite-info";
 
 export function loadInvite(): string | null {
   try {
@@ -25,6 +26,7 @@ export function saveInvite(key: string) {
 export function forgetInvite() {
   try {
     localStorage.removeItem(KEY);
+    localStorage.removeItem(INFO_KEY);
   } catch {
     /* storage unavailable */
   }
@@ -56,8 +58,25 @@ async function call<T>(path: string, key: string, init: RequestInit = {}): Promi
   return body;
 }
 
-export function fetchInvite(key: string): Promise<InviteInfo> {
-  return call<InviteInfo>("/api/invite", key);
+export async function fetchInvite(key: string): Promise<InviteInfo> {
+  const info = await call<InviteInfo>("/api/invite", key);
+  try {
+    localStorage.setItem(INFO_KEY, JSON.stringify({ key, info }));
+  } catch {
+    /* storage unavailable */
+  }
+  return info;
+}
+
+/** The last invite info fetched for `key`, so Home can lay out the quota and "Your rooms" before the fresh one arrives. */
+export function loadInviteInfo(key: string | null): InviteInfo | null {
+  if (!key) return null;
+  try {
+    const saved = JSON.parse(localStorage.getItem(INFO_KEY) ?? "null") as { key: string; info: InviteInfo } | null;
+    return saved?.key === key ? saved.info : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function createRoom(key: string): Promise<string> {

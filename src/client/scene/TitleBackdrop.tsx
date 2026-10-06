@@ -2,6 +2,10 @@
 // environments, with the camera slowly circling it. Each UI theme gets its own pairing (titleScenes.ts), so the
 // backdrop matches the menus. No WebGL: nothing is drawn and Home keeps its plain background. Reduced motion: the
 // camera holds still (the scene's own small motions hold too).
+//
+// The scene stays invisible until it has actually drawn a few frames (shaders compiled, textures uploaded), then
+// fades in over Home's plain background. Fading from mount instead would spend most of the fade on an empty canvas
+// and then pop the scene in.
 
 import { Component, useMemo, useRef, useState, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -23,11 +27,12 @@ const SEATS = 2;
 export function TitleBackdrop({ theme }: { theme: ThemeId }) {
   const [failed, setFailed] = useState(false);
   const [dpr, setDpr] = useState<number | [number, number]>([1, 1.5]);
+  const [drawn, setDrawn] = useState(false);
   if (failed || !canUse3d()) return null;
   const { env, table } = TITLE_SCENES[theme] ?? TITLE_SCENES.gamenight;
   const radius = tableRadius(SEATS);
   return (
-    <div className="home-scene" aria-hidden>
+    <div className={`home-scene${drawn ? " drawn" : ""}`} aria-hidden>
       <Boundary onFail={() => setFailed(true)}>
         <Canvas dpr={dpr} camera={{ fov: 40, near: 1, far: 1200, position: [0, 40, 90] }} gl={{ antialias: true, powerPreference: "low-power" }}>
           {dpr !== 1 && <WhenSlow onSlow={() => setDpr(1)} />}
@@ -35,6 +40,7 @@ export function TitleBackdrop({ theme }: { theme: ThemeId }) {
           <TableModel style={table} radius={radius} seatCount={SEATS} />
           <SetTable radius={radius} />
           <TitleCamera radius={radius} />
+          {!drawn && <OnFramesDrawn onDrawn={() => setDrawn(true)} />}
         </Canvas>
       </Boundary>
     </div>
@@ -54,6 +60,16 @@ class Boundary extends Component<{ onFail: () => void; children: ReactNode }, { 
   render() {
     return this.state.failed ? null : this.props.children;
   }
+}
+
+/** Calls `onDrawn` once the first few frames are on screen: the first one is the slow one (compiling, uploading). */
+function OnFramesDrawn({ onDrawn }: { onDrawn: () => void }) {
+  const frames = useRef(0);
+  useFrame(() => {
+    // useFrame runs before each render, so the third call means two frames have been drawn.
+    if (++frames.current === 3) onDrawn();
+  });
+  return null;
 }
 
 /**

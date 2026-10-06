@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
 import { roomExists } from "../net";
 import { loadName, saveName } from "../identity";
-import { createRoom, deleteRoom, fetchInvite, forgetInvite, InviteError, loadInvite, saveInvite } from "../invite";
-import { createPublicRoom, fetchPublicStatus, loadMine, PublicRoomError, rememberMine, useTurnstile } from "../publicRooms";
+import { createRoom, deleteRoom, fetchInvite, forgetInvite, InviteError, loadInvite, loadInviteInfo, saveInvite } from "../invite";
+import { createPublicRoom, fetchPublicStatus, loadMine, loadPublicStatus, PublicRoomError, rememberMine, useTurnstile } from "../publicRooms";
 import { forgetRoom, loadRecent, mergeRooms, rememberRoom, type RoomEntry } from "../recentRooms";
 import { clockTime } from "../expiry";
 import { navigate } from "../router";
@@ -13,8 +13,8 @@ import { TitleBackdrop } from "../scene/TitleBackdrop";
 import { canUse3d } from "../pack/support";
 import { useTheme } from "../theme";
 import { ROOM_CODE_LENGTH, ROOM_CODE_RE } from "../../shared/roomCode";
-import type { InviteInfo, RoomRecord } from "../../shared/invites";
-import { durationLabel, type PublicStatus } from "../../shared/publicRooms";
+import type { RoomRecord } from "../../shared/invites";
+import { durationLabel, PUBLIC_LIMITS, type PublicStatus } from "../../shared/publicRooms";
 
 export function Home() {
   const [name, setName] = useState(loadName());
@@ -120,11 +120,14 @@ export function Home() {
 
 type Invite = ReturnType<typeof useInvite>;
 
-/** The saved invite code, if any, and what the server says about it (quota, its rooms). */
+/**
+ * The saved invite code, if any, and what the server says about it (quota, its rooms). Starts from the last answer
+ * this browser saw, so the quota line and "Your rooms" don't pop in once the fresh one arrives.
+ */
 function useInvite() {
   const toast = useStore((s) => s.toast);
   const [key, setKey] = useState(loadInvite);
-  const [info, setInfo] = useState<InviteInfo | null>(null);
+  const [info, setInfo] = useState(() => loadInviteInfo(key));
 
   const refresh = useCallback(
     async (k: string) => {
@@ -254,9 +257,16 @@ function HostSection({ needName, invite }: { needName: () => boolean; invite: In
         <Icon name="sparkle" /> Host an online game
       </button>
       {blocker && <p className="pill warn home-blocker">{blocker}</p>}
-      {info && q && (
+      {info && q ? (
         <p className="faint small-print home-note">
           Invite <b>{info.label}</b> · {q.createdInWindow}/{q.perWindow} rooms in 24h · {q.rooms}/{q.maxRooms} saved ·{" "}
+          <button className="link-btn" onClick={invite.forget}>
+            forget invite
+          </button>
+        </p>
+      ) : (
+        <p className="faint small-print home-note">
+          Checking your invite… ·{" "}
           <button className="link-btn" onClick={invite.forget}>
             forget invite
           </button>
@@ -266,10 +276,15 @@ function HostSection({ needName, invite }: { needName: () => boolean; invite: In
   );
 }
 
-/** Hosting from the public pool: a few shared slots, rooms that close on their own. */
+/**
+ * Hosting from the public pool: a few shared slots, rooms that close on their own. Until the server answers, it lays
+ * out the last answer this browser saw (or, the first time, an open pool) with hosting held off, so the panel keeps
+ * its shape when the answer lands.
+ */
 function PublicHost({ needName }: { needName: () => boolean }) {
   const toast = useStore((s) => s.toast);
-  const [status, setStatus] = useState<PublicStatus | null>(null);
+  const [status, setStatus] = useState<PublicStatus | null>(loadPublicStatus);
+  const [fresh, setFresh] = useState(false);
   const [mine, setMine] = useState(loadMine);
   const [busy, setBusy] = useState(false);
   const turnstile = useTurnstile(status?.enabled ? (status.turnstileSiteKey ?? null) : null);
@@ -281,6 +296,7 @@ function PublicHost({ needName }: { needName: () => boolean }) {
     } catch {
       setStatus({ enabled: false });
     }
+    setFresh(true);
   }, []);
 
   // Slots free up while you wait: look again whenever the tab comes back into focus.
@@ -291,9 +307,10 @@ function PublicHost({ needName }: { needName: () => boolean }) {
     return () => document.removeEventListener("visibilitychange", onFocus);
   }, [refresh]);
 
-  if (!status?.enabled) return null;
-  const { slots = 0, used = 0, nextFreeAt, nextRoomMs = 0, reopensAt, idleMs = 0 } = status;
-  const needsCheck = !!status.turnstileSiteKey;
+  const known = status ?? { enabled: true };
+  if (!known.enabled) return null;
+  const { slots = PUBLIC_LIMITS.slots, used = 0, nextFreeAt, nextRoomMs = PUBLIC_LIMITS.ttlMs, reopensAt, idleMs = PUBLIC_LIMITS.idleMs } = known;
+  const needsCheck = !!known.turnstileSiteKey;
   // Always mounted (the widget renders into it once), hidden while there's nothing to host.
   const check = needsCheck && <div ref={turnstile.ref} className="turnstile-slot" hidden={!!mine || !!reopensAt} />;
 
@@ -347,7 +364,7 @@ function PublicHost({ needName }: { needName: () => boolean }) {
   const full = nextFreeAt != null;
   return (
     <div className="public-host">
-      <button className="btn big" disabled={busy || (needsCheck && !turnstile.token)} onClick={host}>
+      <button className="btn big" disabled={busy || !fresh || (needsCheck && !turnstile.token)} onClick={host}>
         <Icon name="sparkle" /> {full ? "Check for a free public table" : "Host a public room"}
       </button>
       {full ? (
@@ -356,7 +373,8 @@ function PublicHost({ needName }: { needName: () => boolean }) {
         </p>
       ) : (
         <p className="faint small-print home-note">
-          No invite needed. Open until about {clockTime(Date.now() + nextRoomMs)} ({durationLabel(nextRoomMs)}), or until nobody's been in it for {durationLabel(idleMs)} · {slots - used} of {slots} tables free
+          No invite needed. Open until about {clockTime(Date.now() + nextRoomMs)} ({durationLabel(nextRoomMs)}), or until nobody's been in it for {durationLabel(idleMs)} ·{" "}
+          {fresh ? `${slots - used} of ${slots} tables free` : "checking for free tables…"}
         </p>
       )}
       {check}

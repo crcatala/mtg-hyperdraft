@@ -9,11 +9,33 @@ import { rememberRoom } from "./recentRooms";
 
 const EXPIRY_KEY = "hyperdraft:public:";
 const MINE_KEY = "hyperdraft:public-mine";
+const STATUS_KEY = "hyperdraft:public-status";
 
 export async function fetchPublicStatus(): Promise<PublicStatus> {
   const res = await fetch("/api/public");
   if (!res.ok) return { enabled: false };
-  return (await res.json()) as PublicStatus;
+  const status = (await res.json()) as PublicStatus;
+  try {
+    localStorage.setItem(STATUS_KEY, JSON.stringify(status));
+  } catch {
+    /* storage unavailable */
+  }
+  return status;
+}
+
+/** The last status this browser fetched, so Home can lay out the hosting section before the fresh one arrives. */
+export function loadPublicStatus(): PublicStatus | null {
+  try {
+    const status = JSON.parse(localStorage.getItem(STATUS_KEY) ?? "null") as PublicStatus | null;
+    if (!status) return null;
+    // A pool that was full or booked then may well be open by now.
+    const now = Date.now();
+    if (status.reopensAt && status.reopensAt <= now) status.reopensAt = null;
+    if (status.nextFreeAt && status.nextFreeAt <= now) status.nextFreeAt = null;
+    return status;
+  } catch {
+    return null;
+  }
 }
 
 export class PublicRoomError extends Error {

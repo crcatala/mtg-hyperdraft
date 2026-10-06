@@ -289,7 +289,12 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  animation: home-scene-in 1.8s ease both;
+  /* Shown once the scene has drawn (TitleBackdrop), so the fade is a steady mix from the plain background. */
+  opacity: 0;
+  transition: opacity 1.6s ease-in-out;
+}
+.home-scene.drawn {
+  opacity: 1;
 }
 .home-scene::after {
   content: "";
@@ -300,14 +305,9 @@
 .home.has-scene .home-fan {
   display: none;
 }
-@keyframes home-scene-in {
-  from {
-    opacity: 0;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .home-scene {
-    animation: none;
+    transition: none;
   }
 }
 /* Short windows (laptops): tighten the hero so "Your rooms" keeps some room. */
