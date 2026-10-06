@@ -1069,7 +1069,12 @@ function ZoneZoom({ ids, title }: { ids: string[]; title: string }) {
   }, [ids.join(), tableCards, cards]);
   const originFor = useCallback((key: string) => document.querySelector(`.zone-card[data-zid="${CSS.escape(key)}"] .card`)?.getBoundingClientRect() ?? null, []);
   const close = useCallback(() => useTableUi.getState().set({ zoneZoom: null }), []);
-  if (!zoom || !items.some((i) => i.key === zoom)) return null;
+  // The zoom state blocks the table's shortcuts (Esc included), so it must never outlive the carousel:
+  // gone with the viewer (closed, or its player left), it's cleared here.
+  useEffect(() => close, [close]);
+  // Cards can leave the pile while zoomed (anyone may take them out of a graveyard): the carousel
+  // keeps browsing what's left, and closes itself once nothing is.
+  if (!zoom) return null;
   return <CardCarousel key={zoom} items={items} startKey={zoom} title={title} originFor={originFor} onClose={close} />;
 }
 
