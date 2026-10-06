@@ -1,14 +1,14 @@
-// The 3D tabletop: felt table, one mat per seat, piles, battlefield cards and other players' hands,
-// plus drag feedback (shadows, drop targets) and pings.
+// The 3D tabletop: the table and its surroundings (chosen by the room, see scene/), one mat per seat, piles,
+// battlefield cards and other players' hands, plus drag feedback (shadows, drop targets) and pings.
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store";
 import { handDragId } from "../../shared/table";
 import type { PublicLook, TableCard, TableState } from "../../shared/types";
 import { CARD_H, CARD_W, MAT_D, MAT_W, PILE_LOCAL, companionSpot, localToTable, pileAt, pilePosition, seatAngle, tableRadius, type PileZone } from "../../shared/tableLayout";
-import { backTexture, feltTexture, glowTexture, labelTexture, lookTagTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, useImage, type LabelVariant } from "./textures";
+import { backTexture, glowTexture, labelTexture, lookTagTexture, matTexture, pingTagTexture, roundedRectGeometry, shadowTexture, SHADOW_PAD, useCardTexture, useImage, type LabelVariant } from "./textures";
 import { battlefieldMenu, pileMenu, pingAt, toggleTap, useTableUi, act, PING_MS, type Ping } from "./tableUi";
 import { beginDrag, tableApi } from "./drag";
 import { DRAG_LIFT, livePoses, motionScale, reducedMotion, useMotion } from "./motion";
@@ -19,6 +19,10 @@ import { CompanionFigure } from "./CompanionFigure";
 import { pressPet } from "./companionCarry";
 import { openEmoteWheel } from "./companionEmote";
 import { accentOf, avatarFace } from "../roster";
+import { TableModel, type SurfaceHandlers } from "../scene/tables";
+import { Environment } from "../scene/Environment";
+import { WhenSlow } from "../scene/bits";
+import { DEFAULT_SCENE, type TableStyleId } from "../../shared/scene";
 
 const CARD_GEO = roundedRectGeometry(CARD_W, CARD_H, 0.14);
 const OUTLINE_GEO = roundedRectGeometry(CARD_W + 0.22, CARD_H + 0.22, 0.24);
@@ -32,14 +36,17 @@ export function seatHue(seat: number) {
 }
 
 export function TableCanvas() {
+  // Sharp on high-density screens, unless the frame rate can't keep up (a weak GPU under a busy environment).
+  const [dpr, setDpr] = useState<number | [number, number]>([1, 2]);
   return (
     <Canvas
       className="table-canvas"
-      dpr={[1, 2]}
+      dpr={dpr}
       camera={{ fov: 42, near: 0.5, far: 600, position: [0, 30, 30] }}
       onContextMenu={(e) => e.preventDefault()}
       gl={{ antialias: true }}
     >
+      {dpr !== 1 && <WhenSlow onSlow={() => setDpr(1)} />}
       <Scene />
     </Canvas>
   );
@@ -62,17 +69,14 @@ function Scene() {
   // Drag shadows lie just above the highest resting card, so stacks never hide the landing spot.
   const shadowY = 0.03 + battlefield.length * 0.004 + 0.012;
   const keys = useMotion((s) => s.keys);
+  const scene = useStore((s) => s.view?.scene) ?? DEFAULT_SCENE;
 
   return (
     <>
-      <color attach="background" args={["#07060c"]} />
-      <fog attach="fog" args={["#07060c", 70, 190]} />
-      <ambientLight intensity={0.9} />
-      <directionalLight position={[12, 40, 18]} intensity={1.4} />
-      <hemisphereLight args={["#b9a6ff", "#1a1020", 0.5]} />
+      <Environment id={scene.env} radius={tableRadius(n)} />
       <ScreenApi />
       <CameraRig seat={povSeat} seatCount={n} />
-      <TableSurface seatCount={n} />
+      <TableSurface seatCount={n} style={scene.table} />
       {table.seats.map((pid, seat) => (
         <SeatArea key={pid} table={table} playerId={pid} seat={seat} seatCount={n} isMe={pid === me} viewerAngle={seatAngle(povSeat, n)} />
       ))}
@@ -112,21 +116,42 @@ function ScreenApi() {
 
 // --- camera ---------------------------------------------------------------------------------
 
+/** Where the camera rests behind a seat: what it looks at, from which side, how steeply and how far. */
+export function homePose(seat: number, seatCount: number) {
+  // Aim a little past the near edge of your mat toward the centre so opponents are in view too.
+  const solo = seatCount <= 1;
+  const c = localToTable({ x: 0, y: solo ? 0.5 : -MAT_D / 2 + 1.5 }, seat, seatCount);
+  const toward = localToTable({ x: 0, y: 50 }, seat, seatCount);
+  const az = Math.atan2(toward.x - c.x, toward.y - c.y);
+  const dist = solo ? 30 : seatCount === 2 ? 44 : seatCount === 3 ? 50 : 56;
+  return { target: new THREE.Vector3(c.x, 0, c.y), az, polar: solo ? 0.72 : 0.62, dist };
+}
+
+type Pose = ReturnType<typeof homePose>;
+
+/** How long the opening shot takes to settle on the seat. */
+const INTRO_MS = 3200;
+
+/** Where the opening shot starts: pulled back and low, a little round from the seat, looking across the table. */
+function introPose(home: Pose, seatCount: number): Pose {
+  return { target: new THREE.Vector3(0, 6, 0), az: home.az + 0.75, polar: 1.16, dist: tableRadius(seatCount) * 2.4 + 46 };
+}
+
+/** Camera position for a pose (spherical around its target). */
+export function posePosition(p: { target: THREE.Vector3; az: number; polar: number; dist: number }, out = new THREE.Vector3()) {
+  return out.set(p.target.x + Math.sin(p.az) * Math.sin(p.polar) * p.dist, Math.cos(p.polar) * p.dist, p.target.z + Math.cos(p.az) * Math.sin(p.polar) * p.dist);
+}
+
 function CameraRig({ seat, seatCount }: { seat: number; seatCount: number }) {
   const { camera, gl } = useThree();
   const overview = useTableUi((s) => s.overview);
-  const home = useMemo(() => {
-    // Aim a little past the near edge of your mat toward the centre so opponents are in view too.
-    const solo = seatCount <= 1;
-    const c = localToTable({ x: 0, y: solo ? 0.5 : -MAT_D / 2 + 1.5 }, seat, seatCount);
-    const toward = localToTable({ x: 0, y: 50 }, seat, seatCount);
-    const az = Math.atan2(toward.x - c.x, toward.y - c.y);
-    const dist = solo ? 30 : seatCount === 2 ? 44 : seatCount === 3 ? 50 : 56;
-    return { target: new THREE.Vector3(c.x, 0, c.y), az, polar: solo ? 0.72 : 0.62, dist };
-  }, [seat, seatCount]);
+  const home = useMemo(() => homePose(seat, seatCount), [seat, seatCount]);
   const rig = useRef({ target: home.target.clone(), az: home.az, polar: home.polar, dist: home.dist });
   const keys = useRef(new Set<string>());
   const curTarget = useRef(home.target.clone());
+  // Opening shot: the camera starts out wide on the room around the table and glides down to the seat. Any
+  // camera input (or reduced motion) skips it.
+  const intro = useRef<{ start: number; from: Pose } | null>(reducedMotion() ? null : { start: -1, from: introPose(home, seatCount) });
 
   useEffect(() => {
     rig.current = { target: home.target.clone(), az: home.az, polar: home.polar, dist: home.dist };
@@ -141,6 +166,7 @@ function CameraRig({ seat, seatCount }: { seat: number; seatCount: number }) {
     const typing = (e: KeyboardEvent) => (e.target as HTMLElement).closest("input, textarea, select");
     const down = (e: KeyboardEvent) => {
       if (typing(e) || shortcutsBlocked()) return;
+      intro.current = null;
       keys.current.add(e.key);
       if (e.key === "Home") rig.current = { target: home.target.clone(), az: home.az, polar: home.polar, dist: home.dist };
     };
@@ -149,6 +175,7 @@ function CameraRig({ seat, seatCount }: { seat: number; seatCount: number }) {
     const wheel = (e: WheelEvent) => {
       if ((e.target as HTMLElement) !== gl.domElement) return;
       e.preventDefault();
+      intro.current = null;
       rig.current.dist = THREE.MathUtils.clamp(rig.current.dist * Math.pow(1.0015, e.deltaY), 8, 120);
     };
     window.addEventListener("keydown", down);
@@ -178,6 +205,7 @@ function CameraRig({ seat, seatCount }: { seat: number; seatCount: number }) {
   });
 
   function startPan(e: { clientX: number; clientY: number }) {
+    intro.current = null;
     let lastX = e.clientX;
     let lastY = e.clientY;
     const move = (ev: PointerEvent) => {
@@ -199,6 +227,25 @@ function CameraRig({ seat, seatCount }: { seat: number; seatCount: number }) {
   }
 
   useFrame((_, dt) => {
+    const shot = intro.current;
+    if (shot) {
+      const now = performance.now();
+      if (shot.start < 0) shot.start = now;
+      const u = Math.min(1, (now - shot.start) / INTRO_MS);
+      const e = easeInOutCubic(u);
+      const to = rig.current;
+      const p: Pose = {
+        target: shot.from.target.clone().lerp(to.target, e),
+        az: shot.from.az + (to.az - shot.from.az) * e,
+        polar: shot.from.polar + (to.polar - shot.from.polar) * e,
+        dist: shot.from.dist + (to.dist - shot.from.dist) * e,
+      };
+      posePosition(p, camera.position);
+      curTarget.current.copy(p.target);
+      camera.lookAt(p.target);
+      if (u >= 1) intro.current = null;
+      return;
+    }
     const r = rig.current;
     const k = keys.current;
     const speed = r.dist * 0.9 * dt;
@@ -214,11 +261,7 @@ function CameraRig({ seat, seatCount }: { seat: number; seatCount: number }) {
     r.target.x = THREE.MathUtils.clamp(r.target.x, -lim, lim);
     r.target.z = THREE.MathUtils.clamp(r.target.z, -lim, lim);
 
-    const desired = new THREE.Vector3(
-      r.target.x + Math.sin(r.az) * Math.sin(r.polar) * r.dist,
-      Math.cos(r.polar) * r.dist,
-      r.target.z + Math.cos(r.az) * Math.sin(r.polar) * r.dist,
-    );
+    const desired = posePosition(r);
     const a = 1 - Math.exp(-dt * 8);
     camera.position.lerp(desired, a);
     curTarget.current.lerp(r.target, a);
@@ -232,43 +275,26 @@ const panApi: { start: (e: { clientX: number; clientY: number }) => void } = { s
 
 // --- table + mats ---------------------------------------------------------------------------
 
-function TableSurface({ seatCount }: { seatCount: number }) {
-  const felt = useMemo(() => feltTexture(), []);
-  const radius = tableRadius(seatCount);
-  return (
-    <group>
-      <mesh
-        rotation-x={FLAT}
-        position-y={-0.02}
-        onPointerDown={(e) => {
-          if (e.button !== 0) return;
-          if (!e.shiftKey) useTableUi.getState().set({ selected: [], handSelected: null });
-          panApi.start(e.nativeEvent);
-        }}
-        onContextMenu={(e) => {
-          e.nativeEvent.preventDefault();
-          const { x, z } = e.point;
-          useStore.getState().openMenu({
-            x: e.nativeEvent.clientX,
-            y: e.nativeEvent.clientY,
-            title: "Table",
-            items: [{ label: "Ping here", icon: "pin", hint: "Tab", onSelect: () => pingAt(x, z) }],
-          });
-        }}
-      >
-        <circleGeometry args={[radius, 96]} />
-        <meshStandardMaterial map={felt} roughness={0.95} />
-      </mesh>
-      <mesh rotation-x={FLAT} position-y={-0.05}>
-        <ringGeometry args={[radius, radius + 1.6, 96]} />
-        <meshStandardMaterial color="#3b2717" roughness={0.6} metalness={0.2} />
-      </mesh>
-      <mesh rotation-x={FLAT} position-y={-0.3}>
-        <circleGeometry args={[radius * 6, 32]} />
-        <meshBasicMaterial color="#0a0812" />
-      </mesh>
-    </group>
-  );
+function TableSurface({ seatCount, style }: { seatCount: number; style: TableStyleId }) {
+  // Every table design draws its play surface as exactly this disc, and hands it these handlers.
+  const surface: SurfaceHandlers = {
+    onPointerDown: (e) => {
+      if (e.button !== 0) return;
+      if (!e.shiftKey) useTableUi.getState().set({ selected: [], handSelected: null });
+      panApi.start(e.nativeEvent);
+    },
+    onContextMenu: (e) => {
+      e.nativeEvent.preventDefault();
+      const { x, z } = e.point;
+      useStore.getState().openMenu({
+        x: e.nativeEvent.clientX,
+        y: e.nativeEvent.clientY,
+        title: "Table",
+        items: [{ label: "Ping here", icon: "pin", hint: "Tab", onSelect: () => pingAt(x, z) }],
+      });
+    },
+  };
+  return <TableModel style={style} radius={tableRadius(seatCount)} seatCount={seatCount} surface={surface} />;
 }
 
 function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { table: TableState; playerId: string; seat: number; seatCount: number; isMe: boolean; viewerAngle: number }) {

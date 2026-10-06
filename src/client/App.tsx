@@ -6,6 +6,7 @@ import { SoloScreen } from "./screens/SoloScreen";
 import { IconGallery } from "./screens/IconGallery";
 import { SoundStudio } from "./screens/SoundStudio";
 import { CompanionLab } from "./screens/CompanionLab";
+import { SceneLab } from "./screens/SceneLab";
 import { Toasts } from "./components/Toasts";
 import { ContextMenu } from "./components/ContextMenu";
 import { MusicPlayer } from "./components/MusicPlayer";
@@ -33,7 +34,7 @@ export function App() {
 
   return (
     <>
-      {path === "/solo" ? <SoloScreen /> : path === "/dev/icons" ? <IconGallery /> : path === "/dev/sound-studio" ? <SoundStudio /> : path === "/dev/companion-lab" ? <CompanionLab /> : code ? <RoomScreen code={code} /> : <Home />}
+      {path === "/solo" ? <SoloScreen /> : path === "/dev/icons" ? <IconGallery /> : path === "/dev/sound-studio" ? <SoundStudio /> : path === "/dev/companion-lab" ? <CompanionLab /> : path === "/dev/scene-lab" ? <SceneLab /> : code ? <RoomScreen code={code} /> : <Home />}
       <Toasts />
       <ContextMenu />
       <MusicPlayer />

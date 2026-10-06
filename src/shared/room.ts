@@ -6,13 +6,14 @@ import type { CardData, CardInstance, CardMap, DeckState, LobbyConfig, Player, R
 import { DEFAULT_CONFIG, MAX_HUMANS, MAX_SEATS } from "./types";
 import { advance, autoPick, createDraft, DraftError, makePick, nextDeadline, pauseClock, resumeClock, seatOf, turnCounts, validatePool, type DraftEnv } from "./draft";
 import { autoBuild, deckSize, newDeck } from "./deck";
-import { applyTableAction, createTable, handDragId, realIdsFor, resolveTableAction, shownId, syncStandIns, TableError, tableViewFor, type TableEnv } from "./table";
+import { applyTableAction, createTable, logSceneChange, handDragId, realIdsFor, resolveTableAction, shownId, syncStandIns, TableError, tableViewFor, type TableEnv } from "./table";
 import { randomCode, type Rng } from "./rng";
 import type { RoomSummary } from "./invites";
 import { PUBLIC_LIMITS } from "./publicRooms";
 import { AVATAR_IDS, COMPANION_IDS, isAvatarId, isCompanionId, lowestFreeVariant, pickFree } from "./roster";
 import { cleanEmoteText } from "./emoteText";
 import { petSpotValid } from "./tableLayout";
+import { environmentLabel, resolveScene, tableStyleLabel } from "./scene";
 
 export interface RoomDeps {
   now: () => number;
@@ -546,6 +547,25 @@ export class Room {
         return;
       }
 
+      case "scene": {
+        // Anyone at the table may change it, for everyone. Cosmetic: nothing on the table moves.
+        this.requirePhase("playing");
+        const table = this.state.table!;
+        if (!table.seats.includes(playerId)) throw new RoomError("You're not seated at this table.");
+        const cur = resolveScene(this.state.scene);
+        const next = { table: msg.table ?? cur.table, env: msg.env ?? cur.env };
+        if (next.table === cur.table && next.env === cur.env) return;
+        this.state.scene = next;
+        logSceneChange(
+          table,
+          playerId,
+          { table: next.table !== cur.table ? tableStyleLabel(next.table) : undefined, env: next.env !== cur.env ? environmentLabel(next.env) : undefined },
+          this.tableEnv(),
+        );
+        result.changed = true;
+        return;
+      }
+
       case "debug": {
         this.debug(playerId, msg.cmd);
         result.changed = true;
@@ -776,6 +796,7 @@ export class Room {
       basicIds: this.state.cube?.basics ?? {},
       instances,
       table: this.state.table ? tableViewFor(this.state.table, viewer) : null,
+      scene: resolveScene(this.state.scene),
       expiresAt: this.state.expiresAt ?? null,
       serverNow: this.deps.now(),
     };

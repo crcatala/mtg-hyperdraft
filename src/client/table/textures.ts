@@ -299,25 +299,6 @@ export function backTexture(): THREE.Texture {
   return backEntry().texture;
 }
 
-export function feltTexture(): THREE.Texture {
-  const [c, ctx] = canvas(1024, 1024);
-  const g = ctx.createRadialGradient(512, 512, 50, 512, 512, 720);
-  g.addColorStop(0, "#23324a");
-  g.addColorStop(1, "#0f1522");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 1024, 1024);
-  const img = ctx.getImageData(0, 0, 1024, 1024);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const n = (Math.random() - 0.5) * 14;
-    img.data[i] += n;
-    img.data[i + 1] += n;
-    img.data[i + 2] += n;
-  }
-  ctx.putImageData(img, 0, 0);
-  const tex = finish(new THREE.CanvasTexture(c));
-  return tex;
-}
-
 const PX = 40; // canvas pixels per world unit for mats
 
 /** An image from the app's own files, as a hook: null until it has loaded. Shared across callers. */

@@ -116,8 +116,15 @@ export function defaultBattlefieldSpot(seat: number, seatCount: number, n: numbe
   return localToTable(local, seat, seatCount);
 }
 
+/** How far the play area reaches past the farthest corner of any mat (the opponent hands fit inside it too). */
+export const TABLE_MARGIN = 3.5;
+
+/**
+ * Radius of the play area: the disc every table design is drawn around (its felt, slate or inlay), and the rim a
+ * companion can't be put down past. It clears the mats' outer corners by TABLE_MARGIN at every seat count.
+ */
 export function tableRadius(seatCount: number): number {
-  return seatRadius(seatCount) + MAT_D / 2 + 3;
+  return Math.hypot(MAT_W / 2, seatRadius(seatCount) + MAT_D / 2) + TABLE_MARGIN;
 }
 
 /** Seats in the order the camera switcher lists them: yours first, then around the table. */

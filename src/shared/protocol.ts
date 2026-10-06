@@ -5,6 +5,7 @@ import { z } from "zod";
 import { isAvatarId, isCompanionId } from "./roster";
 import { EMOTE_COUNT, POKE_STEPS } from "./companionKit";
 import { EMOTE_TEXT_RAW_MAX } from "./emoteText";
+import { ENVIRONMENT_IDS, TABLE_STYLE_IDS, type SceneChoice } from "./scene";
 import type {
   CardInstance,
   CardMap,
@@ -117,6 +118,8 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("petCancel") }),
   /** The sender puts their own companion down at `at` (table coordinates), or sends it home (null). Stored. */
   z.object({ t: z.literal("setPetPos"), at: z.object({ x: coord, y: coord }).nullable() }),
+  /** Changes the table and/or environment, for everyone at the table (cosmetic, stored, logged). */
+  z.object({ t: z.literal("scene"), table: z.enum(TABLE_STYLE_IDS).optional(), env: z.enum(ENVIRONMENT_IDS).optional() }),
   z.object({ t: z.literal("debug"), cmd: z.enum(DEBUG_COMMANDS) }),
 ]);
 
@@ -172,6 +175,8 @@ export interface RoomView {
   /** Instances the viewer can currently see (their pack, picks, deck). */
   instances: Record<string, CardInstance>;
   table: TableState | null;
+  /** The table and environment everyone at the table sees (defaults filled in). */
+  scene: SceneChoice;
   /** Public rooms only: when the room closes for good (it can close sooner if everyone leaves). */
   expiresAt: number | null;
   serverNow: number;

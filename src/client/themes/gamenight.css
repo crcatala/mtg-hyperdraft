@@ -452,6 +452,11 @@
 
   /* ---------- home: the box lid ---------- */
 
+  /* The tavern behind the title: warm walnut shade, darkest behind the title and the panel. */
+  .home {
+    --home-scrim: radial-gradient(ellipse 58% 72% at 50% 45%, rgb(23 17 13 / 0.82), rgb(23 17 13 / 0.45) 70%, rgb(23 17 13 / 0.66));
+  }
+
   .home-fan-card {
     box-shadow: 0 20px 40px rgb(0 0 0 / 0.6);
     opacity: 0.55;
@@ -968,7 +973,8 @@
   .dock-actions,
   .camera-switch,
   .log-panel,
-  .dice-menu {
+  .dice-menu,
+  .scene-menu {
     background: linear-gradient(180deg, rgb(41 32 25 / 0.96), rgb(33 25 19 / 0.96));
     border-color: rgb(var(--cream-rgb) / 0.1);
     backdrop-filter: none;
