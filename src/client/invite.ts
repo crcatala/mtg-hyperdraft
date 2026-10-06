@@ -2,9 +2,11 @@
 // a magic link (`/?invite=KEY`), is kept in localStorage, and is only ever sent to the invite-only
 // endpoints (create a room, "My rooms"), never on websocket joins.
 
-import type { InviteInfo } from "../shared/invites";
+import type { InviteInfo, QuotaInfo, RoomRecord } from "../shared/invites";
+import { PHASES } from "./recentRooms";
 
 const KEY = "hyperdraft:invite";
+const INFO_KEY = "hyperdraft:invite-info";
 
 export function loadInvite(): string | null {
   try {
@@ -25,6 +27,7 @@ export function saveInvite(key: string) {
 export function forgetInvite() {
   try {
     localStorage.removeItem(KEY);
+    localStorage.removeItem(INFO_KEY);
   } catch {
     /* storage unavailable */
   }
@@ -56,8 +59,61 @@ async function call<T>(path: string, key: string, init: RequestInit = {}): Promi
   return body;
 }
 
-export function fetchInvite(key: string): Promise<InviteInfo> {
-  return call<InviteInfo>("/api/invite", key);
+/**
+ * What the server says about `key`. The answer is remembered for Home's next load, but only while `key` is still
+ * the saved invite: one forgotten while this was in flight stays forgotten.
+ */
+export async function fetchInvite(key: string): Promise<InviteInfo> {
+  const info = await call<InviteInfo>("/api/invite", key);
+  if (loadInvite() === key) {
+    try {
+      localStorage.setItem(INFO_KEY, JSON.stringify({ key, info }));
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  return info;
+}
+
+/**
+ * The last invite info fetched for `key`, so Home can lay out the quota and "Your rooms" before the fresh one
+ * arrives. Null if there's none, or it doesn't have the shape this build expects (it may be from an older one).
+ */
+export function loadInviteInfo(key: string | null): InviteInfo | null {
+  if (!key) return null;
+  try {
+    const saved = JSON.parse(localStorage.getItem(INFO_KEY) ?? "null") as { key?: unknown; info?: unknown } | null;
+    return saved?.key === key && isInviteInfo(saved.info) ? saved.info : null;
+  } catch {
+    return null;
+  }
+}
+
+const isNum = (v: unknown): v is number => typeof v === "number";
+
+function isInviteInfo(v: unknown): v is InviteInfo {
+  const o = v as Partial<InviteInfo> | null;
+  return typeof o?.label === "string" && isQuota(o.quota) && Array.isArray(o.rooms) && o.rooms.every(isRoomRecord);
+}
+
+function isQuota(v: unknown): v is QuotaInfo {
+  const q = v as Partial<QuotaInfo> | null;
+  return isNum(q?.createdInWindow) && isNum(q.perWindow) && isNum(q.rooms) && isNum(q.maxRooms) && (q.nextSlotAt === null || isNum(q.nextSlotAt));
+}
+
+function isRoomRecord(v: unknown): v is RoomRecord {
+  const r = v as Partial<RoomRecord> | null;
+  return (
+    typeof r?.code === "string" &&
+    PHASES.includes(r.phase!) &&
+    Array.isArray(r.players) &&
+    r.players.every((p) => typeof p === "string") &&
+    isNum(r.bots) &&
+    (r.cubeName === null || typeof r.cubeName === "string") &&
+    isNum(r.cardCount) &&
+    isNum(r.createdAt) &&
+    isNum(r.lastActiveAt)
+  );
 }
 
 export async function createRoom(key: string): Promise<string> {
