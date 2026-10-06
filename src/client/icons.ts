@@ -147,6 +147,8 @@ export const ICONS = {
   home: [stroke("M3.5 11.5L12 4l8.5 7.5"), stroke("M6 9.5V20h12V9.5"), stroke("M10 20v-5.5h4V20")],
   copy: [stroke("M8 7.8V5.5A1.5 1.5 0 0 1 9.5 4h9A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5h-2.3"), stroke(roundRect(4, 8, 12, 12, 1.5))],
   sparkle: [solid(star4(12, 12, 10))],
+  /** A treat from the Treatomancer: a wrapped sweet. */
+  treat: [soft(circle(12, 12, 5.2)), stroke("M6.9 10.6L3.2 8.2v7.6l3.7-2.4"), stroke("M17.1 10.6l3.7-2.4v7.6l-3.7-2.4")],
   /** Magic: one big sparkle and a small one (auto-build). */
   sparkles: [solid(star4(10, 14, 8)), solid(star4(18.5, 5.5, 3.6))],
   bolt: [soft("M13.5 2.5L5 13.5h6.2l-1.2 8L18.5 10.5h-6.2z")],

@@ -5,6 +5,7 @@
 
 import { useStore } from "./store";
 import { useEmoteLines } from "./table/emoteLines";
+import { useTreats } from "./table/treatState";
 
 /** What a focused element can be that handles Space/Enter itself. */
 const CONTROL = "button, a[href], input, textarea, select, summary, [role=button], [role=tab], [role=slider], [contenteditable=true], [contenteditable='']";
@@ -17,5 +18,5 @@ export function isControl(target: EventTarget | null): boolean {
 
 /** True while a modal owns the keyboard, so global shortcuts must stand down. */
 export function shortcutsBlocked(): boolean {
-  return useStore.getState().settingsOpen || useEmoteLines.getState().editing;
+  return useStore.getState().settingsOpen || useEmoteLines.getState().editing || useTreats.getState().open;
 }

@@ -283,6 +283,8 @@ export interface TablePlayer {
    */
   shuffles?: number;
   mulligans?: number;
+  /** Glimmers left to spend at the Treatomancer this game (shared/treats.ts); absent means a full purse. */
+  glimmers?: number;
 }
 
 /** What a log line is about; the client picks its icon and accent from it. Moves use the destination zone. */
@@ -305,7 +307,8 @@ export type LogKind =
   | "turn"
   | "roll"
   | "reveal"
-  | "scene";
+  | "scene"
+  | "treat";
 
 /**
  * A styled span of a log line's text, `[start, end, kind, …]` (a compact tuple: the whole log goes

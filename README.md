@@ -63,6 +63,7 @@ src/
     rateLimit.ts     token buckets for flood control in rooms
     roster.ts        the avatars and table companions (names, backstories, colours, ids)
     scene.ts         the tables and environments players can pick (ids, labels, defaults)
+    treats.ts        the Treatomancer: treats, glimmers, companion lines, the race planner
   worker/        Cloudflare Worker + Durable Objects
     index.ts         routing, invite checks, room-code verification, kill switch
     roomObject.ts    one DO per room: hibernating websockets, storage, pick-timer alarms, imports
@@ -188,6 +189,36 @@ reveals the character behind it.
 - To add a character, add an entry to `roster.ts` and its images; `tests/roster.test.ts` checks that
   every entry has its files. The prompts and style notes used to generate the current art are in
   `scripts/roster/roster.json`.
+
+## The Treatomancer (companion treats)
+
+A wizard's gumball machine sits on the table beside each player's mat. **Click it (or press <kbd>B</kbd>)** for its menu:
+ten treats, from a Cursed Left Sock (1 glimmer) to The Golden Pickle (6). Everyone gets a pouch of **12 glimmers** per
+game. Pick one and **Feed it & launch!**: the machine rattles and winds up, fires a capsule in a high arc onto a random
+open spot in the middle of the table (never on a mat), and it pops open. Every companion at the table races for it at
+its own random speed (the odd one gets the zoomies, some dawdle, some trip and say so). The first one there eats it, or
+hugs it if it's a keepsake, and says one of its own three lines about it; the rest pout, grumble, and everyone trots home.
+
+- **One player at a time.** Opening the menu takes hold of the machine (for up to 60 s); everyone else sees "Alice is
+  browsing treats…" with her face over their machine, and a click on theirs is turned away. Closing the menu, buying,
+  the hold running out or Alice dropping out lets go.
+- **Hands off during the show.** From the purchase until everyone's home, nobody can poke, carry or emote with a
+  companion, or use the machine. The room enforces it too.
+- **The same race on every screen.** The room picks a seed and a landing spot and sends them with the racers' start
+  spots (`treat`); `planShow` in `shared/treats.ts` works out every speed, trip and the winner from that alone, so
+  nothing about the race itself goes over the wire. The glimmers left are stored per player on the table
+  (`TablePlayer.glimmers`, one write per purchase, logged); the hold and the show are in the room's memory only.
+- Each player has their own copy of the machine (`machineSpot`): the cameras frame each mat too tightly for one shared
+  machine to be in everyone's shot. Only where the capsule flies *from* differs between screens; landings keep clear of
+  every seat's machine.
+- Code: `shared/treats.ts` (catalog, lines, the race planner, where it stands and lands), `table/treatShow.ts` (the
+  beats: sounds, reactions, voices, bubbles), `table/treatState.ts`, `table/Treatomancer.tsx` (the procedural machine),
+  `table/TreatFlight.tsx` (capsule and treat), `table/TreatMenu.tsx` + `treats.css` (menu and tags). The race reactions
+  (`alert`, `dash`, `trip`, `feast`, `hug`, `pout`) are in `TREAT_REACTIONS` in `table/companionReactions.ts`; companions
+  reuse their existing voices (cheer to win, oops to trip, bothered to lose).
+- Art: `public/treats/<id>.webp` (generated with GPT Image, transparent). Sounds: `public/treats/sfx/` from the prompts
+  in `scripts/sfx/treats.json` (`node scripts/build-treat-sfx.mjs [names…]`, needs `ELEVENLABS_API_KEY`).
+- Solo games only have your own companion at the table (bots don't sit down), so it races alone.
 
 ## UI themes
 

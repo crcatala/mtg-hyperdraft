@@ -16,6 +16,7 @@ import { bodyStyle, reactionFor } from "./companionReactions";
 import { reactionNow, reactionOf } from "./companionPlayback";
 import { bubbleAnchors } from "./companionTalk";
 import { petPositions, petTarget } from "./companionCarry";
+import { racePose, showBusy } from "./treatState";
 import { loadVoice } from "../companionVoice";
 import { useCompanionPrefs } from "../companionPrefs";
 import { companionArt, companionDef, variantHue } from "../roster";
@@ -79,6 +80,7 @@ export function CompanionFigure({ playerId, companion, variant, at, stored, acti
   /** 0 standing … 1 held up; and the swing it has from being moved about. */
   const lift = useRef(0);
   const dangle = useRef(0);
+  const lean = useRef(0);
   // Where it first appears. Only then: after that the frame loop moves it (a new prop each time would make it jump).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const start = useMemo((): [number, number, number] => [(stored ?? at).x, 0.04, (stored ?? at).y], []);
@@ -91,7 +93,7 @@ export function CompanionFigure({ playerId, companion, variant, at, stored, acti
   const gl = useThree((s) => s.gl);
   const hover = (on: boolean) => {
     hovered.current = on;
-    gl.domElement.style.cursor = on ? (own ? "grab" : "pointer") : "";
+    gl.domElement.style.cursor = on && !showBusy() ? (own ? "grab" : "pointer") : "";
   };
   useEffect(() => () => void (hovered.current && (gl.domElement.style.cursor = "")), [gl]);
   const down = (e: ThreeEvent<PointerEvent>) => {
@@ -131,9 +133,11 @@ export function CompanionFigure({ playerId, companion, variant, at, stored, acti
     // Where it is: following its carrier's pointer (closely if that's this player, smoothed if streamed in), or
     // gliding to where it was put down (or back, after a "nope"). Reduced motion: straight there.
     right.setFromMatrixColumn(camera.matrixWorld, 0);
-    const want = petTarget(playerId, at, stored);
+    // Racing for a treat (treatShow.ts): the race says exactly where it is, every frame.
+    const race = racePose(playerId);
+    const want = race ? { x: race.x, y: race.y, carried: null, invalid: false } : petTarget(playerId, at, stored);
     const carried = want.carried !== null;
-    const k = want.carried === "local" ? 30 : want.carried === "remote" ? 12 : 8;
+    const k = race ? 60 : want.carried === "local" ? 30 : want.carried === "remote" ? 12 : 8;
     const a = still ? 1 : 1 - Math.exp(-dt * k);
     const dx = (want.x - r.position.x) * a;
     const dz = (want.y - r.position.z) * a;
@@ -183,7 +187,11 @@ export function CompanionFigure({ playerId, companion, variant, at, stored, acti
     hoverAmt.current += ((hovered.current && !still && !carried ? 1 : 0) - hoverAmt.current) * 0.25;
     const perk = (1 + 0.06 * hoverAmt.current) * (still ? 1 : 1 + LIFT_GROW * lift.current);
     s.scale.set(PET_SIZE * pose.sx * perk, PET_SIZE * pose.sy * perk, 1);
-    s.material.rotation = pose.rot + dangle.current;
+    // Running: it leans into the way it's going across the screen.
+    const running = race && !still && (race.state === "run" || race.state === "home");
+    const runLean = running ? -THREE.MathUtils.clamp((race.dx * right.x + race.dy * right.z) * 0.22, -0.22, 0.22) : 0;
+    lean.current += (runLean - lean.current) * (1 - Math.exp(-dt * 10));
+    s.material.rotation = pose.rot + dangle.current + lean.current;
     s.material.opacity = pose.alpha;
 
     // Glyphs due since last frame take a free slot (or the oldest). Reduced motion: only each reaction's first, held still.

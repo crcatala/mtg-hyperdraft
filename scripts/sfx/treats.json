@@ -1,0 +1,67 @@
+{
+  "open": {
+    "seconds": 1.2,
+    "influence": 0.6,
+    "text": "A whimsical magical vending machine waking up: a soft electric hum, a bright two-note glassy chime and a little sparkle twinkle. Close-up, dry, no music, no voices."
+  },
+  "close": {
+    "seconds": 0.6,
+    "influence": 0.6,
+    "text": "A soft plastic button click followed by a short gentle descending glass chime. Close-up, dry, no music, no voices."
+  },
+  "pick": {
+    "seconds": 0.5,
+    "influence": 0.7,
+    "text": "A clear bright bubbly pop with a short sparkly glass chime, a cheerful game menu selection sound. Close-up, dry, no music, no voices."
+  },
+  "buy": {
+    "seconds": 1.3,
+    "influence": 0.6,
+    "text": "Three small magical glowing coins clinking down into a metal slot, then a sparkly bright cha-ching with a twinkle. Close-up, dry, no music, no voices."
+  },
+  "rumble": {
+    "seconds": 2.2,
+    "influence": 0.55,
+    "text": "A small toy vending machine rattling and shaking with suspense: clunky gears whirring and grinding, glass capsules jostling, building up faster and faster. Close-up, dry, no music, no voices."
+  },
+  "launch": {
+    "seconds": 1.2,
+    "influence": 0.55,
+    "text": "A cartoon pneumatic cannon pop with a springy boing, followed by a rising whistle whoosh of something flying into the air. Close-up, dry, no music, no voices."
+  },
+  "land": {
+    "seconds": 0.7,
+    "influence": 0.6,
+    "text": "A small plastic capsule plopping onto a felt table, bouncing twice with soft cute thuds, then cracking open with a little sparkle pop. Close-up, dry, no music, no voices."
+  },
+  "scamper": {
+    "seconds": 3,
+    "influence": 0.5,
+    "text": "Many tiny cartoon creature feet scampering and racing quickly across a tabletop, frantic pitter-patter, playful and comedic. Close-up, dry, no music, no voices."
+  },
+  "trip": {
+    "seconds": 1.0,
+    "influence": 0.55,
+    "text": "A cartoon trip and tumble: a comedic slip, a soft bonk, and a little rolling flump, slapstick. Close-up, dry, no music, no voices."
+  },
+  "chomp": {
+    "seconds": 1.2,
+    "influence": 0.6,
+    "text": "A cute cartoon creature gobbling a snack: two quick crunchy chomps, happy munching and a satisfied little gulp. Close-up, dry, no music, no voices."
+  },
+  "win": {
+    "seconds": 1.6,
+    "influence": 0.5,
+    "text": "A short triumphant cheerful victory fanfare sting played on a toy glockenspiel and kazoo, ending with sparkles, whimsical and funny."
+  },
+  "drumroll": {
+    "seconds": 1.8,
+    "influence": 0.6,
+    "text": "A quick snare drum roll building in suspense, ending on a soft cymbal tap. Close-up, dry, no voices."
+  },
+  "denied": {
+    "seconds": 0.6,
+    "influence": 0.6,
+    "text": "A soft cartoon error buzz, a short low double honk meaning nope. Close-up, dry, no music, no voices."
+  }
+}

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { isAvatarId, isCompanionId } from "./roster";
 import { EMOTE_COUNT, POKE_STEPS } from "./companionKit";
 import { EMOTE_TEXT_RAW_MAX } from "./emoteText";
+import { isTreatId, type TreatShowSpec } from "./treats";
 import { ENVIRONMENT_IDS, TABLE_STYLE_IDS, type SceneChoice } from "./scene";
 import type {
   CardInstance,
@@ -120,6 +121,10 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("setPetPos"), at: z.object({ x: coord, y: coord }).nullable() }),
   /** Changes the table and/or environment, for everyone at the table (cosmetic, stored, logged). */
   z.object({ t: z.literal("scene"), table: z.enum(TABLE_STYLE_IDS).optional(), env: z.enum(ENVIRONMENT_IDS).optional() }),
+  /** Opens (takes hold of) or closes the Treatomancer's menu: one player at a time, and never mid-show. */
+  z.object({ t: z.literal("vend"), open: z.boolean() }),
+  /** Buys a treat (with the sender's glimmers): the machine fires it onto the table and the companions race for it. */
+  z.object({ t: z.literal("treat"), treat: z.string().max(40).refine(isTreatId) }),
   z.object({ t: z.literal("debug"), cmd: z.enum(DEBUG_COMMANDS) }),
 ]);
 
@@ -180,6 +185,10 @@ export interface RoomView {
   table: TableState | null;
   /** The table and environment everyone at the table sees (defaults filled in). */
   scene: SceneChoice;
+  /** Who is browsing the Treatomancer right now (and until when, server time), if anyone. */
+  vend: { by: string; until: number } | null;
+  /** While a treat show plays (server time it ends): nobody may touch the companions or the machine. */
+  showUntil: number | null;
   /** Public rooms only: when the room closes for good (it can close sooner if everyone leaves). */
   expiresAt: number | null;
   serverNow: number;
@@ -208,6 +217,10 @@ export type ServerMessage =
   | { t: "petCancel"; by: string }
   /** `by` put their companion down at `at` (null: sent it home). Sent just before the state that stores it. */
   | { t: "petLand"; by: string; at: { x: number; y: number } | null }
+  /** Who holds the Treatomancer now (null: nobody); `until` is when that hold runs out (server time). */
+  | { t: "vend"; by: string | null; until?: number }
+  /** A treat was bought: everyone plays the same show from this (see planShow in shared/treats.ts). */
+  | { t: "treat"; show: TreatShowSpec }
   | { t: "error"; message: string }
   | { t: "pong" };
 

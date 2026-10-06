@@ -8,6 +8,7 @@ import { importCube } from "../shared/importCube";
 import { loadLook, loadName } from "./identity";
 import { useStore } from "./store";
 import { forgetOpenedPacks } from "./openedPacks";
+import { receiveTreat, receiveVend } from "./table/treatShow";
 
 const SOLO_BOTS = 3;
 
@@ -67,6 +68,9 @@ function deliver(msg: ClientMessage) {
 
 function receive(msg: ServerMessage) {
   if (msg.t === "error") useStore.getState().toast(msg.message, "error");
+  // The Treatomancer's answers come back to the buyer too (there's nobody else to tell in solo).
+  else if (msg.t === "vend") receiveVend(msg.by, msg.until);
+  else if (msg.t === "treat") receiveTreat(msg.show);
 }
 
 function publish() {

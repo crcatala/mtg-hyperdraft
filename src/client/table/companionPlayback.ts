@@ -4,6 +4,7 @@
 // the viewer's. A plain map, not a store: the figures poll it in useFrame, so nothing needs to re-render.
 
 import { REACTION_IDS } from "../../shared/companionKit";
+import { TREAT_REACTION_IDS } from "./companionReactions";
 
 export interface PlayingReaction {
   slot: string;
@@ -36,7 +37,7 @@ export function setReactionTimeScale(k: number) {
 
 /** Starts a reaction on a player's companion, cutting off (and blending out of) whatever it was doing. Unknown slots are ignored. */
 export function playReaction(playerId: string, slot: string) {
-  if (!REACTION_IDS.includes(slot)) return;
+  if (!REACTION_IDS.includes(slot) && !TREAT_REACTION_IDS.includes(slot)) return;
   playing.set(playerId, { slot, at: reactionNow(), seq: ++seq });
 }
 

@@ -18,6 +18,7 @@ import { closeEmoteWheel } from "./companionEmote";
 import { tableApi } from "./drag";
 import { HOLD_MS, pressGesture, stepGesture, type Gesture, type GestureEffect } from "./petGesture";
 import { me, table } from "./tableUi";
+import { showBusy } from "./treatState";
 
 /** Live position updates while carrying: at most one per this many ms (like card drags, ~20 a second)... */
 export const CARRY_SEND_MS = 50;
@@ -98,6 +99,8 @@ let keepalive: ReturnType<typeof setInterval> | undefined;
 export function pressPet(target: string, e: { clientX: number; clientY: number; pointerId?: number; target?: EventTarget | null }) {
   if (press && press.pointerId !== e.pointerId) return;
   if (press) cancelPress();
+  // Mid-treat-race the companions are nobody's to poke or carry.
+  if (showBusy()) return;
   const own = target === me();
   let last = { x: e.clientX, y: e.clientY };
   const el = e.target && "setPointerCapture" in e.target ? (e.target as Element) : null;
@@ -250,7 +253,7 @@ export function cancelPet() {
 export function sendPetHome(): boolean {
   const pid = me();
   const player = useStore.getState().view?.players.find((p) => p.id === pid);
-  if (!player?.companion || !player.companionAt || carries.has(pid)) return false;
+  if (!player?.companion || !player.companionAt || carries.has(pid) || showBusy()) return false;
   landed.set(pid, { at: null, t: performance.now() });
   playReaction(pid, "hello");
   useStore.getState().send({ t: "setPetPos", at: null });
