@@ -8,8 +8,10 @@
 //
 // A daily budget of room time caps the worst case: each new room reserves its whole lifetime
 // (3 hours, or whatever is left of today's budget) up front, and gets back what it didn't use when
-// it closes early. However rooms are used, public rooms never run for more than the budget per UTC
-// day, which keeps them well inside the free plan's daily Durable Object limits.
+// it closes early. However rooms are used, rooms opened on one UTC day never run for more than the
+// budget in total. A room opened late keeps running past midnight while the next day's budget starts
+// fresh, so one UTC day can see up to the budget plus slots × ttlMs (about 21 room-hours), which still
+// keeps public rooms inside the free plan's daily Durable Object limits.
 
 export const PUBLIC_LIMITS = {
   /** Public rooms that may exist at once. */

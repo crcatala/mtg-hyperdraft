@@ -127,13 +127,13 @@ optional public rooms.
   idle for 90 days are deleted. Remove an entry from `INVITE_CODES` to revoke it.
 - **Room codes let people join.** Every online room gets a 7-character code (like `G553JU9`) and a link
   (`/r/G553JU9`). Anyone with the code or link can join; no invite or account is needed to play. The
-  last two characters are a signature made with `ROOM_CODE_SECRET`, so made-up codes are rejected before
-  they cost anything.
+  last two characters are a signature made with `ROOM_CODE_SECRET`, so the Worker rejects made-up codes
+  without waking a room's Durable Object. A room link works like a key: anyone who has it can join.
 - **Seats are remembered.** Your browser remembers your seat in each room, so a refresh or a closed tab
   rejoins it. From another device, a started game lets you claim a seat nobody is using.
 - **Public rooms (optional).** You can also let anyone host without an invite, from a small pool of rooms
-  that close on their own: 3 at once, up to 3 hours each, 12 room-hours a day in total. They're off unless
-  you turn them on. See [Public rooms](docs/deployment.md#public-rooms-optional).
+  that close on their own: 3 at once, up to 3 hours each, and 12 room-hours of new rooms a day. They're
+  off unless you turn them on, and they don't need `INVITE_CODES`. See [Public rooms](docs/deployment.md#public-rooms-optional).
 
 ## Configuration
 
@@ -142,36 +142,40 @@ Online play is configured with Worker secrets (`npx wrangler secret put <NAME>`)
 
 | Secret | Default | What it does |
 |---|---|---|
-| `ROOM_CODE_SECRET` | none (required) | Signs room codes. Changing it invalidates every existing room code. |
-| `INVITE_CODES` | none (required to host) | `label:key` pairs, comma-separated. Each key lets a browser host rooms. |
-| `ONLINE_ENABLED` | on | Kill switch: set to `false` to turn all online rooms off. Solo keeps working. |
+| `ROOM_CODE_SECRET` | none (required for online rooms) | Signs room codes. Changing it invalidates every existing room code. |
+| `INVITE_CODES` | none | `label:key` pairs, comma-separated. Each key lets a browser host invite rooms. Not needed if you only use public rooms. |
+| `ONLINE_ENABLED` | on | Kill switch: set to `false` to turn all online rooms off. Solo keeps working. Setting the secret redeploys the Worker, which disconnects everyone in a room. |
 | `PUBLIC_ROOMS_ENABLED` | off | Set to `true` to let anyone host from the public room pool. |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | unset | Adds a Cloudflare Turnstile bot check before hosting a public room, when both are set. |
 
 ## Hosting costs and Cloudflare limits
 
-HyperDraft is designed to run for free on Cloudflare's Workers free plan, and to fail safe rather than
-send you a bill:
+HyperDraft is designed to run for free on Cloudflare's Workers free plan. On the free plan, going over a
+limit makes things stop working rather than sending you a bill:
 
-- **Only the API runs your Worker.** The client is served as static assets, and card images load straight
-  from Scryfall's CDN, so page views and images don't use your quota.
+- **Static files and card images don't count.** The client is served as static assets, and card images
+  load straight from Scryfall's CDN. Only `/api/*` calls run your Worker, and each one counts toward the
+  Workers daily request limit, including calls the Worker rejects: forged room codes, failed bot checks,
+  and the home page's status checks.
 - **Rooms sleep between moves.** Room websockets hibernate, the draft clock pauses when nobody is
-  connected, and forged room codes are rejected without waking anything.
-- **Every room is rate limited.** At most 10 messages/s and 1 saved change/s sustained. Even a room
-  flooded non-stop for an hour uses under 4% of the daily Durable Object duration limit (about 450 of
-  13,000 GB-s), and less of the others.
-- **Public rooms have a hard daily budget** (12 room-hours) that keeps them well under half of each free
-  limit, even under abuse.
+  connected, and forged room codes are rejected without waking a Durable Object.
+- **Every room is rate limited.** A room handles at most 10 messages/s and saves at most 1 change/s
+  sustained. A room kept awake for a whole hour uses about 450 of the 13,000 GB-s daily Durable Object
+  duration limit, however hard it's flooded. Messages it drops, reconnects and new connections still
+  count as requests, and these figures are per room, so they add up when several rooms are busy at once.
+- **Public rooms have a daily budget** of 12 room-hours of new rooms. Rooms opened late in the day can
+  run past midnight UTC, so one UTC day can see up to about 21 public room-hours.
 
 > [!WARNING]
-> On the free plan, limits are hard caps, not bills. If any daily Durable Object limit is exceeded, every
-> online room on your account stops working until the reset at 00:00 UTC (solo mode keeps working). A few
+> On the free plan, limits are hard caps, not bills. If any daily Durable Object limit, or the Workers
+> request limit, is exceeded, every online room on your account stops working until the reset at 00:00
+> UTC (solo mode keeps working). A few
 > friends playing won't come close. If you open public rooms to the internet, consider Turnstile and a WAF
 > rate-limiting rule, or the Workers Paid plan ($5/month), which turns the hard limits into small overage
 > charges.
 
 See [Costs and free-plan limits](docs/deployment.md#costs-and-free-plan-limits) for the worst-case
-numbers behind these estimates.
+numbers behind these estimates and what they leave out.
 
 ## Documentation
 

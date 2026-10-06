@@ -84,7 +84,7 @@ src/
   for 90 days are deleted lazily the next time the ledger is used; there are no expiry timers.
 - **Public rooms close on their own** (when enabled): at most 3 exist at once, each lasts up to 3 hours
   (closing sooner once nobody has been connected for 15 minutes), and all of them together get 12
-  room-hours per UTC day. See [Public rooms](deployment.md#public-rooms-optional).
+  room-hours of new rooms per UTC day (rooms opened late can run past midnight). See [Public rooms](deployment.md#public-rooms-optional).
 - **Flood control** (`src/shared/rateLimit.ts`). Every room, invite or public, limits:
   - each socket to bursts of 60 messages, 30/s for a few minutes and 5/s over the long run;
   - the whole room to 10 messages/s, and to bursts of 120 state changes at 1/s sustained. State changes
