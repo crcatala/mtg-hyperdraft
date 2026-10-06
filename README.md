@@ -60,6 +60,7 @@ src/
     publicRooms.ts   public room pool: slots, per-visitor rule, IPv6 /64 grouping
     rateLimit.ts     token buckets for flood control in rooms
     roster.ts        the avatars and table companions (names, backstories, colours, ids)
+    scene.ts         the tables and environments players can pick (ids, labels, defaults)
   worker/        Cloudflare Worker + Durable Objects
     index.ts         routing, invite checks, room-code verification, kill switch
     roomObject.ts    one DO per room: hibernating websockets, storage, pick-timer alarms, imports
@@ -72,16 +73,17 @@ src/
     invite.ts        invite key storage, magic links, invite API calls
     publicRooms.ts   public pool status/create calls, Turnstile widget
     recentRooms.ts   rooms this browser hosted or joined, merged with the invite's for "Your rooms"
-    screens/         Home (+ Your rooms), Solo, Lobby, Draft (pack opening), Deckbuilder, Sound Studio, Companion Lab
+    screens/         Home (+ Your rooms), Solo, Lobby, Draft (pack opening), Deckbuilder, Sound Studio, Companion Lab, Scene Lab
     pack/            the 3D foil booster on the Draft screen: pillowed/crimped geometry, tear-and-peel
                      math (pure, unit tested), canvas-drawn per-theme foil art, the R3F scene
     sfx.ts           sound effects: generated samples (public/sfx/<pack>/) on one compressed bus, synth fallback
     soundPacks.ts    which sound pack plays (switchable, remembered, ?sounds= previews)
     soundStudio.ts   the Sound Studio's sequences and per-sound mix (/dev/sound-studio)
     table/           3D scene, textures, drag & drop, HUD, dialogs, companion motion (companionMotion.ts)
+    scene/           the 3D tables, the environments around them and the title screen's backdrop
     volume.ts        master and sound-effects volume (music keeps its own in music.ts)
     music.ts         background music: one playlist (public/music/) that plays across every screen
-    components/SettingsDialog.tsx   player settings modal (tabs: Appearance, Sound)
+    components/SettingsDialog.tsx   player settings modal (tabs: Appearance, Sound, Companions)
     components/MusicPlayer.tsx      the music player: corner pill, expands to a bar along the bottom
     debug/           debug console (bug icon, bottom right)
     theme.ts         UI themes: which one is active and remembered, ?theme= previews, Alt+Shift+T
@@ -200,6 +202,48 @@ one, create `themes/<id>.css`, import it in `main.tsx`, add it to `THEMES` in `t
 list in `index.html` (`tests/theme.test.ts` checks these agree), and add its fonts to `index.html` (browsers
 only download the font files a page actually uses).
 
+## Tables and environments
+
+The 3D table comes in three designs and stands in one of three environments, picked from the **Scene** button on
+the table's toolbar (next to Help). The choice is shared: anyone at the table can change it, everyone sees the
+change at once, and the game log says who did it. It's stored by the room (`RoomState.scene`, one write per change),
+so it survives reloads and carries over to the next game in that room. It's purely cosmetic: every table is drawn
+around the same round play area (`tableRadius` in `shared/tableLayout.ts`), so switching never moves a card, a mat,
+a pile or a companion. That play area clears the outer corners of every mat by a margin at any seat count, and a
+companion can be put down anywhere on it.
+
+| Tables | Environments |
+|---|---|
+| **Classic felt**: round walnut table, green baize, padded leather rail | **Tavern hearth**: fireplace, bar, barrels, mana-coloured shields, a sleeping cat |
+| **Runestone**: twelve-sided slate slab ringed with glowing runes, floating crystals | **Arcane library**: bookcases, moonlit windows, a turning summoning circle, floating candles and books, an orrery |
+| **Oak & brass**: square oak card table with a leather inlay and a candle in each corner | **Moonlit grove**: standing stones, swaying pines, fireflies, glowing mushrooms, an owl |
+
+Each table has its own chairs, one per seat. Environments keep the lighting on the table about the same (cards read
+the same everywhere); only its colour shifts with the mood. When the table opens, the camera starts wide on the room
+and glides down to your seat (any camera input, or reduced motion, skips it); after that the room is mostly seen
+round the table's edges, when zooming out or in the overhead view.
+
+The **title screen** shows a table set for a game in one of the environments, with the camera slowly circling it:
+each UI theme has its own pairing (`scene/titleScenes.ts`: Game Night is the oak table by the tavern hearth, Arcane
+the runestone in the library, Signal the felt table in the grove) behind a scrim that keeps the menus readable
+(`--home-scrim`, per theme). Without WebGL Home keeps its plain background.
+
+- Everything is built in code: low-poly geometry and canvas-drawn textures (`scene/sceneTextures.ts`, drawn once
+  from a fixed seed and cached), no model or image files. Small things move (flames, fireflies, the cat's breathing,
+  the orrery, the owl, swaying trees); with reduced motion everything holds still.
+- They're kept cheap: repeated things are instanced (chairs, trees, books, mushrooms), every candle in a scene is
+  drawn in three draw calls (`CandleBatch` in `scene/bits.tsx`), the floor's light falloff is baked into vertex
+  colours, and the table and title canvases drop to 1x pixel density if the frame rate can't keep up.
+- **Scene Lab** (`/dev/scene-lab`, linked from the debug console) shows any table in any environment at 1-4 seats
+  with stand-in mats: from your seat, zoomed out, overhead, orbiting, or with the title camera, plus draw calls and
+  frame rate. `?table=&env=&seats=&cam=` preset it; `?hide=sprites,points,transparent,env,lights` hides kinds of
+  objects to see what costs what.
+- To add one: an entry in `TABLE_STYLES` or `ENVIRONMENTS` (`shared/scene.ts`), a component in `scene/tables.tsx` or
+  a new `scene/<id>.tsx` wired into `scene/Environment.tsx` (with its mood: background, fog and light colours), and
+  a swatch in `screens.css` (`.scene-swatch.s-<id>`). A table must draw its play surface as exactly the
+  `tableRadius` disc and pass it the `surface` handlers. Ids are stored in rooms, so never rename or reuse one;
+  unknown ids fall back to the default.
+
 ## Controls (tabletop)
 
 Press <kbd>?</kbd> on the table for the full list. Highlights: drag cards anywhere (onto piles, back to
@@ -209,7 +253,7 @@ mulligan…), <kbd>T</kbd>/<kbd>Space</kbd> tap, <kbd>F</kbd> face down, <kbd>G<
 graveyard/exile/hand, <kbd>D</kbd> draw, <kbd>U</kbd> untap all, <kbd>N</kbd> end turn, arrows/<kbd>Q</kbd>
 <kbd>E</kbd>/wheel for the camera, <kbd>1</kbd>–<kbd>4</kbd> view from any player's seat (1 is yours),
 <kbd>V</kbd> overhead view, <kbd>Tab</kbd> ping the spot under the pointer (everyone sees and hears it, like
-Tabletop Simulator). Card names in the game log are links: hover for a preview, click to zoom in.
+Tabletop Simulator), **Scene** (toolbar) for the table and environment, for everyone. Card names in the game log are links: hover for a preview, click to zoom in.
 
 **Double-faced cards** show both faces in hover previews and have a ⟲ button to turn them over everywhere
 (draft, picks, deckbuilder, zoom view — <kbd>F</kbd> there — and your hand, where <kbd>R</kbd> works too). A card
