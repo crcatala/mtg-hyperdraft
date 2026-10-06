@@ -1,13 +1,13 @@
 // The Treatomancer: a gacha-style machine by the table that sells companion treats for glimmers. Each player gets
 // a fixed purse of glimmers per game; a treat bought is shot out of the machine onto a random spot of the table
-// (off every mat), every companion at the table races for it, and the first there eats it (or hugs it).
+// (mats and cards included), every companion at the table races for it, and the first there eats it (or hugs it).
 //
 // Pure and shared: the room engine validates purchases with it and works out the winner for the log, and every
 // client plays the very same race from the `TreatShowSpec` the room sends (same seed → same speeds, trips and
 // winner), so nothing about the race itself has to travel over the wire.
 
 import { mulberry32, type Rng } from "./rng";
-import { localToTable, MAT_D, MAT_W, petSpotValid, tableRadius, tableToLocal, type Vec2 } from "./tableLayout";
+import { localToTable, MAT_D, MAT_W, tableRadius, tableToLocal, type Vec2 } from "./tableLayout";
 
 /** What every player starts a game with. */
 export const GLIMMER_START = 12;
@@ -275,14 +275,15 @@ export function runPose(run: Run, plan: ShowPlan, t: number): RunPose {
 
 // --- where the machine stands, and where a treat lands -------------------------------------------------
 
-/** How far from the middle a treat may land. */
-export const LANDING_R = 12.5;
-
 /** How much table the machine takes up (radius around its spot). */
 export const MACHINE_R = 2.4;
 
-/** Whether a machine fits at table point `p`: clear of every mat and not hanging off the table. */
-function machineFits(p: Vec2, seatCount: number): boolean {
+/**
+ * Whether a machine fits at table point `p`: on the table (not hanging off its rim) and clear of every mat. The
+ * default spots are picked with it, and the room checks a player's move against it too.
+ */
+export function machineFits(p: Vec2, seatCount: number): boolean {
+  if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
   if (Math.hypot(p.x, p.y) > tableRadius(seatCount) - MACHINE_R - 0.5) return false;
   for (let seat = 0; seat < Math.max(1, seatCount); seat++) {
     const l = tableToLocal(p, seat, seatCount);
@@ -291,17 +292,24 @@ function machineFits(p: Vec2, seatCount: number): boolean {
   return true;
 }
 
+/** Out by the rim beside the left end of the mat, level with its middle: the farthest out that fits first. */
+const SIDE_SPOTS: Vec2[] = [0, -1, -2, -3, -4, 1, 2].flatMap((y) => [-19, -18.5, -18, -17.5, -17, -16.5].map((x) => ({ x, y })));
+/** Past the far left corner of the mat, beyond the exile pile. */
+const CORNER_SPOTS: Vec2[] = [
+  { x: -8.5, y: -10 },
+  { x: -8.5, y: -9 },
+];
+
 /**
- * Where the machine stands on the table for the player at `seat`: past the far left corner of their mat, beyond their
- * exile pile (or, when another mat is in the way, just left of their mat), where their camera has it in view. Every player sees their own copy (the cameras frame each mat too tightly for one
- * shared machine to be in everyone's shot), so only where a treat flies *from* differs between screens.
+ * Where the machine stands by default for the player at `seat` (seat-local spots, the first that fits): out by the
+ * rim beside the left end of their mat, away from everyone's cards, where their camera still has it in view. Solo,
+ * the camera is too close for the rim to be in shot, so it stands past the far left corner of the mat (there's
+ * nobody else's mat to crowd). Every player sees their own copy (the cameras frame each mat too tightly for one
+ * shared machine to be in everyone's shot), and can move it (TablePlayer.machineAt), so only where a treat flies
+ * *from* differs between screens.
  */
 export function machineSpot(seat: number, seatCount: number): Vec2 {
-  const spots: Vec2[] = [
-    { x: -8.5, y: -10 },
-    { x: -8.5, y: -9 },
-    ...[-5, -4, -3, -2, -1, 0, 1, 2, 3].flatMap((y) => [-16.5, -17.5, -18.5].map((x) => ({ x, y }))),
-  ];
+  const spots = seatCount <= 1 ? [...CORNER_SPOTS, ...SIDE_SPOTS] : [...SIDE_SPOTS, ...CORNER_SPOTS];
   for (const l of spots) {
     const p = localToTable(l, seat, seatCount);
     if (machineFits(p, seatCount)) return p;
@@ -309,20 +317,26 @@ export function machineSpot(seat: number, seatCount: number): Vec2 {
   return localToTable({ x: -17, y: 0 }, seat, seatCount);
 }
 
+/** Where a player's machine stands: where they put it, or else its default spot by their mat. */
+export const machineAt = (stored: Vec2 | undefined, seat: number, seatCount: number): Vec2 => stored ?? machineSpot(seat, seatCount);
+
+/** How far in from the table's rim a treat lands (it's ~2.6 across, and the companions crowd round it). */
+export const LANDING_RIM = 2;
+/** How far a treat lands from any machine. */
+export const LANDING_CLEAR = MACHINE_R + 1.6;
+
 /**
- * A random spot on the table that's off every mat (where any companion could stand), clear of the machines and not
- * right at the rim: the treat has to be somewhere they can all get to and everyone can see. Falls back to the centre.
+ * A random spot anywhere on the table, mats and cards included (the treat sits on top, and the companions run
+ * over them), short of the rim and clear of every machine (`machines`: each seat's, where its player has it).
+ * Falls back to the centre.
  */
-export function pickLanding(seatCount: number, rng: Rng): Vec2 {
-  // Within the middle of the table: every player's camera frames their own mat, and the middle is what they all see.
-  const R = Math.min(tableRadius(seatCount) - 3, LANDING_R);
+export function pickLanding(seatCount: number, rng: Rng, machines: Vec2[]): Vec2 {
+  const R = tableRadius(seatCount) - LANDING_RIM;
   for (let i = 0; i < 80; i++) {
     const a = rng() * Math.PI * 2;
     const r = Math.sqrt(rng()) * R;
     const p = { x: Math.round(Math.cos(a) * r * 100) / 100, y: Math.round(Math.sin(a) * r * 100) / 100 };
-    // Off every mat, and not on top of anyone's machine.
-    const clear = Array.from({ length: Math.max(1, seatCount) }, (_, s) => machineSpot(s, seatCount)).every((m) => Math.hypot(m.x - p.x, m.y - p.y) > MACHINE_R + 1.6);
-    if (petSpotValid(p, seatCount, -1) && clear) return p;
+    if (machines.every((m) => Math.hypot(m.x - p.x, m.y - p.y) > LANDING_CLEAR)) return p;
   }
   return { x: 0, y: 0 };
 }

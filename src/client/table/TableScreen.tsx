@@ -1322,6 +1322,7 @@ const SHORTCUTS: [string, string][] = [
   ["Hold your companion", "Pick it up and put it down anywhere off the other mats"],
   ["W · right-click yours", "Your companion's emote wheel (1–6 to pick, E edit lines, S settings, H sends it home)"],
   ["B · click the gumball machine", "The Treatomancer: spend glimmers on a treat, and the companions race for it"],
+  ["Hold the gumball machine", "Pick it up and put it down anywhere on the table off the mats (only you see yours)"],
   ["G / X / H", "Send to graveyard / exile / hand"],
   ["C / Shift+C", "Add / remove a +1/+1 counter"],
   ["D / Shift+D", "Draw a card / draw X"],

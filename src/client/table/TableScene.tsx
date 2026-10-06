@@ -90,7 +90,7 @@ function Scene() {
       <RemoteHandDrags table={table} shadowY={shadowY} />
       <Pings table={table} />
       <Flights />
-      <Treatomancer povSeat={povSeat} seatCount={n} />
+      <Treatomancer povSeat={povSeat} seatCount={n} stored={table.players[table.seats[povSeat]]?.machineAt} canMove={table.seats[povSeat] === me} />
       <TreatFlight />
     </>
   );

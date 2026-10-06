@@ -13,7 +13,7 @@ import { PUBLIC_LIMITS } from "./publicRooms";
 import { AVATAR_IDS, COMPANION_IDS, isAvatarId, isCompanionId, lowestFreeVariant, pickFree } from "./roster";
 import { cleanEmoteText } from "./emoteText";
 import { companionSpot, petSpotValid } from "./tableLayout";
-import { glimmersLeft, pickLanding, showMs, treatDef, VEND_HOLD_MS, type TreatShowSpec } from "./treats";
+import { glimmersLeft, machineAt, machineFits, pickLanding, showMs, treatDef, VEND_HOLD_MS, type TreatShowSpec } from "./treats";
 import { environmentLabel, resolveScene, tableStyleLabel } from "./scene";
 
 export interface RoomDeps {
@@ -623,12 +623,27 @@ export class Room {
           const at = p.companionAt ?? companionSpot(seat, n);
           return [{ id: pid, companion: p.companion, x: Math.round(at.x * 100) / 100, y: Math.round(at.y * 100) / 100 }];
         });
-        const show: TreatShowSpec = { by: playerId, treat: treat.id, seed: Math.floor(this.deps.rng() * 2 ** 31), at: pickLanding(n, this.deps.rng), racers };
+        // It lands clear of every player's machine, wherever they've put theirs.
+        const machines = table.seats.map((pid, seat) => machineAt(table.players[pid]?.machineAt, seat, n));
+        const show: TreatShowSpec = { by: playerId, treat: treat.id, seed: Math.floor(this.deps.rng() * 2 ** 31), at: pickLanding(n, this.deps.rng, machines), racers };
         this.vend = null;
         this.state.treatShowUntil = this.deps.now() + showMs(show) + 300;
         logTreat(table, playerId, treat.name, treat.cost, this.tableEnv());
         result.outbound.push({ to: "self", msg: { t: "treat", show } });
         result.outbound.push({ to: "others", msg: { t: "treat", show } });
+        result.changed = true;
+        return;
+      }
+
+      case "setMachinePos": {
+        // Moving your own copy of the Treatomancer (nobody else's screen shows it, bar someone watching from your
+        // seat): stored (one write per move), so it stays put through a reload, and so treats land clear of it.
+        this.requirePhase("playing");
+        const table = this.state.table!;
+        if (!table.seats.includes(playerId)) throw new RoomError("You're not seated at this table.");
+        if (this.showing()) throw new RoomError("Hold on, the companions are chasing a treat!");
+        if (!machineFits(msg.at, table.seats.length)) throw new RoomError("The Treatomancer can't stand there.");
+        table.players[playerId].machineAt = { x: Math.round(msg.at.x * 100) / 100, y: Math.round(msg.at.y * 100) / 100 };
         result.changed = true;
         return;
       }

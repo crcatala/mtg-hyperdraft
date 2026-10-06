@@ -303,6 +303,11 @@ export interface TablePlayer {
   mulligans?: number;
   /** Glimmers left to spend at the Treatomancer this game (shared/treats.ts); absent means a full purse. */
   glimmers?: number;
+  /**
+   * Where they moved their copy of the Treatomancer (table coordinates), if they did: absent, it stands at its
+   * default spot by their mat (machineSpot). Set only by a valid move (setMachinePos); a new game starts afresh.
+   */
+  machineAt?: { x: number; y: number };
 }
 
 /** What a log line is about; the client picks its icon and accent from it. Moves use the destination zone. */

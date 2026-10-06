@@ -3,7 +3,7 @@ import { createRoomState, Room, type ImportResult } from "../src/shared/room";
 import { basicIds, makeCube, testDeps } from "./fixtures";
 import type { ClientMessage, ServerMessage } from "../src/shared/protocol";
 import { mulberry32 } from "../src/shared/rng";
-import { MAT_D, MAT_W, petSpotValid, tableRadius, tableToLocal } from "../src/shared/tableLayout";
+import { companionSpot, localToTable, MAT_D, MAT_W, matCenter, tableRadius, tableToLocal } from "../src/shared/tableLayout";
 import { clientMessageSchema } from "../src/shared/protocol";
 import { COMPANION_IDS } from "../src/shared/roster";
 import {
@@ -11,7 +11,10 @@ import {
   GLIMMER_START,
   glimmersLeft,
   LAND_AT,
-  LANDING_R,
+  LANDING_CLEAR,
+  LANDING_RIM,
+  machineAt,
+  machineFits,
   machineSpot,
   MACHINE_R,
   pickLanding,
@@ -156,19 +159,57 @@ describe("where it stands and lands", () => {
     }
   });
 
-  it("lands somewhere any companion can stand, clear of every machine", () => {
-    const rng = mulberry32(9);
-    for (let n = 1; n <= 4; n++) {
-      for (let i = 0; i < 200; i++) {
-        const p = pickLanding(n, rng);
-        expect(petSpotValid(p, n, -1)).toBe(true);
-        expect(Math.hypot(p.x, p.y)).toBeLessThanOrEqual(LANDING_R);
+  it("stands out by the rim beside the left end of the mat with others at the table, past its far corner solo", () => {
+    for (let n = 2; n <= 4; n++) {
+      for (let seat = 0; seat < n; seat++) {
+        const l = tableToLocal(machineSpot(seat, n), seat, n);
+        expect(l.x).toBeLessThanOrEqual(-17);
+        expect(Math.abs(l.y)).toBeLessThanOrEqual(2);
+        // Well away from every mat, its own included (it used to crowd the next one over).
         for (let s = 0; s < n; s++) {
-          const m = machineSpot(s, n);
-          expect(Math.hypot(m.x - p.x, m.y - p.y)).toBeGreaterThan(MACHINE_R);
+          const o = tableToLocal(machineSpot(seat, n), s, n);
+          expect(Math.abs(o.x) - MAT_W / 2 >= 4 || Math.abs(o.y) - MAT_D / 2 >= 4).toBe(true);
+        }
+        // And off to the side of every companion's home spot.
+        for (let s = 0; s < n; s++) {
+          const c = companionSpot(s, n);
+          const m = machineSpot(seat, n);
+          expect(Math.hypot(c.x - m.x, c.y - m.y)).toBeGreaterThan(MACHINE_R + 1.5);
         }
       }
     }
+    expect(tableToLocal(machineSpot(0, 1), 0, 1)).toEqual({ x: -8.5, y: -10 });
+  });
+
+  it("fits a machine only on the table and off every mat", () => {
+    for (let n = 1; n <= 4; n++) {
+      expect(machineFits(matCenter(0, n), n)).toBe(false);
+      expect(machineFits(localToTable({ x: MAT_W / 2 + 1, y: 0 }, 0, n), n)).toBe(false);
+      expect(machineFits({ x: tableRadius(n) - 1, y: 0 }, n)).toBe(false);
+      expect(machineFits({ x: Number.NaN, y: 0 }, n)).toBe(false);
+      expect(machineFits(machineSpot(0, n), n)).toBe(true);
+    }
+  });
+
+  it("lands anywhere on the table, mats included, short of the rim and clear of every machine wherever it stands", () => {
+    const rng = mulberry32(9);
+    for (let n = 1; n <= 4; n++) {
+      // One player moved theirs into the middle of the table.
+      const machines = Array.from({ length: n }, (_, s) => machineAt(s === 0 ? { x: 0, y: 0 } : undefined, s, n));
+      let onMat = 0;
+      for (let i = 0; i < 300; i++) {
+        const p = pickLanding(n, rng, machines);
+        expect(Math.hypot(p.x, p.y)).toBeLessThanOrEqual(tableRadius(n) - LANDING_RIM);
+        for (const m of machines) expect(Math.hypot(m.x - p.x, m.y - p.y)).toBeGreaterThan(LANDING_CLEAR);
+        if (Array.from({ length: n }, (_, s) => tableToLocal(p, s, n)).some((l) => Math.abs(l.x) < MAT_W / 2 && Math.abs(l.y) < MAT_D / 2)) onMat++;
+      }
+      expect(onMat).toBeGreaterThan(0);
+    }
+  });
+
+  it("uses where a player put their machine, else its default spot", () => {
+    expect(machineAt({ x: 3, y: 4 }, 0, 2)).toEqual({ x: 3, y: 4 });
+    expect(machineAt(undefined, 1, 2)).toEqual(machineSpot(1, 2));
   });
 });
 
@@ -241,7 +282,7 @@ describe("the Treatomancer in a room", () => {
     // Only companions at the table race (Cara has none), from where they stand.
     expect(show.racers.map((r) => r.id).sort()).toEqual([a, b].sort());
     expect(show.racers.find((r) => r.id === c)).toBeUndefined();
-    expect(petSpotValid(show.at, 3, -1)).toBe(true);
+    expect(Math.hypot(show.at.x, show.at.y)).toBeLessThanOrEqual(tableRadius(3) - LANDING_RIM);
     // The hold ends with the purchase, and it's in the log.
     expect(room.viewFor(b).vend).toBeNull();
     expect(room.state.table!.log.at(-1)).toMatchObject({ kind: "treat", text: "Alice fed the Treatomancer 6 glimmers: The Golden Pickle!" });
@@ -296,11 +337,39 @@ describe("the Treatomancer in a room", () => {
     expect(send(woken, b, { t: "treat", treat: "cursed-sock" }).changed).toBe(true);
   });
 
+  it("lets each player move their own machine (stored, once per move) onto open table, never onto a mat", () => {
+    const { room, deps, a, b } = game();
+    const n = room.state.table!.seats.length;
+    const spot = localToTable({ x: 0, y: -MAT_D / 2 - 4 }, 0, n);
+    expect(machineFits(spot, n)).toBe(true);
+    const res = send(room, a, { t: "setMachinePos", at: { x: spot.x + 0.004, y: spot.y } });
+    expect(res.changed).toBe(true);
+    expect(res.outbound).toEqual([]);
+    expect(room.state.table!.players[a].machineAt).toEqual({ x: Math.round(spot.x * 100) / 100, y: Math.round(spot.y * 100) / 100 });
+    // Everyone's view has it (someone watching from Alice's seat sees it there); Bob's own stays put.
+    expect(room.viewFor(b).table!.players[a].machineAt).toEqual(room.state.table!.players[a].machineAt);
+    expect(room.state.table!.players[b].machineAt).toBeUndefined();
+
+    const onMat = send(room, b, { t: "setMachinePos", at: matCenter(1, n) });
+    expect(errorOf(onMat)?.message).toBe("The Treatomancer can't stand there.");
+    expect(onMat.changed).toBe(false);
+    expect(errorOf(send(room, b, { t: "setMachinePos", at: { x: 150, y: 0 } }))?.message).toBe("The Treatomancer can't stand there.");
+
+    // Not mid-show (it fires from where it stands), and treats land clear of it wherever it's put.
+    const show = (msgs(send(room, b, { t: "treat", treat: "cursed-sock" }), "treat")[0].msg as { show: TreatShowSpec }).show;
+    const m = room.state.table!.players[a].machineAt!;
+    expect(Math.hypot(show.at.x - m.x, show.at.y - m.y)).toBeGreaterThan(LANDING_CLEAR);
+    expect(errorOf(send(room, a, { t: "setMachinePos", at: spot }))?.message).toBe("Hold on, the companions are chasing a treat!");
+    deps.advance(showMs(show) + 400);
+    expect(send(room, a, { t: "setMachinePos", at: spot }).changed).toBe(true);
+  });
+
   it("is only for players at the table, and only takes treats it sells", () => {
     const deps = testDeps();
     const room = new Room(createRoomState("ABCDEF", deps.now()), {}, deps);
     const a = room.join({ name: "Alice", companion: "hex" }).playerId;
     expect(errorOf(send(room, a, { t: "vend", open: true }))).toBeDefined();
+    expect(errorOf(send(room, a, { t: "setMachinePos", at: { x: 0, y: 0 } }))).toBeDefined();
     expect(clientMessageSchema.safeParse({ t: "treat", treat: "golden-pickle" }).success).toBe(true);
     expect(clientMessageSchema.safeParse({ t: "treat", treat: "free-money" }).success).toBe(false);
   });
