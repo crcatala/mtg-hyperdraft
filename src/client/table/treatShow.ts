@@ -12,6 +12,7 @@ import { serverNow, useStore } from "../store";
 import { treatSound } from "../treatSounds";
 import { cancelPet, cancelPress } from "./companionCarry";
 import { closeEmoteWheel } from "./companionEmote";
+import { cancelMachinePress, resetMachineCarry } from "./machineCarry";
 import { playReaction, stopReaction } from "./companionPlayback";
 import { say, voice } from "./companionTalk";
 import { tableApi } from "./drag";
@@ -100,9 +101,10 @@ export function syncVendFromView() {
 /** A treat was bought: play the show. */
 export function receiveTreat(spec: TreatShowSpec) {
   // Anything in hand ends: a press on a companion (before it could lift it), a carried companion (it goes back),
-  // the emote wheel.
+  // the machine if it's being moved (back where it was: it fires from there), the emote wheel.
   cancelPress();
   cancelPet();
+  cancelMachinePress();
   closeEmoteWheel();
   clearShowTimers();
   const show = startShowState(spec);
@@ -184,8 +186,9 @@ function clearShowTimers() {
   timers.clear();
 }
 
-/** Leaving the table: stop any show, forget the machine's holder and close the menu. */
+/** Leaving the table: stop any show, forget the machine's holder (and any move of it) and close the menu. */
 export function resetTreats() {
   clearShowTimers();
+  resetMachineCarry();
   useTreats.setState({ vend: null, open: false, pending: false, show: null });
 }

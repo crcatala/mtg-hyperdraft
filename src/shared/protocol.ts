@@ -130,6 +130,8 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("vend"), open: z.boolean() }),
   /** Buys a treat (with the sender's glimmers): the machine fires it onto the table and the companions race for it. */
   z.object({ t: z.literal("treat"), treat: z.string().max(40).refine(isTreatId) }),
+  /** Moves the sender's own copy of the Treatomancer to `at` (table coordinates): on the table, off every mat. Stored. */
+  z.object({ t: z.literal("setMachinePos"), at: z.object({ x: coord, y: coord }) }),
   z.object({ t: z.literal("debug"), cmd: z.enum(DEBUG_COMMANDS) }),
 ]);
 

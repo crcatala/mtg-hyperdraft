@@ -193,10 +193,10 @@ reveals the character behind it.
 
 ## The Treatomancer (companion treats)
 
-A wizard's gumball machine sits on the table beside each player's mat. **Click it (or press <kbd>B</kbd>)** for its menu:
+A wizard's gumball machine sits on the table out by the rim, left of each player's mat. **Click it (or press <kbd>B</kbd>)** for its menu:
 ten treats, from a Cursed Left Sock (1 glimmer) to The Golden Pickle (6). Everyone gets a pouch of **12 glimmers** per
 game. Pick one and **Feed it & launch!**: the machine rattles and winds up, fires a capsule in a high arc onto a random
-open spot in the middle of the table (never on a mat), and it pops open. Every companion at the table races for it at
+spot anywhere on the table (mats and cards included; never on a machine), and it pops open. Every companion at the table races for it at
 its own random speed (the odd one gets the zoomies, some dawdle, some trip and say so). The first one there eats it, or
 hugs it if it's a keepsake, and says one of its own three lines about it; the rest pout, grumble, and everyone trots home.
 
@@ -211,9 +211,14 @@ hugs it if it's a keepsake, and says one of its own three lines about it; the re
   (`TablePlayer.glimmers`, one write per purchase, logged). The show's end time is saved in that same write
   (`RoomState.treatShowUntil`), so a room rebuilt mid-show (hibernation, a deploy) stays locked; the browsing hold is
   in memory only (a purchase doesn't need one).
-- Each player has their own copy of the machine (`machineSpot`): the cameras frame each mat too tightly for one shared
-  machine to be in everyone's shot. Only where the capsule flies *from* differs between screens; landings keep clear of
-  every seat's machine.
+- **Move it.** Hold or drag the machine to pick it up (a tap still opens the menu): held by its hat, it swings as you carry
+  it, glows red over a mat, and lands with a bump where you let go, or goes back with a shake if it can't stand there (on
+  the table, off every mat: `machineFits`). One stored `setMachinePos` per move (`TablePlayer.machineAt`, cleared by a
+  new game); not mid-show. Code: `table/machineCarry.ts`, like the companion carry.
+- Each player has their own copy of the machine (`machineSpot` by default; solo, past the far corner of the mat, where
+  its closer camera can see it): the cameras frame each mat too tightly for one shared machine to be in everyone's
+  shot, so moving yours moves it only for you (and anyone watching from your seat). Only where the capsule flies
+  *from* differs between screens; landings keep clear of every seat's machine, wherever it stands.
 - Code: `shared/treats.ts` (catalog, lines, the race planner, where it stands and lands), `table/treatShow.ts` (the
   beats: sounds, reactions, voices, bubbles), `table/treatState.ts`, `table/Treatomancer.tsx` (the procedural machine),
   `table/TreatFlight.tsx` (capsule and treat), `table/TreatMenu.tsx` + `treats.css` (menu and tags). The race reactions
