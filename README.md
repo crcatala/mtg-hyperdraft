@@ -161,7 +161,25 @@ reveals the character behind it.
   text only, in this tab's memory: a reload brings the defaults back (`table/emoteLines.ts`,
   `table/EmoteLinesDialog.tsx`). A rewritten line travels with the emote; client and room both clean it with
   `shared/emoteText.ts` (one line, no invisible or bidi characters, 60 characters at most), and React shows it
-  as plain text. There's no content filter, by design.
+  as plain text. There's no content filter, by design. <kbd>W</kbd> opens the wheel from the keyboard; the gear
+  under it (<kbd>S</kbd>) goes to Settings → Companions.
+- **Pick up and drop**: press and hold your own companion to pick it up, carry it, and let go anywhere on the
+  table except another player's mat (your own mat is fine); a bad spot sends it back. Others see it carried live
+  (relayed, not stored); where it lands is the one thing stored (`Player.companionAt`, one write per drop, checked
+  by the room with the same `petSpotValid` in `shared/tableLayout.ts`). **Home** in the wheel's centre (<kbd>H</kbd>)
+  sends it back by your mat (`table/companionCarry.ts`, `table/petGesture.ts`).
+- **Settings → Companions** has two switches, remembered per browser (`companionPrefs.ts`, `hd.companions`):
+  **Companion sounds** (off: no voices, at the table or the lobby hello, and none downloaded; companions still
+  react) and **Companion speech** (off: no bubbles, emotes included; sounds and reactions stay). They only change
+  what this player sees and hears, never what is sent. The gates are `say`/`voice` in `table/companionTalk.ts` and
+  `sayHello` in `companionVoice.ts`; the lab and sound studio always play voices.
+- **Accessibility**: the wheel is a labelled menu (each wedge's name is its tone and line) that works from the
+  keyboard alone (<kbd>W</kbd>, <kbd>1</kbd>-<kbd>6</kbd> or arrows/Tab + <kbd>Enter</kbd>, <kbd>Esc</kbd>), and
+  focus goes back where it was when it closes. Emotes are read out politely by screen readers through a visually
+  hidden live region ("Alice's Hex: Ten lives. You have one."); pokes and pick-ups are not. Reduced motion: the
+  companions, glyphs, bubbles, wheel and lobby preview hold still (fades only).
+- `tests/companionAudit.test.ts` checks what shipped against the plan: 10 companions × (16 voice slots, 15 lines,
+  18 reactions) = 160 / 150 / 180. Run it with `--reporter=verbose` to see the per-companion counts.
 - To add a character, add an entry to `roster.ts` and its images; `tests/roster.test.ts` checks that
   every entry has its files. The prompts and style notes used to generate the current art are in
   `scripts/roster/roster.json`.
@@ -377,8 +395,13 @@ node scripts/build-voice-audition.mjs hex               # checks them (audible, 
 
 `src/shared/companionKit.json` holds each companion's voice signature, the shared per-slot emotions and the speech lines (`companionKit.ts` types it and defines the slots: 7 poke steps, pickup, drop, 6 emote tones). With `npm run dev`
 running, open `/scripts/roster/voice-candidates/audition`, tick the picks and copy them. Copy the keepers to
-`public/sfx/companions/<id>/<slot>.mp3` (`<slot>-1/-2.mp3` when a slot has several takes). Wording that sounds cute rather
+`public/sfx/companions/<id>/<slot>.mp3` (`<slot>-1/-2.mp3` when a slot has several takes), then run
+`node scripts/sync-companion-voices.mjs` so the game knows which files exist (a test fails until you do). Generating
+needs the `elevenlabs` CLI and `ELEVENLABS_API_KEY`, and every candidate costs credits. Wording that sounds cute rather
 than shrill: "plush-toy cartoon, low-to-mid pitched, mellow, never shrill", not "small, high-pitched" (needs ffmpeg).
+Words like squeak, chirp, trill, peep, whistle, rustle or clack come out shrill; hums, grunts, mumbles, burbles and coos
+stay mellow; "whoa", "nyah nyah" or "oof" make it sound human. **Sound Studio → Companions**
+(`/dev/sound-studio?tab=companions`) plays every shipped voice; **Companion Lab** plays them with their reactions.
 
 ## Background music
 

@@ -20,6 +20,8 @@ import { FloodControl, RATE_LIMITS, TokenBucket } from "../src/shared/rateLimit"
 import { createRoomState, Room } from "../src/shared/room";
 import { dueWarning, timeLeft } from "../src/client/expiry";
 import { testDeps } from "./fixtures";
+import { POKE_THROTTLE_MS } from "../src/client/table/pokeLadder";
+import { EMOTE_COOLDOWN_MS } from "../src/client/table/emoteWheel";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -232,6 +234,28 @@ describe("flood control", () => {
     const verdicts = new Set<string>();
     for (let i = 0; i < 400; i++) verdicts.add(f.check("s9", "p9", true, 30_000 + i * 250).verdict);
     expect(verdicts).toEqual(new Set(["ok", "drop"]));
+  });
+});
+
+describe("flood control and companions", () => {
+  /** Four players poking and emoting as fast as their clients let them (pokeLadder.ts, emoteWheel.ts), for `ms`. */
+  function spam(ms: number) {
+    const f = new FloodControl(0);
+    const sent: { at: number; sid: string }[] = [];
+    for (let p = 0; p < 4; p++) {
+      for (let t = p * 37; t < ms; t += POKE_THROTTLE_MS) sent.push({ at: t, sid: `s${p}` });
+      for (let t = p * 53; t < ms; t += EMOTE_COOLDOWN_MS) sent.push({ at: t, sid: `s${p}` });
+    }
+    sent.sort((a, b) => a.at - b.at);
+    return sent.map((m) => f.check(m.sid, m.sid.replace("s", "p"), false, m.at).verdict);
+  }
+
+  it("lets four players spam pokes and emotes at full client speed for 10 minutes without a single drop", () => {
+    expect(new Set(spam(10 * 60_000))).toEqual(new Set(["ok"]));
+  });
+
+  it("never closes anyone for it, however long it goes on (past ~16 minutes the room's own budget starts dropping)", () => {
+    expect(spam(40 * 60_000)).not.toContain("close");
   });
 });
 

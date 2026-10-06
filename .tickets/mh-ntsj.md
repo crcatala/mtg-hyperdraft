@@ -1,6 +1,6 @@
 ---
 id: mh-ntsj
-status: open
+status: closed
 deps: [mh-2rwl, mh-x519, mh-kqys, mh-5mz2]
 links: []
 created: 2026-10-05T03:45:29Z
@@ -39,3 +39,9 @@ Playful trolling needs an off switch, the new interactions need to be accessible
 - The audit confirms 10 companions x (16 voice slots, 15 lines, 18 reactions) = 160 / 150 / 180 and passes in CI.
 - `npm run typecheck` and `rtk vitest run` pass; verified with agent-browser, screenshots in the PR.
 
+
+## Notes
+
+**2026-10-05T23:26:13Z**
+
+Done (agent): Settings → Companions (companionPrefs.ts, hd.companions, default on): sounds gates voice()/sayHello and voice downloads, speech gates say() and hides bubbles; local only, never changes what is sent. W opens your wheel at your companion; gear (S) under the wheel opens Settings → Companions; emotes announced via a polite sr-only live region in SpeechBubbles (pokes not), gated by speech. AUDIT (tests/companionAudit.test.ts, passes): 10 companions x 16 voice slots = 160 (187 files: hello/poke1/poke2 have 2 takes, except folio poke1/poke2 and wick poke2 with 1, as picked in mh-2rwl), 15 lines = 150, 18 reactions = 180; nothing missing, no stray files. PERF (2 browsers, each doing 4-player-equivalent spam, real pokes/emotes + replayed inbound traffic, 30-60 s): CDP WebAudio 288 nodes created / 288 destroyed; Chrome JSEventListeners 253 -> 253, DOM nodes 391 -> 391, heap 26.2 -> 26.2 MB after GC; WebGL textures plateau at 10 (shared glyph cache, max 14); fps unchanged idle vs spam (headless software GL ~19 fps both); socket stayed open, no slow-down toasts. No leaks found, nothing fixed. Flood model test: 4 players at full client speed never get dropped for 10 min and never closed; past ~16 min the room-wide message budget starts dropping (not closing). Reduced motion verified on table (sprite still after first frame, bubble scale 1), lobby (pstage animation none), lab (notice + still). Note: the earlier 'picture for now' copy was already gone (0784deb); fixed the remaining stale 'Will learn to' picker copy instead.

@@ -21,6 +21,7 @@ import { say } from "../table/companionTalk";
 import { emoteBadge } from "../table/emoteWheel";
 import { loadVoice, playVoice, type Voice } from "../companionVoice";
 import { isMuted, setMuted, stopAll } from "../sfx";
+import { useCompanionPrefs } from "../companionPrefs";
 
 /** The lab's figures react as these "players" (one per stage spot). */
 const LAB_IDS = ["lab-0", "lab-1", "lab-2", "lab-3"];
@@ -55,6 +56,7 @@ export function CompanionLab() {
   const [speed, setSpeed] = useState<number>(1);
   const [sound, setSound] = useState(() => !isMuted());
   const [shown, setShown] = useState<Shown | null>(null);
+  const speech = useCompanionPrefs().speech;
   const [reeling, setReeling] = useState(false);
   const run = useRef(0);
   const voices = useRef<Voice[]>([]);
@@ -193,6 +195,7 @@ export function CompanionLab() {
 
       <main className="ss-body">
         {reducedMotion() && <p className="pill warn ss-muted">Reduced motion is on: companions hold still and show one glyph per reaction (that's the intended behaviour).</p>}
+        {!speech && <p className="pill warn ss-muted">Companion speech is off in Settings, so no bubbles here either (voices still play: the lab always plays them).</p>}
         <div className="cv">
           <aside className="panel cv-roster" aria-label="Companions">
             <header className="cv-panel-head">

@@ -10,7 +10,7 @@ import { companionSpot } from "../../shared/tableLayout";
 import { petPositions } from "./companionCarry";
 import { useStore } from "../store";
 import { playReaction } from "./companionPlayback";
-import { say, voice } from "./companionTalk";
+import { bubbleAnchors, say, voice } from "./companionTalk";
 import { tableApi } from "./drag";
 import { closeEmoteLines, customLine, useEmoteLines } from "./emoteLines";
 import { cooldownLeft, emoteBadge, wheelCenter } from "./emoteWheel";
@@ -32,6 +32,17 @@ export function openEmoteWheel(x: number, y: number) {
   if (document.body.classList.contains("dragging") || useEmoteLines.getState().editing || !myCompanion()) return;
   useStore.getState().closeMenu();
   useEmoteWheel.setState({ wheel: { at: wheelCenter(x, y, window.innerWidth, window.innerHeight), from: { x, y } } });
+}
+
+/**
+ * Opens this player's wheel from the keyboard (W): on their companion where it's drawn, or mid-screen when it's
+ * out of view.
+ */
+export function openMyEmoteWheel() {
+  const at = bubbleAnchors.get(me());
+  const inView = at?.on && at.x >= 0 && at.x <= window.innerWidth && at.y >= 0 && at.y <= window.innerHeight;
+  if (inView) openEmoteWheel(at.x, (at.y + at.footY) / 2);
+  else openEmoteWheel(window.innerWidth / 2, window.innerHeight / 2);
 }
 
 export function closeEmoteWheel() {

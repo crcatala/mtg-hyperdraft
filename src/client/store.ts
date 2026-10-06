@@ -72,8 +72,9 @@ interface Store {
   preview: PreviewState;
   menu: MenuState | null;
   debug: DebugState;
-  /** Whether the player-facing Settings dialog is open (it's mounted once, in App). */
+  /** Whether the player-facing Settings dialog is open (it's mounted once, in App), and the tab it opened on. */
   settingsOpen: boolean;
+  settingsTab: SettingsTab | null;
   sendImpl: (msg: ClientMessage) => void;
 
   send: (msg: ClientMessage) => void;
@@ -83,8 +84,12 @@ interface Store {
   openMenu: (m: MenuState) => void;
   closeMenu: () => void;
   setDebug: (d: Partial<DebugState>) => void;
-  setSettingsOpen: (open: boolean) => void;
+  /** Opens (on `tab`, else its first) or closes Settings. */
+  setSettingsOpen: (open: boolean, tab?: SettingsTab) => void;
 }
+
+/** The tabs of the Settings dialog (SettingsDialog.tsx). */
+export type SettingsTab = "appearance" | "sound" | "companions";
 
 let toastId = 1;
 
@@ -103,6 +108,7 @@ export const useStore = create<Store>((set, get) => ({
   menu: null,
   debug: { open: false, forceText: false, slowMotion: false, msgIn: 0, msgOut: 0, bytesIn: 0 },
   settingsOpen: false,
+  settingsTab: null,
   sendImpl: () => {},
 
   send: (msg) => {
@@ -119,7 +125,7 @@ export const useStore = create<Store>((set, get) => ({
   openMenu: (menu) => set({ menu }),
   closeMenu: () => set({ menu: null }),
   setDebug: (d) => set((s) => ({ debug: { ...s.debug, ...d } })),
-  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  setSettingsOpen: (settingsOpen, tab) => set({ settingsOpen, settingsTab: settingsOpen ? (tab ?? null) : null }),
 }));
 
 /** Server clock "now", corrected for the local clock offset (for pick timers). */

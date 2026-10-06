@@ -4,20 +4,21 @@
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
-import { useStore } from "../store";
+import { useStore, type SettingsTab } from "../store";
 import { setTheme, THEMES, useTheme } from "../theme";
 import { setSoundPack, SOUND_PACKS, useSoundPack, type PackId } from "../soundPacks";
 import { loadPack, setEffectsVolume, setMuted, sfx, useMuted } from "../sfx";
 import { pauseMusic, playMusic, setMusicMuted, setMusicVolume, useMusic } from "../music";
 import { setMasterVolume, useVolumes } from "../volume";
+import { setCompanionSounds, setCompanionSpeech, useCompanionPrefs } from "../companionPrefs";
 import type { IconName } from "../icons";
 import { Icon } from "./Icon";
 
-const TABS: { id: "appearance" | "sound"; label: string; icon: IconName }[] = [
+const TABS: { id: SettingsTab; label: string; icon: IconName }[] = [
   { id: "appearance", label: "Appearance", icon: "sparkle" },
   { id: "sound", label: "Sound", icon: "volume" },
+  { id: "companions", label: "Companions", icon: "creature" },
 ];
-type TabId = (typeof TABS)[number]["id"];
 
 /** The gear that opens Settings. */
 export function SettingsButton() {
@@ -36,7 +37,7 @@ export function SettingsDialog() {
 
 function Dialog() {
   const close = useStore((s) => s.setSettingsOpen);
-  const [tab, setTab] = useState<TabId>("appearance");
+  const [tab, setTab] = useState<SettingsTab>(() => useStore.getState().settingsTab ?? "appearance");
   const titleId = useId();
   const baseId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -44,10 +45,12 @@ function Dialog() {
   // Focus moves into the dialog on open and back to whatever had it on close.
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
-    document.getElementById(`${baseId}-tab-appearance`)?.focus();
+    document.getElementById(`${baseId}-tab-${tab}`)?.focus();
     return () => {
       if (before?.isConnected) before.focus();
     };
+    // Only on open: later tab changes move focus themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseId]);
 
   // Esc closes (capture phase, so the table doesn't also clear its selection behind us).
@@ -114,7 +117,7 @@ function Dialog() {
             ))}
           </div>
           <div className="settings-panel scroll" id={`${baseId}-panel`} role="tabpanel" aria-labelledby={`${baseId}-tab-${tab}`}>
-            {tab === "appearance" ? <AppearanceTab /> : <SoundTab />}
+            {tab === "appearance" ? <AppearanceTab /> : tab === "sound" ? <SoundTab /> : <CompanionsTab />}
           </div>
         </div>
       </div>
@@ -205,5 +208,26 @@ function SoundTab() {
         </div>
       </section>
     </>
+  );
+}
+
+/** What this player hears and sees of companions at the table. Local only: what others get is unchanged. */
+function CompanionsTab() {
+  const prefs = useCompanionPrefs();
+  return (
+    <section className="settings-checks">
+      <h3 className="settings-h">Companions</h3>
+      <p className="faint settings-note">Only for you: everyone else still sees and hears your companion (and theirs) as usual.</p>
+      <label className="field check">
+        <input type="checkbox" checked={prefs.sounds} onChange={(e) => setCompanionSounds(e.target.checked)} />
+        <span>Companion sounds</span>
+      </label>
+      <p className="faint settings-note">Their voices when poked, picked up, put down or emoting, and the hello in the lobby. Off: they still react, silently.</p>
+      <label className="field check">
+        <input type="checkbox" checked={prefs.speech} onChange={(e) => setCompanionSpeech(e.target.checked)} />
+        <span>Companion speech</span>
+      </label>
+      <p className="faint settings-note">Their speech bubbles, emotes included (and a screen reader reading emotes out). Off: their sounds and reactions stay.</p>
+    </section>
   );
 }

@@ -3,9 +3,16 @@
 // the 3D figure last saw it (bubbleAnchors), slides sideways to stay inside the window, and goes under the
 // companion instead when it's too near the top. Small for pokes,
 // large and in the emote's colour for emotes. Text is rendered by React, never as HTML.
+//
+// The bubbles themselves are hidden from screen readers (pokes would chatter); emotes, which are messages to the
+// table, are read out politely through a visually hidden live region instead. With companion speech off
+// (companionPrefs.ts) there are no bubbles, and so nothing to read out.
 
-import { useLayoutEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Icon } from "../components/Icon";
+import { companionDef } from "../../shared/roster";
+import { useCompanionPrefs } from "../companionPrefs";
+import { useStore } from "../store";
 import { reducedMotion } from "./motion";
 import { bubbleAnchors, bubblePop, placeBubble, useBubbles, type Bubble } from "./companionTalk";
 
@@ -14,12 +21,13 @@ const TAIL = { small: 9, large: 13 } as const;
 
 export function SpeechBubbles() {
   const bubbles = useBubbles((s) => s.bubbles);
+  const speech = useCompanionPrefs().speech;
   const els = useRef(new Map<string, HTMLDivElement>());
-  const live = Object.entries(bubbles);
+  const live = speech ? Object.entries(bubbles) : [];
 
   // Placed before the first paint (no flash in the corner), then every frame while any bubble is up.
   useLayoutEffect(() => {
-    const live = Object.entries(bubbles);
+    const live = speech ? Object.entries(bubbles) : [];
     if (live.length === 0) return;
     let frame = 0;
     const tick = () => {
@@ -32,17 +40,25 @@ export function SpeechBubbles() {
     };
     tick();
     return () => cancelAnimationFrame(frame);
-  }, [bubbles]);
+  }, [bubbles, speech]);
 
-  if (live.length === 0) return null;
+  return (
+    <>
+      <EmoteAnnouncer speech={speech} />
+      {live.length > 0 && <Bubbles live={live} els={els.current} />}
+    </>
+  );
+}
+
+function Bubbles({ live, els }: { live: [string, Bubble][]; els: Map<string, HTMLDivElement> }) {
   return (
     <div className="speech-bubbles" aria-hidden>
       {live.map(([playerId, b]) => (
         <div
           key={b.id}
           ref={(el) => {
-            if (el) els.current.set(playerId, el);
-            else if (els.current.get(playerId)?.dataset.id === String(b.id)) els.current.delete(playerId);
+            if (el) els.set(playerId, el);
+            else if (els.get(playerId)?.dataset.id === String(b.id)) els.delete(playerId);
           }}
           data-id={b.id}
           className={`speech-bubble ${b.size}`}
@@ -59,6 +75,41 @@ export function SpeechBubbles() {
     </div>
   );
 }
+
+/**
+ * Reads each new emote out once, as "Alice's Hex: Ten lives. You have one.", through a polite live region that is
+ * always mounted (a region that appears along with its text isn't announced). Pokes and pick-ups are left out.
+ */
+function EmoteAnnouncer({ speech }: { speech: boolean }) {
+  const bubbles = useBubbles((s) => s.bubbles);
+  const [said, setSaid] = useState<{ id: number; text: string } | null>(null);
+  useEffect(() => {
+    // say() puts up no bubbles while speech is off, but the announcer doesn't lean on that.
+    if (!speech) return;
+    const next = nextAnnouncement(bubbles, said?.id ?? 0);
+    if (!next) return;
+    const player = useStore.getState().view?.players.find((p) => p.id === next.playerId);
+    setSaid({ id: next.bubble.id, text: announcement(player?.name, companionDef(player?.companion)?.name, next.bubble.text) });
+  }, [bubbles, said, speech]);
+  return (
+    <div className="sr-only" role="log" aria-live="polite" aria-label="Companion emotes">
+      {said && <p key={said.id}>{said.text}</p>}
+    </div>
+  );
+}
+
+/** The newest emote (large) bubble put up after bubble `after`, if any: pokes and pick-ups aren't read out. */
+export function nextAnnouncement(bubbles: Record<string, Bubble>, after: number): { playerId: string; bubble: Bubble } | undefined {
+  let next: { playerId: string; bubble: Bubble } | undefined;
+  for (const [playerId, bubble] of Object.entries(bubbles)) {
+    if (bubble.size === "large" && bubble.id > after && (!next || bubble.id > next.bubble.id)) next = { playerId, bubble };
+  }
+  return next;
+}
+
+/** How an emote is read out: "Alice's Hex: Ten lives. You have one." */
+export const announcement = (player: string | undefined, companion: string | undefined, text: string): string =>
+  `${player && companion ? `${player}'s ${companion}` : (companion ?? "A companion")}: ${text}`;
 
 /** Puts a bubble over its companion's head, popped and faded for its age; hidden if the head isn't in view. */
 function place(el: HTMLDivElement, playerId: string, b: Bubble, still: boolean) {

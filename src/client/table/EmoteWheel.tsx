@@ -2,8 +2,9 @@
 // emoteWheel.ts, sending in companionEmote.ts). Pick with a click, by right-click-dragging onto a wedge and
 // letting go, or with the keys (1-6, arrows + Enter); Esc, a click outside or another right-click closes it.
 // While open it owns the keyboard, so the table's own keys (1-4 views, arrows pan) stand down. Under the ring,
-// "Edit lines" (or E) opens the player's own lines for it (EmoteLinesDialog.tsx). In the centre, once the
-// companion has been put down somewhere else, "Home" (or H) sends it back to its spot by the player's mat.
+// "Edit lines" (or E) opens the player's own lines for it (EmoteLinesDialog.tsx), and the gear (or S) Settings'
+// Companions tab (companion sounds and speech on/off). In the centre, once the companion has been put down
+// somewhere else, "Home" (or H) sends it back to its spot by the player's mat. W opens it from the keyboard.
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { EMOTE_SLOTS } from "../../shared/companionKit";
@@ -27,6 +28,7 @@ function Wheel({ wheel }: { wheel: WheelState }) {
   const ref = useRef<HTMLDivElement>(null);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const editButton = useRef<HTMLButtonElement>(null);
+  const settingsButton = useRef<HTMLButtonElement>(null);
   const homeButton = useRef<HTMLButtonElement>(null);
   /** The wedge picked out by the keyboard or the pointer (its line shows under the wheel). */
   const [active, setActive] = useState<number | null>(null);
@@ -53,6 +55,10 @@ function Wheel({ wheel }: { wheel: WheelState }) {
   const home = () => {
     closeEmoteWheel();
     sendPetHome();
+  };
+  const settings = () => {
+    closeEmoteWheel();
+    useStore.getState().setSettingsOpen(true, "companions");
   };
   const pickRef = useRef(pick);
   pickRef.current = pick;
@@ -98,8 +104,8 @@ function Wheel({ wheel }: { wheel: WheelState }) {
         setActive(i);
         buttons.current[i]?.focus({ preventScroll: true });
       };
-      // Tab walks the wedges, then "Home" (if it's showing), then "Edit lines"; the arrows only walk the wedges.
-      const extras = [homeButton.current, editButton.current].filter((b): b is HTMLButtonElement => !!b);
+      // Tab walks the wedges, then "Home" (if it's showing), "Edit lines" and the gear; the arrows only walk the wedges.
+      const extras = [homeButton.current, editButton.current, settingsButton.current].filter((b): b is HTMLButtonElement => !!b);
       const onExtra = extras.indexOf(document.activeElement as HTMLButtonElement);
       const toExtra = (i: number) => {
         setActive(null);
@@ -111,6 +117,9 @@ function Wheel({ wheel }: { wheel: WheelState }) {
       } else if (e.key === "e" || e.key === "E") {
         e.preventDefault();
         edit();
+      } else if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        settings();
       } else if ((e.key === "h" || e.key === "H") && homeButton.current) {
         e.preventDefault();
         home();
@@ -200,20 +209,36 @@ function Wheel({ wheel }: { wheel: WheelState }) {
         </button>
       )}
       <div className="emote-under">
-        <button
-          ref={editButton}
-          className="emote-edit"
-          role="menuitem"
-          aria-label="Customize emote lines"
-          aria-haspopup="dialog"
-          aria-keyshortcuts="E"
-          tabIndex={-1}
-          onClick={edit}
-        >
-          <Icon name="pencil" />
-          Edit lines
-          <kbd>E</kbd>
-        </button>
+        <div className="emote-tools">
+          <button
+            ref={editButton}
+            className="emote-edit"
+            role="menuitem"
+            aria-label="Customize emote lines"
+            aria-haspopup="dialog"
+            aria-keyshortcuts="E"
+            tabIndex={-1}
+            onClick={edit}
+          >
+            <Icon name="pencil" />
+            Edit lines
+            <kbd>E</kbd>
+          </button>
+          <button
+            ref={settingsButton}
+            className="emote-edit"
+            role="menuitem"
+            aria-label="Companion settings: sounds and speech"
+            title="Companion sounds and speech (Settings)"
+            aria-haspopup="dialog"
+            aria-keyshortcuts="S"
+            tabIndex={-1}
+            onClick={settings}
+          >
+            <Icon name="gear" />
+            <kbd>S</kbd>
+          </button>
+        </div>
         {line && (
           <div className="emote-line" aria-hidden>
             “{line}”
