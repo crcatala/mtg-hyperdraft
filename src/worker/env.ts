@@ -11,7 +11,7 @@ export interface Env {
   INVITES: DurableObjectNamespace<InviteDurableObject>;
   /** Secret: signs room codes so made-up codes are rejected before reaching a Durable Object. */
   ROOM_CODE_SECRET?: string;
-  /** Secret: `label:key` pairs, comma- or newline-separated. See README → Invites. */
+  /** Secret: `label:key` pairs, comma- or newline-separated. See docs/deployment.md → Managing invites. */
   INVITE_CODES?: string;
   /** The single public room pool: slots, per-visitor limit. */
   PUBLIC_POOL: DurableObjectNamespace<PublicPoolDurableObject>;

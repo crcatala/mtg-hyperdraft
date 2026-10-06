@@ -25,7 +25,7 @@
     { "tag": "v3", "new_sqlite_classes": ["PublicPoolDurableObject"] }
   ],
   // Secrets (not in this file): ROOM_CODE_SECRET, INVITE_CODES, and optionally ONLINE_ENABLED,
-  // PUBLIC_ROOMS_ENABLED, TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY (see README → Public rooms).
+  // PUBLIC_ROOMS_ENABLED, TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY (see docs/deployment.md).
   // Set them with `npx wrangler secret put <NAME>`; locally they come from .dev.vars.
   "observability": { "enabled": true }
 }
