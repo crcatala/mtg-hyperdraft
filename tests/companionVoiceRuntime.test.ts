@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { setCompanionSounds } from "../src/client/companionPrefs";
 import type * as CompanionVoice from "../src/client/companionVoice";
 import type * as Sfx from "../src/client/sfx";
 
@@ -85,6 +86,29 @@ describe("take identity", () => {
     expect(voice.playVoice("hex", "hello", { take: 2 })).toBeNull();
     expect(voice.playVoice("hex", "nosuchslot", { take: 0 })).toBeNull();
     expect(started).toEqual([]);
+  });
+});
+
+describe("the lobby hello", () => {
+  // Each case greets a companion whose voice hasn't loaded yet, so the hello waits on the download.
+  const flush = (id: string) => voice.loadVoice(id).then(() => new Promise((r) => setTimeout(r, 0)));
+
+  it("plays once the voice has loaded", async () => {
+    sfx.setMuted(false);
+    started.length = 0;
+    voice.sayHello("cinder");
+    await flush("cinder");
+    expect(started).toHaveLength(1);
+  });
+
+  it("stays silent if sounds are turned off while it is still loading", async () => {
+    sfx.setMuted(false);
+    started.length = 0;
+    voice.sayHello("crit");
+    setCompanionSounds(false);
+    await flush("crit");
+    expect(started).toEqual([]);
+    setCompanionSounds(true);
   });
 });
 

@@ -130,7 +130,8 @@ let helloFor = 0;
 /**
  * A companion greeting in the lobby: loads its voice if needed (the first one may come a beat late), then plays
  * its hello. Only one hello ever sounds: a new one cuts the last, and a hello still loading is dropped if another
- * was asked for in the meantime. Nothing (not even a download) while this player has companion sounds off.
+ * was asked for in the meantime. Nothing (not even a download) while this player has companion sounds off, and a
+ * hello still loading when they turn them off stays silent.
  */
 export function sayHello(id: string, variant = 0) {
   const mine = ++helloFor;
@@ -138,7 +139,7 @@ export function sayHello(id: string, variant = 0) {
   hello = null;
   if (!companionSounds()) return;
   void loadVoice(id).then(() => {
-    if (mine === helloFor) hello = playVoice(id, "hello", { variant });
+    if (mine === helloFor && companionSounds()) hello = playVoice(id, "hello", { variant });
   });
 }
 

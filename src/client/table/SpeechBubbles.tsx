@@ -44,7 +44,7 @@ export function SpeechBubbles() {
 
   return (
     <>
-      <EmoteAnnouncer />
+      <EmoteAnnouncer speech={speech} />
       {live.length > 0 && <Bubbles live={live} els={els.current} />}
     </>
   );
@@ -80,15 +80,17 @@ function Bubbles({ live, els }: { live: [string, Bubble][]; els: Map<string, HTM
  * Reads each new emote out once, as "Alice's Hex: Ten lives. You have one.", through a polite live region that is
  * always mounted (a region that appears along with its text isn't announced). Pokes and pick-ups are left out.
  */
-function EmoteAnnouncer() {
+function EmoteAnnouncer({ speech }: { speech: boolean }) {
   const bubbles = useBubbles((s) => s.bubbles);
   const [said, setSaid] = useState<{ id: number; text: string } | null>(null);
   useEffect(() => {
+    // say() puts up no bubbles while speech is off, but the announcer doesn't lean on that.
+    if (!speech) return;
     const next = nextAnnouncement(bubbles, said?.id ?? 0);
     if (!next) return;
     const player = useStore.getState().view?.players.find((p) => p.id === next.playerId);
     setSaid({ id: next.bubble.id, text: announcement(player?.name, companionDef(player?.companion)?.name, next.bubble.text) });
-  }, [bubbles, said]);
+  }, [bubbles, said, speech]);
   return (
     <div className="sr-only" role="log" aria-live="polite" aria-label="Companion emotes">
       {said && <p key={said.id}>{said.text}</p>}
