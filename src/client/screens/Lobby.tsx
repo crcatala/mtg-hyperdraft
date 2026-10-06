@@ -8,7 +8,6 @@ import { CardCarousel, type CarouselItem } from "../components/CardCarousel";
 import { CubeBrowser } from "../components/CubeBrowser";
 import { CharacterSelect, type PickTab } from "../components/CharacterSelect";
 import { ScrollArea } from "../components/ScrollArea";
-import { Tooltip } from "../components/Tooltip";
 import { CompanionIcon, PlayerFace, petFilter } from "../components/Persona";
 import { accentOf, avatarArt, avatarDef, companionDef, companionSmall, surprise } from "../roster";
 import { saveLook } from "../identity";
@@ -227,6 +226,8 @@ function CubePanel({ isHost }: { isHost: boolean }) {
   const send = useStore((s) => s.send);
   const [changing, setChanging] = useState(false);
   const [tab, setTab] = useState<SourceTab | null>(null);
+  // Kept here so a pasted list survives switching tiles or cancelling.
+  const [listSource, setListSource] = useState("");
   const [showMissing, setShowMissing] = useState(false);
   const [browsing, setBrowsing] = useState(false);
   const closeBrowser = useCallback(() => setBrowsing(false), []);
@@ -238,6 +239,7 @@ function CubePanel({ isHost }: { isHost: boolean }) {
   useEffect(() => {
     setChanging(false);
     setTab(null);
+    setListSource("");
   }, [cube?.importedAt]);
 
   // A handful of the cube's most exciting cards, for a visual "yes, this worked".
@@ -337,7 +339,7 @@ function CubePanel({ isHost }: { isHost: boolean }) {
               </button>
             </div>
             {tab === "set" && <SetImport running={running} onImport={(code) => importSource(`set:${code}`)} />}
-            {tab === "list" && <ListImport running={running} onImport={importSource} />}
+            {tab === "list" && <ListImport running={running} source={listSource} onSourceChange={setListSource} onImport={importSource} />}
           </div>
         )}
         {running && (
@@ -352,27 +354,23 @@ function CubePanel({ isHost }: { isHost: boolean }) {
 }
 
 /** A CubeCobra link or a pasted list. */
-function ListImport({ running, onImport }: { running: boolean; onImport: (source: string) => void }) {
+function ListImport({
+  running,
+  source,
+  onSourceChange: setSource,
+  onImport,
+}: {
+  running: boolean;
+  source: string;
+  onSourceChange: (source: string) => void;
+  onImport: (source: string) => void;
+}) {
   const solo = useStore((s) => s.mode === "solo");
-  const [source, setSource] = useState("");
-  const formats = (
-    <>
-      CubeCobra links, one card per line, "4 Card Name", Arena "Card (SET) 123" lines, CubeCobra CSV exports and "set:WTH". Card data is looked up on Scryfall
-      {solo ? " straight from your browser." : " and saved with the lobby."}
-    </>
-  );
   return (
     <div className="list-import">
-      <div className="list-import-head">
-        <label className="field-name" htmlFor="import">
-          CubeCobra link or card list
-        </label>
-        <Tooltip content={formats} placement="left">
-          <button type="button" className="btn ghost small icon-only" aria-label="Accepted formats">
-            <Icon name="help" />
-          </button>
-        </Tooltip>
-      </div>
+      <label className="field-name" htmlFor="import">
+        CubeCobra link or card list
+      </label>
       <textarea
         id="import"
         className="textarea"
@@ -394,6 +392,14 @@ function ListImport({ running, onImport }: { running: boolean; onImport: (source
           </button>
         ))}
       </div>
+      {/* A disclosure rather than a tooltip, so it opens with a tap too. */}
+      <details className="list-formats">
+        <summary>Accepted formats</summary>
+        <p className="field-hint">
+          CubeCobra links, one card per line, "4 Card Name", Arena "Card (SET) 123" lines, CubeCobra CSV exports and "set:WTH". Card data is looked up on Scryfall
+          {solo ? " straight from your browser." : " and saved with the lobby."}
+        </p>
+      </details>
     </div>
   );
 }
