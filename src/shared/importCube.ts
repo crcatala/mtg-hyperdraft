@@ -5,7 +5,7 @@
 import type { BasicLand } from "./types";
 import { BASIC_NAMES } from "./types";
 import { parseImport, type ImportEntry } from "./importParser";
-import { fetchCubeCobra, resolveEntries, toCardData, type FetchLike, type ResolveResult } from "./cardSources";
+import { fetchCubeCobra, resolveEntries, SCRYFALL_CARD_DELAY_MS, toCardData, type FetchLike, type ResolveResult } from "./cardSources";
 import { fetchSetCards, setLabel } from "./setSource";
 import type { ImportResult } from "./room";
 import { checkPreset, presetFor, presetPath } from "./presets";
@@ -60,6 +60,8 @@ export async function importCube(
   }
 
   const basicKeys = Object.keys(BASIC_NAMES) as BasicLand[];
+  // The card lookups just before this hit the same rate-limited Scryfall endpoints; a 429 here would sink the whole import.
+  await new Promise((r) => setTimeout(r, SCRYFALL_CARD_DELAY_MS));
   const basics = await resolveEntries(
     basicKeys.map((b) => ({ name: BASIC_NAMES[b], count: 1 })),
     fetchFn,

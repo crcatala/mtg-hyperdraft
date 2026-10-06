@@ -24,6 +24,7 @@ const CATALOG = [
   set("vma", "Vintage Masters", "masters", "2014-06-16", { digital: true }),
   set("pfra", "Reality Fracture Promos", "promo", "2026-09-01"),
   set("zzz9", "Upcoming Thing", "expansion", "2027-01-01", { card_count: 0 }),
+  set("plst", "The List", "masters", "2020-09-26", { card_count: 5663 }),
 ];
 const codes = (sets: ScryfallSet[]) => sets.map((s) => s.code);
 
@@ -47,6 +48,7 @@ describe("searchSets", () => {
     expect(codes(searchSets(CATALOG, "sld", false))).toEqual(["sld"]); // an exact code always shows
     expect(codes(searchSets(CATALOG, "", true))).not.toContain("pfra");
     expect(codes(searchSets(CATALOG, "", true))).not.toContain("zzz9");
+    expect(codes(searchSets(CATALOG, "the list", true))).toEqual([]); // too big to import
   });
 
   it("treats digital and non-booster types as other products", () => {
@@ -62,6 +64,7 @@ describe("lookupInCatalog", () => {
   it("answers known codes without Scryfall", () => {
     expect(lookupInCatalog("DSK", CATALOG)).toMatchObject({ state: "ok", code: "dsk" });
     expect(lookupInCatalog("tdsk", CATALOG)).toMatchObject({ state: "bad", message: expect.stringMatching(/token set/) });
+    expect(lookupInCatalog("PLST", CATALOG)).toMatchObject({ state: "bad", message: expect.stringMatching(/5,663 printings, too many/) });
     expect(lookupInCatalog("", CATALOG)).toEqual({ state: "idle" });
   });
 
