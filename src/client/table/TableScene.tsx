@@ -322,7 +322,7 @@ function SeatArea({ table, playerId, seat, seatCount, isMe, viewerAngle }: { tab
   const accent = look ? accentOf(look) : undefined;
   const tex = useMemo(() => matTexture(name, seatHue(seat), isMe, face, accent), [name, seat, isMe, face, accent]);
   const center = localToTable({ x: 0, y: 0 }, seat, seatCount);
-  // In the empty strip left of the battlefield, below the sideboard, so it never covers their cards.
+  // In the empty strip right of the battlefield, beyond the sideboard, so it never covers their cards.
   const offlineAt = localToTable({ x: PILE_LOCAL.sideboard.x, y: -1.5 }, seat, seatCount);
   const angle = seatAngle(seat, seatCount);
   const player = table.players[playerId];
