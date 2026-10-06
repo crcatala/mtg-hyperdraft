@@ -874,6 +874,10 @@ kbd {
   pointer-events: none;
   animation: preview-in 0.12s ease-out;
 }
+/* Previewing a card listed in a dialog: above the dialog (800), below the zoom carousel (850). */
+.preview-pane.over-dialog {
+  z-index: 820;
+}
 @keyframes preview-in {
   from {
     opacity: 0;
