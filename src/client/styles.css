@@ -556,8 +556,10 @@ kbd {
 .card.glow.r-rare .card-inner {
   box-shadow: 0 0 0 2px var(--r-rare), 0 0 22px rgba(244, 197, 91, 0.45), 0 6px 18px rgba(0, 0, 0, 0.5);
 }
+/* Mythics: the halo leans orange at the top left and violet at the bottom right, matching the
+   gradient ring drawn below (a box-shadow ring can only be one colour). */
 .card.glow.r-mythic .card-inner {
-  box-shadow: 0 0 0 2px var(--r-mythic), 0 0 28px rgba(255, 122, 61, 0.55), 0 6px 18px rgba(0, 0, 0, 0.5);
+  box-shadow: -4px -5px 24px rgba(255, 122, 61, 0.5), 4px 5px 26px rgb(var(--violet-rgb) / 0.45), 0 6px 18px rgba(0, 0, 0, 0.5);
 }
 .card.glow.r-special .card-inner {
   box-shadow: 0 0 0 2px var(--r-special), 0 0 24px rgba(215, 123, 255, 0.5), 0 6px 18px rgba(0, 0, 0, 0.5);
@@ -569,20 +571,41 @@ kbd {
   box-shadow: 0 0 0 3px var(--red), 0 0 30px rgba(255, 93, 108, 0.7) !important;
 }
 
-/* rare shine sweep */
-.card.glow.r-rare .card-inner::after,
+/* Mythic ring: orange into violet, drawn just inside the edge so it tilts with the card. */
 .card.glow.r-mythic .card-inner::after {
   content: "";
   position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(135deg, #ffb36b, var(--r-mythic) 35%, #e2577e 65%, var(--violet));
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Rares catch the light once as you hover them (mythics and foils have the holo layer instead). */
+.card.tilt.glow.r-rare .card-inner::after {
+  content: "";
+  position: absolute;
   inset: -50%;
+  z-index: 3;
   background: linear-gradient(115deg, transparent 42%, rgba(255, 245, 210, 0.38) 50%, transparent 58%);
   transform: translateX(-60%);
-  animation: sweep 4.5s ease-in-out infinite;
   pointer-events: none;
-  z-index: 3;
 }
-.card.glow.r-mythic .card-inner::after {
-  animation-duration: 3.2s;
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .card.tilt.glow.r-rare:hover .card-inner::after {
+    animation: hover-sweep 0.7s ease-out forwards;
+  }
+}
+@keyframes hover-sweep {
+  to {
+    transform: translateX(60%);
+  }
 }
 @keyframes sweep {
   0%,

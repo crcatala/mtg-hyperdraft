@@ -3,7 +3,7 @@ import { HALF_H, HALF_W, PACK_T, TEAR_Y, buildPeelPath, halfThickness, peelOffse
 import { COMMIT_AT, MAX_RATE, autoStep, dirFromGrab, progressAt, soundSpeed, stepFront } from "../src/client/pack/tearGesture";
 import { wants3dPack } from "../src/client/pack/support";
 import { analyze, jitter, normalizeGain, pickTake, SILENCE } from "../src/client/sfxMath";
-import { RARITY_RANK, revealSchedule } from "../src/client/revealSchedule";
+import { RARITY_RANK, revealSchedule, standouts } from "../src/client/revealSchedule";
 import type { Rarity } from "../src/shared/types";
 
 describe("pack shape", () => {
@@ -163,5 +163,21 @@ describe("reveal chimes", () => {
     // A pack of all one rarity has nothing standing out, so no chime spam.
     const flat = revealSchedule(ranks(Array<Rarity>(15).fill("rare")));
     expect(flat.reveals.some((r) => r.notable || r.highlight)).toBe(false);
+  });
+});
+
+describe("standout cards", () => {
+  const ranks = (rs: Rarity[]) => rs.map((r) => RARITY_RANK[r]);
+  it("picks at most the rarest two, and only when they're rarer than the rest of the pack", () => {
+    expect(standouts(ranks(["common", "common", "uncommon", "rare", "mythic"]))).toEqual([false, false, false, true, true]);
+    // A cube pack of rares: only the mythics stand out.
+    expect(standouts(ranks([...Array<Rarity>(12).fill("rare"), "mythic", "mythic", "mythic"])).filter(Boolean)).toHaveLength(2);
+    expect(standouts(ranks(Array<Rarity>(15).fill("rare"))).some(Boolean)).toBe(false);
+    // Uncommons never stand out, however rare they are for the pack.
+    expect(standouts(ranks(["common", "common", "uncommon"])).some(Boolean)).toBe(false);
+  });
+  it("matches the opening's highlights", () => {
+    const rs = ranks([...Array<Rarity>(10).fill("common"), ...Array<Rarity>(3).fill("uncommon"), "rare", "mythic"]);
+    expect(revealSchedule(rs).reveals.map((r) => r.highlight)).toEqual(standouts(rs));
   });
 });

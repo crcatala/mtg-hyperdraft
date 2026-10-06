@@ -52,11 +52,21 @@ function median(xs: number[]): number {
   return s[Math.floor((s.length - 1) / 2)];
 }
 
+/**
+ * Which cards stand out in a pack: rare or better, rarer than the pack's typical card, and among its
+ * rarest two. `ranks` are RARITY_RANKs in reveal order (rarest last). The opening gives these the
+ * big effects; a passed pack has them catch the light as they land.
+ */
+export function standouts(ranks: number[]): boolean[] {
+  const typical = median(ranks);
+  return ranks.map((rank, k) => k >= ranks.length - MAX_HIGHLIGHTS && rank >= RARITY_RANK.rare && rank > typical);
+}
+
 /** `ranks` are the RARITY_RANKs of the cards in reveal order (rarest last). */
 export function revealSchedule(ranks: number[]): RevealSchedule {
   const n = ranks.length;
   const typical = median(ranks);
-  const highlight = ranks.map((rank, k) => k >= n - MAX_HIGHLIGHTS && rank >= RARITY_RANK.rare && rank > typical);
+  const highlight = standouts(ranks);
   const deals = ranks.map((_, i) => i * DEAL_STAGGER_MS);
   let t = n * DEAL_STAGGER_MS + DEAL_TAIL_MS;
   const reveals: RevealStep[] = [];
