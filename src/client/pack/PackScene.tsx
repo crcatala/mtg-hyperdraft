@@ -267,7 +267,8 @@ function Rig({ art, firstSignal, openSignal, interactive, onTorn, onDone }: Pack
 
   // The stack of cards inside, only ever seen through the torn mouth.
   const stack = useMemo(() => {
-    const back = backTexture();
+    // The theme's card back, like the cards that fly out of the pack (the table keeps its own).
+    const back = backTexture(art.theme);
     const sideX = paperEdge(true);
     const sideY = paperEdge(false);
     const clip = new THREE.Plane();
@@ -276,7 +277,7 @@ function Rig({ art, firstSignal, openSignal, interactive, onTorn, onDone }: Pack
     const materials = [mk(sideX), mk(sideX), mk(sideY), mk(sideY), face(back), face(back)];
     const geo = new THREE.BoxGeometry(PACK_W * 0.82, STACK_H, 0.2);
     return { geo, materials, clip, dispose: () => (geo.dispose(), materials.forEach((m) => m.dispose()), sideX.dispose(), sideY.dispose()) };
-  }, []);
+  }, [art.theme]);
   useEffect(() => () => stack.dispose(), [stack]);
 
   // Room-lit reflections for the foil.

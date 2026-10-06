@@ -246,57 +246,145 @@ export function useCardTexture(card: CardData | undefined, face: number, token?:
 
 // --- static textures ------------------------------------------------------------------------
 
-let back: Entry | null = null;
-function backEntry(): Entry {
-  if (back) return back;
+/**
+ * A card back for each UI theme, matching CardBack's CSS in that theme (styles.css and themes/*.css).
+ * The table always uses Arcane's (the 3D table isn't themed); the pack opening uses the theme's, so
+ * the cards inside match the ones that fly out of it.
+ */
+interface BackLook {
+  /** Diagonal background gradient, top left to bottom right. */
+  bg: [string, string, string];
+  /** Sunburst rays (alternating colours), or diagonal pinstripes. */
+  rays: [string, string] | null;
+  stripes?: string;
+  /** Soft glow behind the ring. */
+  glow: string | null;
+  ring: string;
+  ringWidth: number;
+  ink: string;
+  inkGlow: string | null;
+  font: string;
+  border: string;
+}
+
+const BACK_LOOKS: Record<string, BackLook> = {
+  arcane: {
+    bg: ["#2a1f52", "#120d24", "#0b0716"],
+    rays: ["rgba(143,107,255,0.08)", "rgba(244,197,91,0.08)"],
+    glow: "rgba(143,107,255,0.7)",
+    ring: "rgba(244,197,91,0.75)",
+    ringWidth: 9,
+    ink: "#ffdf8e",
+    inkGlow: "rgba(244,197,91,0.8)",
+    font: "800 50px Cinzel, Georgia, serif",
+    border: "#0d0a18",
+  },
+  gamenight: {
+    bg: ["#6e1f1a", "#3a0f0c", "#230807"],
+    rays: ["rgba(201,161,90,0.08)", "rgba(201,161,90,0.08)"],
+    glow: "rgba(201,161,90,0.2)",
+    ring: "#c9a15a",
+    ringWidth: 9,
+    ink: "#e2c285",
+    inkGlow: null,
+    font: '800 52px "Alegreya SC", Georgia, serif',
+    border: "#140605",
+  },
+  signal: {
+    bg: ["#1a1b1d", "#131415", "#0c0d0e"],
+    rays: null,
+    stripes: "rgba(242,242,238,0.04)",
+    glow: null,
+    ring: "#d4f53c",
+    ringWidth: 7,
+    ink: "#f2f2ee",
+    inkGlow: null,
+    font: '900 48px Archivo, "Helvetica Neue", Arial, sans-serif',
+    border: "#0a0a0b",
+  },
+};
+
+const backs = new Map<string, Entry>();
+function backEntry(theme = "arcane"): Entry {
+  const look = BACK_LOOKS[theme] ?? BACK_LOOKS.arcane;
+  const key = BACK_LOOKS[theme] ? theme : "arcane";
+  const hit = backs.get(key);
+  if (hit) return hit;
   const [c, ctx] = canvas();
   roundRect(ctx, 0, 0, TW, TH, 24);
   const g = ctx.createLinearGradient(0, 0, TW, TH);
-  g.addColorStop(0, "#2a1f52");
-  g.addColorStop(0.6, "#120d24");
-  g.addColorStop(1, "#0b0716");
+  g.addColorStop(0, look.bg[0]);
+  g.addColorStop(0.6, look.bg[1]);
+  g.addColorStop(1, look.bg[2]);
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.save();
-  ctx.translate(TW / 2, TH * 0.45);
-  for (let i = 0; i < 30; i++) {
-    ctx.rotate((Math.PI * 2) / 30);
-    ctx.fillStyle = i % 2 ? "rgba(244,197,91,0.08)" : "rgba(143,107,255,0.08)";
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-30, -400);
-    ctx.lineTo(30, -400);
-    ctx.fill();
+  if (look.rays) {
+    ctx.save();
+    ctx.translate(TW / 2, TH * 0.45);
+    for (let i = 0; i < 30; i++) {
+      ctx.rotate((Math.PI * 2) / 30);
+      ctx.fillStyle = look.rays[i % 2];
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-30, -400);
+      ctx.lineTo(30, -400);
+      ctx.fill();
+    }
+    ctx.restore();
   }
-  ctx.restore();
-  const rg = ctx.createRadialGradient(TW / 2, TH * 0.45, 10, TW / 2, TH * 0.45, 220);
-  rg.addColorStop(0, "rgba(143,107,255,0.7)");
-  rg.addColorStop(1, "rgba(143,107,255,0)");
-  ctx.fillStyle = rg;
-  ctx.fillRect(0, 0, TW, TH);
-  ctx.strokeStyle = "rgba(244,197,91,0.75)";
-  ctx.lineWidth = 9;
+  if (look.stripes) {
+    ctx.save();
+    roundRect(ctx, 0, 0, TW, TH, 24);
+    ctx.clip();
+    ctx.strokeStyle = look.stripes;
+    ctx.lineWidth = 2;
+    for (let x = -TH; x < TW; x += 14) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + TH, TH);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (look.glow) {
+    const rg = ctx.createRadialGradient(TW / 2, TH * 0.45, 10, TW / 2, TH * 0.45, 220);
+    rg.addColorStop(0, look.glow);
+    rg.addColorStop(1, look.glow.replace(/[\d.]+\)$/, "0)"));
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, TW, TH);
+  }
+  ctx.strokeStyle = look.ring;
+  ctx.lineWidth = look.ringWidth;
   ctx.beginPath();
   ctx.arc(TW / 2, TH * 0.45, 150, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.fillStyle = "#ffdf8e";
-  ctx.shadowColor = "rgba(244,197,91,0.8)";
-  ctx.shadowBlur = 20;
+  ctx.fillStyle = look.ink;
+  if (look.inkGlow) {
+    ctx.shadowColor = look.inkGlow;
+    ctx.shadowBlur = 20;
+  } else {
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowOffsetY = 3;
+  }
   ctx.textAlign = "center";
-  ctx.font = "800 50px Cinzel, Georgia, serif";
+  ctx.font = look.font;
   ctx.fillText("HYPER", TW / 2, TH * 0.45 - 4);
   ctx.fillText("DRAFT", TW / 2, TH * 0.45 + 50);
+  ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = "#0d0a18";
+  ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = look.border;
   ctx.lineWidth = 26;
   roundRect(ctx, 0, 0, TW, TH, 24);
   ctx.stroke();
-  back = { texture: finish(new THREE.CanvasTexture(c)), image: false, listeners: new Set() };
-  return back;
+  const entry: Entry = { texture: finish(new THREE.CanvasTexture(c)), image: false, listeners: new Set() };
+  backs.set(key, entry);
+  return entry;
 }
 
-export function backTexture(): THREE.Texture {
-  return backEntry().texture;
+/** The card back: Arcane's on the table, or a UI theme's (see BACK_LOOKS). */
+export function backTexture(theme = "arcane"): THREE.Texture {
+  return backEntry(theme).texture;
 }
 
 export function feltTexture(): THREE.Texture {
