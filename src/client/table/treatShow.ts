@@ -12,7 +12,7 @@ import { serverNow, useStore } from "../store";
 import { treatSound } from "../treatSounds";
 import { cancelPet, cancelPress } from "./companionCarry";
 import { closeEmoteWheel } from "./companionEmote";
-import { cancelMachinePress, resetMachineCarry } from "./machineCarry";
+import { cancelMachinePress, dropUnconfirmedMove, resetMachineCarry } from "./machineCarry";
 import { playReaction, stopReaction } from "./companionPlayback";
 import { say, voice } from "./companionTalk";
 import { tableApi } from "./drag";
@@ -101,10 +101,12 @@ export function syncVendFromView() {
 /** A treat was bought: play the show. */
 export function receiveTreat(spec: TreatShowSpec) {
   // Anything in hand ends: a press on a companion (before it could lift it), a carried companion (it goes back),
-  // the machine if it's being moved (back where it was: it fires from there), the emote wheel.
+  // the machine if it's being moved (back where it was: it fires from there), or just put down somewhere the room
+  // turned away, the emote wheel.
   cancelPress();
   cancelPet();
   cancelMachinePress();
+  dropUnconfirmedMove();
   closeEmoteWheel();
   clearShowTimers();
   const show = startShowState(spec);

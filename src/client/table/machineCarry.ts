@@ -194,6 +194,21 @@ export function cancelMachine() {
   treatSound("denied");
 }
 
+/**
+ * A treat show is starting: a move the room hasn't confirmed by now never will be. The room handles one message at a
+ * time and sends the state after each change, so a move it took before the purchase is already in the state by the
+ * time the show arrives; one it gets after is turned away (no moving mid-show). So a just-landed spot the state
+ * doesn't have goes back at once, with a shake, rather than standing there through the launch (the treat would fire
+ * from it, and could land on it).
+ */
+export function dropUnconfirmedMove() {
+  if (!landed) return;
+  const stored = useStore.getState().view?.table?.players[me()]?.machineAt;
+  if (stored && Math.abs(stored.x - landed.at.x) < 0.02 && Math.abs(stored.y - landed.at.y) < 0.02) return;
+  landed = null;
+  beat("nope");
+}
+
 function endCarry() {
   carry = null;
   document.body.classList.remove("dragging");

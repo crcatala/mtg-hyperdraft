@@ -147,6 +147,31 @@ describe("moving your Treatomancer (tap for the menu, hold or drag to carry it, 
     expect(classes.has("dragging")).toBe(false);
   });
 
+  it("a show starting before the room took a just-landed move puts it back at once (the room turned the move away)", () => {
+    press();
+    vi.advanceTimersByTime(HOLD_MS);
+    fire("pointermove", 1, OPEN.x, OPEN.y);
+    fire("pointerup", 1, OPEN.x, OPEN.y);
+    expect(machineTarget(HOME, undefined)).toMatchObject(OPEN);
+    // Someone else's purchase got to the room first: the show arrives with the state still at home.
+    receiveTreat({ by: "u2", treat: "moonlit-macaron", seed: 1, at: { x: 0, y: 0 }, racers: [] });
+    expect(machineTarget(HOME, undefined)).toEqual({ x: HOME.x, y: HOME.y, carried: false, invalid: false });
+    expect(machineBeat.kind).toBe("nope");
+  });
+
+  it("a move the room took before the purchase stays put when the show arrives", () => {
+    press();
+    vi.advanceTimersByTime(HOLD_MS);
+    fire("pointermove", 1, OPEN.x, OPEN.y);
+    fire("pointerup", 1, OPEN.x, OPEN.y);
+    const at = (sent.at(-1) as { at: { x: number; y: number } }).at;
+    // The room's state (sent right after it took the move) arrives first, then the show.
+    seatTable({ table: { seats: ["me", "u2"], players: { me: { machineAt: at } } } } as unknown as Partial<RoomView>);
+    receiveTreat({ by: "u2", treat: "moonlit-macaron", seed: 1, at: { x: 0, y: 0 }, racers: [] });
+    expect(machineTarget(HOME, at)).toMatchObject(at);
+    expect(machineBeat.kind).toBe("land");
+  });
+
   it("can't be lifted without a seat", () => {
     useStore.setState({ view: { you: "me", phase: "playing", players: [{ id: "me", name: "Alice" }], table: { seats: ["u2"], players: {} } } as unknown as RoomView });
     press();
