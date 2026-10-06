@@ -26,7 +26,9 @@ rooms, uncomment `PUBLIC_ROOMS_ENABLED` (and optionally the Turnstile test keys)
 `npm run dev`. `.dev.vars` is only created once, so copy those lines from `.dev.vars.example` if yours is older.
 
 **Solo playtest:** click **Play solo vs bots** on the home page, then **Quick start** (loads the bundled
-Hypercube and readies you up). Press <kbd>`</kbd> (backtick) for the debug console: **Skip to table** jumps
+Hypercube and readies you up). The debug console is hidden from players: open the app once with `?debug`
+(e.g. `http://localhost:3000/?debug`) and this browser remembers it; `?debug=0` or its **Turn off** button
+hides it again. Then press <kbd>`</kbd> (backtick) or the bug icon for the console: **Skip to table** jumps
 straight to the tabletop with an auto-built deck, and **Slow-motion card animations** runs every card
 animation 6× slower for tuning them. The same tools work in online rooms.
 
@@ -83,7 +85,8 @@ src/
     music.ts         background music: one playlist (public/music/) that plays across every screen
     components/SettingsDialog.tsx   player settings modal (tabs: Appearance, Sound)
     components/MusicPlayer.tsx      the music player: corner pill, expands to a bar along the bottom
-    debug/           debug console (bug icon, bottom right)
+    debug/           debug console (bug icon, bottom right; only after a visit with ?debug)
+    debugAccess.ts   whether this browser shows the debug console (?debug turns it on, ?debug=0 off)
     theme.ts         UI themes: which one is active and remembered, ?theme= previews, Alt+Shift+T
     themes/          theme overrides (Game Night, Signal) on top of styles.css + screens.css (Arcane)
 ```

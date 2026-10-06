@@ -7,6 +7,7 @@ import { initSoundPack } from "./soundPacks";
 import { initMusic } from "./music";
 import { initVolumes } from "./volume";
 import { initCompanionPrefs } from "./companionPrefs";
+import { initDebugAccess } from "./debugAccess";
 import "./styles.css";
 import "./screens.css";
 import "./persona.css";
@@ -14,6 +15,7 @@ import "./themes/gamenight.css";
 import "./themes/signal.css";
 
 captureInviteFromUrl();
+initDebugAccess();
 initTheme();
 installThemeShortcut();
 initSoundPack();

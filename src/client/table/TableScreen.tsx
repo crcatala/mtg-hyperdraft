@@ -28,6 +28,7 @@ import type { IconName } from "../icons";
 import type { CardData, Color, LogEntry, LogKind, LogMark, TableCard, TokenDef, ZoneName } from "../../shared/types";
 import { COLORS, ZONE_LABELS } from "../../shared/types";
 import { isControl, shortcutsBlocked } from "../shortcuts";
+import { useDebugAccess } from "../debugAccess";
 import { CompanionIcon, PlayerFace } from "../components/Persona";
 
 export function TableScreen() {
@@ -1273,12 +1274,14 @@ const SHORTCUTS: [string, string][] = [
   ["1–4 · V", "View from a seat (1 is yours) · look down on the whole table"],
   ["Home", "Reset the camera"],
   ["Alt+Shift+T", "Switch UI theme (or open Settings, next to Help)"],
-  ["` (backtick)", "Debug console"],
 ];
+/** Only listed where the debug console is turned on (?debug). */
+const DEBUG_SHORTCUT: [string, string] = ["` (backtick)", "Debug console"];
 
 function HelpOverlay() {
   const help = useTableUi((s) => s.help);
   const set = useTableUi((s) => s.set);
+  const debugTools = useDebugAccess();
   if (!help) return null;
   return (
     <div className="modal-backdrop" onPointerDown={(e) => e.target === e.currentTarget && set({ help: false })}>
@@ -1291,7 +1294,7 @@ function HelpOverlay() {
           </button>
         </div>
         <dl className="shortcut-list">
-          {SHORTCUTS.map(([k, v]) => (
+          {(debugTools ? [...SHORTCUTS, DEBUG_SHORTCUT] : SHORTCUTS).map(([k, v]) => (
             <div key={k}>
               <dt>
                 <kbd>{k}</kbd>
