@@ -31,6 +31,17 @@ rooms, uncomment `PUBLIC_ROOMS_ENABLED` (and optionally the Turnstile test keys)
 **Multiple players on one machine:** open the room link with `?as=2`, `?as=3`… in other tabs. Each alias
 is a separate player identity (the debug console has links).
 
+**From another machine:** the dev server only listens on `localhost`. Pass `--host` and list the hostnames you
+will use in the `__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS` environment variable (comma-separated; a leading dot
+allows subdomains; IP addresses always work). Set it in your shell, since Vite doesn't read it from `.env` files:
+
+```bash
+export __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=my-machine,.example.internal
+npm run dev -- --host
+```
+
+Local dev uses a well-known invite key, so only expose it on a trusted network.
+
 ## Debug tools
 
 The debug console is hidden from players: open the app once with `?debug` (e.g.
