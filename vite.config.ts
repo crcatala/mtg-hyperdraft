@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { cloudflare } from "@cloudflare/vite-plugin";
@@ -15,5 +16,7 @@ export default defineConfig(({ mode }) => ({
   test: {
     include: ["tests/**/*.test.ts"],
     environment: "node",
+    // Durable Object tests run on in-memory stand-ins for the Workers runtime.
+    alias: { "cloudflare:workers": fileURLToPath(new URL("./tests/worker/fakeRuntime.ts", import.meta.url)) },
   },
 }));

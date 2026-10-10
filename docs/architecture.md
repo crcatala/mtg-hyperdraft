@@ -25,6 +25,7 @@ src/
     invites.ts       invite codes, quotas, "My rooms" ledger, idle expiry
     publicRooms.ts   public room pool: slots, per-visitor rule, IPv6 /64 grouping
     rateLimit.ts     token buckets for flood control in rooms
+    presence.ts      when a room wakes to check for dead sockets, and when it goes quiet and sleeps
     roster.ts        the avatars and table companions (names, backstories, colours, ids)
     scene.ts         the tables and environments players can pick (ids, labels, defaults)
     treats.ts        the Treatomancer: treats, glimmers, companion lines, the race planner
@@ -95,5 +96,7 @@ src/
   requests, so dropping alone isn't enough. A dragged group of cards is one message, however many cards.
 - **Nothing wakes a room by accident.** Room codes carry HMAC check characters, so the Worker rejects
   made-up codes without touching a Durable Object; the draft clock pauses (no alarms) while no humans are
-  connected, so an abandoned draft waits for you; alarms are only rewritten when the deadline changes, and
+  connected, so an abandoned draft waits for you; the check for dead sockets runs once a minute only while
+  someone has joined or acted in the last 10 minutes (a tab left open overnight lets the room sleep, and the
+  next join or message settles presence at once); alarms are only rewritten when the deadline changes, and
   an overdue deadline that doesn't advance backs off instead of re-firing in a loop.
