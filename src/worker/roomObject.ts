@@ -8,6 +8,7 @@ import { inviteStub, publicPoolStub, type Env } from "./env";
 import { CLOSE, clientMessageSchema, type ClientMessage, type ServerMessage } from "../shared/protocol";
 import { createRoomState, Room, RoomError, SeatClaimNeeded, type RoomOwner } from "../shared/room";
 import { FloodControl } from "../shared/rateLimit";
+import { presenceSweepAt } from "../shared/presence";
 import { durationLabel, PUBLIC_LIMITS } from "../shared/publicRooms";
 import type { CardData, CardMap, RoomState } from "../shared/types";
 import { importCube } from "../shared/importCube";
@@ -22,6 +23,8 @@ interface Attachment {
   sid?: string;
   /** When the socket joined (counts as its first sign of life, before any heartbeat). */
   since?: number;
+  /** When this socket last sent a message (heartbeats don't count): keeps presence sweeps going. */
+  active?: number;
   /** Closed by the heartbeat sweep; its close event may never arrive, so ignore it from now on. */
   stale?: boolean;
 }
@@ -43,11 +46,10 @@ const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
  * ever arrives). Generous because browsers throttle timers in background tabs to once a minute.
  */
 const HEARTBEAT_STALE_MS = 90 * 1000;
-/**
- * How often to look for stale sockets while anyone is connected. Each sweep is an alarm that wakes
- * the room (pings alone don't), so keep it infrequent: a dead socket is noticed within 90-150 s.
- */
-const PRESENCE_SWEEP_MS = 60 * 1000;
+/** A message refreshes the socket's "last active" stamp at most this often: drags send up to 20 a second. */
+const ACTIVE_REFRESH_MS = 30 * 1000;
+/** Messages and joins settle presence first, but no more often than this. */
+const SWEEP_ON_MESSAGE_MS = 5 * 1000;
 /** Messages that never change room state, so they don't spend the room's write budget. */
 const STATELESS: ReadonlySet<ClientMessage["t"]> = new Set(["ping", "drag", "point", "poke", "emote", "petMove", "petCancel", "vend"]);
 const FLOOD_MESSAGE = "You were disconnected for sending too many messages. Wait a minute, then reload to rejoin.";
@@ -57,6 +59,8 @@ export class RoomDurableObject extends DurableObject<Env> {
   private pushed: Pushed = { key: "", at: 0 };
   /** Flood control, in memory only (see shared/rateLimit.ts). */
   private flood = new FloodControl(Date.now());
+  /** When presence was last settled (in memory: a room that just woke has not). */
+  private sweptAt = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -155,6 +159,10 @@ export class RoomDurableObject extends DurableObject<Env> {
         return new Response(null, { status: 101, webSocket: client });
       }
 
+      // Sweeps stop in a quiet room, so a seat whose device died meanwhile still reads as taken.
+      // Settle that first, or the joiner can't claim it.
+      await this.sweepStaleSockets();
+
       try {
         const joined = this.room.join({
           playerId: url.searchParams.get("pid") ?? undefined,
@@ -201,6 +209,10 @@ export class RoomDurableObject extends DurableObject<Env> {
     }
     if (!parsed.success) return this.sendTo(ws, { t: "error", message: "Invalid message." });
     if (!this.allow(ws, att, parsed.data)) return;
+    const now = Date.now();
+    if (parsed.data.t !== "ping" && now - (att.active ?? 0) >= ACTIVE_REFRESH_MS) ws.serializeAttachment({ ...att, active: now } satisfies Attachment);
+    // After a quiet spell (no sweeps) a dead device may still hold a seat: settle presence before acting.
+    if (now - this.sweptAt >= SWEEP_ON_MESSAGE_MS) await this.sweepStaleSockets();
 
     const result = room.handle(att.playerId, parsed.data);
     for (const out of result.outbound) {
@@ -213,6 +225,9 @@ export class RoomDurableObject extends DurableObject<Env> {
       this.broadcastState();
       await this.scheduleAlarm();
       await this.pushSummary(true);
+    } else {
+      // Any message makes a quiet room active again: start the presence sweeps.
+      await this.scheduleAlarm();
     }
     if (result.importSource) void this.runImport(result.importSource);
   }
@@ -260,9 +275,10 @@ export class RoomDurableObject extends DurableObject<Env> {
   /** Closes sockets that stopped sending heartbeats and marks their players as disconnected. */
   private async sweepStaleSockets() {
     const now = Date.now();
+    this.sweptAt = now;
     for (const ws of this.liveSockets()) {
       const att = ws.deserializeAttachment() as Attachment;
-      const heard = Math.max(this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0, att.since ?? 0);
+      const heard = Math.max(this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0, att.since ?? 0, att.active ?? 0);
       if (now - heard < HEARTBEAT_STALE_MS) continue;
       try {
         ws.serializeAttachment({ ...att, stale: true } satisfies Attachment);
@@ -395,12 +411,19 @@ export class RoomDurableObject extends DurableObject<Env> {
         next = Math.max(next, now + 50);
       }
     }
-    // While anyone is connected, wake up now and then to catch silently dropped sockets. An alarm
-    // already due soon enough is kept, so frequent reschedules don't keep pushing the sweep back.
-    if (this.liveSockets().length > 0) {
-      const sweep = current !== null && current > now && current <= now + PRESENCE_SWEEP_MS ? current : now + PRESENCE_SWEEP_MS;
-      next = next === null ? sweep : Math.min(next, sweep);
-    }
+    // While the room is in use, wake up now and then to catch silently dropped sockets. They stop
+    // once nobody has joined or sent a message for a while (see shared/presence.ts), so a tab left
+    // open overnight lets the room hibernate.
+    const live = this.liveSockets();
+    const lastActivity = Math.max(0, ...live.map((ws) => {
+      const att = ws.deserializeAttachment() as Attachment;
+      return Math.max(att.active ?? 0, att.since ?? 0);
+    }));
+    // Public rooms never go quiet: a silently dead last player must still start the idle countdown, or
+    // the room would hold one of the few public slots until its hard expiry. They are capped at a few
+    // rooms of a few hours, so this stays a small, bounded number of wake-ups.
+    const sweep = presenceSweepAt(current, now, live.length, closeAt !== null ? now : lastActivity);
+    if (sweep !== null) next = next === null ? sweep : Math.min(next, sweep);
     // Public rooms close on time even if nothing else would wake them.
     if (closeAt !== null) next = next === null ? Math.max(closeAt, now + 50) : Math.min(next, Math.max(closeAt, now + 50));
     if (next === current) return;
