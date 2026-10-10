@@ -5,6 +5,7 @@ import { createRoom, deleteRoom, fetchInvite, forgetInvite, InviteError, loadInv
 import { createPublicRoom, fetchPublicStatus, loadMine, loadPublicStatus, PublicRoomError, rememberMine, useTurnstile } from "../publicRooms";
 import { forgetRoom, loadRecent, mergeRooms, rememberRoom, type RoomEntry } from "../recentRooms";
 import { clockTime } from "../expiry";
+import { APP_SHA, APP_VERSION } from "../buildInfo";
 import { navigate } from "../router";
 import { useStore } from "../store";
 import { Icon } from "../components/Icon";
@@ -113,6 +114,9 @@ export function Home() {
         Card data &amp; images courtesy of <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a>. Cubes from{" "}
         <a href="https://cubecobra.com" target="_blank" rel="noreferrer">CubeCobra</a>. HyperDraft is unofficial Fan Content permitted under the Wizards of the Coast Fan
         Content Policy; not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.
+        <div className="home-build">
+          v{APP_VERSION} · {APP_SHA}
+        </div>
       </footer>
     </div>
   );

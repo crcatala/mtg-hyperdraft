@@ -1,6 +1,7 @@
 // Cubes bundled with the site as static JSON snapshots (public/presets/<id>.json), so a first-time
-// visitor can start drafting with one click and no Scryfall/CubeCobra lookups.
-// Regenerate with `npm run presets:build`.
+// visitor can start drafting with one click and no Scryfall/CubeCobra lookups. The snapshots are built
+// before `build`/`deploy` (scripts/build-presets.mjs) and gitignored: they carry Scryfall card data.
+// Refresh them with `npm run presets:build`.
 
 import type { ImportResult } from "./room";
 

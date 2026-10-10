@@ -20,7 +20,7 @@ group of friends can host HyperDraft without paying anything.
    ```
 2. **Deploy:**
    ```bash
-   npm run deploy      # = vite build && wrangler deploy
+   npm run deploy      # = refresh the Hypercube snapshot from CubeCobra/Scryfall, then vite build && wrangler deploy
    ```
    The first deploy creates the `hyperdraft` Worker and applies the Durable Object migrations (`v1`
    `RoomDurableObject`, `v2` `InviteDurableObject`, `v3` `PublicPoolDurableObject`). Wrangler prints the
