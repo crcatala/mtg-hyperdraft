@@ -7,7 +7,7 @@ import { DurableObject } from "cloudflare:workers";
 import { inviteStub, publicPoolStub, type Env } from "./env";
 import { CLOSE, clientMessageSchema, type ClientMessage, type ServerMessage } from "../shared/protocol";
 import { createRoomState, Room, RoomError, SeatClaimNeeded, type RoomOwner } from "../shared/room";
-import { FloodControl } from "../shared/rateLimit";
+import { FloodControl, type FloodSnapshot } from "../shared/rateLimit";
 import { presenceSweepAt } from "../shared/presence";
 import { durationLabel, PUBLIC_LIMITS } from "../shared/publicRooms";
 import type { CardData, CardMap, RoomState } from "../shared/types";
@@ -52,13 +52,33 @@ const ACTIVE_REFRESH_MS = 30 * 1000;
 const SWEEP_ON_MESSAGE_MS = 5 * 1000;
 /** Messages that never change room state, so they don't spend the room's write budget. */
 const STATELESS: ReadonlySet<ClientMessage["t"]> = new Set(["ping", "drag", "point", "poke", "emote", "petMove", "petCancel", "vend"]);
+/**
+ * Anything longer is treated as junk without being parsed. The biggest real message is a cube import
+ * (the schema allows 200,000 characters of pasted list), so this sits just above that.
+ */
+const MAX_MESSAGE_CHARS = 256 * 1024;
+/** While anyone is throttled, the flood snapshot is saved at most this often (a close always saves). */
+const FLOOD_SAVE_MS = 2000;
 const FLOOD_MESSAGE = "You were disconnected for sending too many messages. Wait a minute, then reload to rejoin.";
+
+/** A client message, or null for anything oversized, unparseable or not in the protocol. */
+function parseMessage(data: string | ArrayBuffer): ClientMessage | null {
+  try {
+    const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+    if (text.length > MAX_MESSAGE_CHARS) return null;
+    const parsed = clientMessageSchema.safeParse(JSON.parse(text));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
 
 export class RoomDurableObject extends DurableObject<Env> {
   private room: Room | null = null;
   private pushed: Pushed = { key: "", at: 0 };
   /** Flood control, in memory only (see shared/rateLimit.ts). */
   private flood = new FloodControl(Date.now());
+  private floodSavedAt = 0;
   /** When presence was last settled (in memory: a room that just woke has not). */
   private sweptAt = 0;
 
@@ -68,7 +88,7 @@ export class RoomDurableObject extends DurableObject<Env> {
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     // With hibernation the constructor runs on every wake-up, so keep this to a couple of reads.
     ctx.blockConcurrencyWhile(async () => {
-      const head = await ctx.storage.get<unknown>(["state", "cardChunks", "pushed"]);
+      const head = await ctx.storage.get<unknown>(["state", "cardChunks", "pushed", "flood"]);
       const state = head.get("state") as RoomState | undefined;
       if (!state) return;
       const chunks = (head.get("cardChunks") as number | undefined) ?? 0;
@@ -79,6 +99,12 @@ export class RoomDurableObject extends DurableObject<Env> {
         for (const list of stored.values()) for (const c of list) cards[c.id] = c;
       }
       this.room = new Room(state, cards, { now: () => Date.now(), rng: cryptoRng });
+      // Eviction forgets nothing about flooders: pick their budgets and penalties up again.
+      const floodSnap = head.get("flood") as FloodSnapshot | undefined;
+      if (floodSnap) {
+        const sids = new Set(this.liveSockets().map((ws) => (ws.deserializeAttachment() as Attachment).sid ?? ""));
+        this.flood.restore(floodSnap, Date.now(), sids);
+      }
 
       // Sockets can drop without close events (deploys, restarts). Trust the sockets we still hold.
       const here = new Set(this.liveSockets().map((ws) => (ws.deserializeAttachment() as Attachment).playerId));
@@ -152,8 +178,9 @@ export class RoomDurableObject extends DurableObject<Env> {
       }
 
       // A player just closed for flooding waits out the penalty before rejoining.
-      const rejoining = url.searchParams.get("pid") ?? url.searchParams.get("claim");
-      if (rejoining && this.flood.penalized(rejoining, Date.now())) {
+      // Both identities are checked: a made-up pid must not hide the seat being claimed.
+      const rejoining = [url.searchParams.get("pid"), url.searchParams.get("claim")];
+      if (rejoining.some((id) => id && this.flood.penalized(id, Date.now()))) {
         this.sendTo(server, { t: "closed", code: CLOSE.flood, message: FLOOD_MESSAGE });
         server.close(CLOSE.flood, "too many messages");
         return new Response(null, { status: 101, webSocket: client });
@@ -201,20 +228,18 @@ export class RoomDurableObject extends DurableObject<Env> {
     const att = ws.deserializeAttachment() as Attachment | null;
     if (!room || !att) return;
 
-    let parsed;
-    try {
-      parsed = clientMessageSchema.safeParse(JSON.parse(typeof data === "string" ? data : new TextDecoder().decode(data)));
-    } catch {
-      return this.sendTo(ws, { t: "error", message: "Malformed message." });
-    }
-    if (!parsed.success) return this.sendTo(ws, { t: "error", message: "Invalid message." });
-    if (!this.allow(ws, att, parsed.data)) return;
+    // Every message is charged before it is trusted, junk included: otherwise unparseable messages
+    // would wake the room and cost a request each without ever touching a limit. Junk counts as a
+    // state-changing message (the strictest bucket) and is answered only while within budget.
+    const msg = parseMessage(data);
+    if (!(await this.allow(ws, att, msg))) return;
+    if (!msg) return this.sendTo(ws, { t: "error", message: "Invalid message." });
     const now = Date.now();
-    if (parsed.data.t !== "ping" && now - (att.active ?? 0) >= ACTIVE_REFRESH_MS) ws.serializeAttachment({ ...att, active: now } satisfies Attachment);
+    if (msg.t !== "ping" && now - (att.active ?? 0) >= ACTIVE_REFRESH_MS) ws.serializeAttachment({ ...att, active: now } satisfies Attachment);
     // After a quiet spell (no sweeps) a dead device may still hold a seat: settle presence before acting.
     if (now - this.sweptAt >= SWEEP_ON_MESSAGE_MS) await this.sweepStaleSockets();
 
-    const result = room.handle(att.playerId, parsed.data);
+    const result = room.handle(att.playerId, msg);
     for (const out of result.outbound) {
       if (out.to === "self") this.sendTo(ws, out.msg);
       else if (out.to === "player") this.sendToPlayer(out.playerId, out.msg);
@@ -334,9 +359,12 @@ export class RoomDurableObject extends DurableObject<Env> {
    * Flood control (see shared/rateLimit.ts). Over budget, the message is dropped and the sender told
    * to slow down, at most every few seconds; a socket that keeps flooding is closed.
    */
-  private allow(ws: WebSocket, att: Attachment, msg: ClientMessage): boolean {
+  private async allow(ws: WebSocket, att: Attachment, msg: ClientMessage | null): Promise<boolean> {
     const sid = att.sid ?? att.playerId;
-    const { verdict, notice } = this.flood.check(sid, att.playerId, !STATELESS.has(msg.t), Date.now());
+    const now = Date.now();
+    const { verdict, notice } = this.flood.check(sid, att.playerId, !msg || !STATELESS.has(msg.t), now);
+    // Saved only under pressure (a drop, a close, or a bucket nearly empty): honest play never writes.
+    if (verdict !== "ok" || this.flood.pressured(now)) await this.saveFlood(now, verdict === "close");
     if (verdict === "ok") return true;
     if (notice) this.sendTo(ws, { t: "error", message: "Whoa, too many actions at once. Give it a second." });
     if (verdict === "close") {
@@ -350,6 +378,12 @@ export class RoomDurableObject extends DurableObject<Env> {
       void this.handleDisconnect(ws);
     }
     return false;
+  }
+
+  private async saveFlood(now: number, force: boolean) {
+    if (!force && now - this.floodSavedAt < FLOOD_SAVE_MS) return;
+    this.floodSavedAt = now;
+    await this.ctx.storage.put("flood", this.flood.snapshot(now));
   }
 
   // --- imports --------------------------------------------------------------------------------

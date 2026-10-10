@@ -161,7 +161,10 @@ HyperDraft is built to stay inside Cloudflare's free Workers plan:
   exception: they keep checking once a minute while anyone is connected, so a device that dies silently still
   starts the 15-minute idle countdown and the room hands its slot back instead of holding it for 3 hours.
 - **Flood control** caps every room at 10 messages/s and 1 state change/s sustained (state changes are
-  what cost storage writes). See [Architecture](architecture.md#how-it-fits-together).
+  what cost storage writes). Every message is charged before it is read, so junk counts too, and the budgets
+  and the one-minute rejoin penalty survive the room being evicted from memory: while anyone is being throttled
+  the room saves a small snapshot (at most every 2 seconds), and normal play never writes one. See
+  [Architecture](architecture.md#how-it-fits-together).
 
 **The gotcha:** when any Durable Object free-tier daily limit is exceeded, Durable Object calls fail for
 the **whole account** until the daily reset (00:00 UTC). Every room stops working, not just the busy one.
@@ -176,8 +179,15 @@ The flood limits put a ceiling on what a single room can cost, even if someone h
 | Free daily limit | One room-hour, worst case | Why |
 |---|---|---|
 | Duration, 13,000 GB-s | about 450 GB-s | one Durable Object kept awake for an hour |
-| Storage writes, 100k rows | about 3,600 + bursts | 1 state change/s |
+| Storage writes, 100k rows | about 16,000 in an invite room, about 9,000 in a public room | 1 state change/s, each costing rows (see below) |
 | Requests, 100k | about 1,800 for messages handled | 10 messages/s ÷ 20 (WebSocket messages bill 20:1) |
+
+One accepted state change can write several rows: the room state, the alarm when a deadline moved and, in an
+invite room, the "last pushed summary" marker and the invite's room ledger (in another Durable Object, but on the
+same account). That is up to 4 rows per change in an invite room and up to 2 in a public room. On top of
+that come flood snapshots (only while someone is being throttled, at most one every 2 seconds, so up to 1,800 an
+hour) and about 60 presence alarms. So 3,600 × 4 + 1,800 + 60 is about 16,000 for an invite room and
+3,600 × 2 + 1,800 + 60 is about 9,000 for a public one. About six flooded invite room-hours use up a day's row allowance.
 
 Duration is the one firm ceiling: it's wall-clock time, so a room awake for an hour costs the same however
 hard it's flooded, and roughly 28 room-hours awake in a day would use it up. The other two rows count only
@@ -200,12 +210,15 @@ the night before, every one of them flooded) they reach about 21 room-hours:
 | Free daily limit | Typical day (12 room-hours) | Worst-case day (about 21 room-hours) |
 |---|---|---|
 | Duration, 13,000 GB-s | about 5,400 GB-s (42%) | about 9,450 GB-s (73%) |
-| Storage writes, 100k rows | about 44,000 (44%) | about 76,000 (76%), plus bursts |
+| Storage writes, 100k rows | about 108,000 (108%) | about 189,000 (189%) |
 | Requests, 100k | about 22,000 (22%) for messages handled | about 38,000 (38%) for messages handled |
 
-The same exclusions apply: dropped messages, connections, Worker requests (each create attempt without
-Turnstile also wakes the pool), and any invite rooms in use that day all come on top. Public rooms can't
-exceed the limits on their own, but on a bad day they leave little room for invite rooms. If you open
+The writes row is above 100% on purpose: it assumes every public room is flooded at the write limit for its
+whole life, which is the worst case. Duration and requests stay inside the free allowance, but a determined
+flooder who keeps public rooms busy could use up the day's storage writes (about 11 room-hours of full flooding),
+which stops online rooms until 00:00 UTC. It can't cost money on the free plan. The same exclusions apply:
+dropped messages, connections, Worker requests (each create attempt without Turnstile also wakes the pool), and any
+invite rooms in use that day all come on top. On a bad day public rooms leave little room for invite rooms. If you open
 them to the internet, set up [Turnstile](#optional-turnstile-bot-check) and, on a custom domain, a
 [rate-limiting rule](#optional-a-rate-limiting-rule).
 

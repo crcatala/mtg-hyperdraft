@@ -28,6 +28,7 @@ async function openRoom(opts: { public?: boolean } = {}) {
     ctx.ping(ws);
     return ws;
   };
+  const sendRaw = (ws: FakeSocket, text: string) => room.webSocketMessage(ws as unknown as WebSocket, text);
   /** The runtime evicts a hibernating object and builds a new one over the same storage and sockets. */
   const hibernate = async () => {
     room = make();
@@ -51,7 +52,7 @@ async function openRoom(opts: { public?: boolean } = {}) {
     return wakes;
   };
 
-  return { ctx, join, send, players, wait, hibernate, released };
+  return { ctx, join, send, sendRaw, players, wait, hibernate, released };
 }
 
 function received(ws: FakeSocket): ServerMessage[] {
@@ -216,5 +217,100 @@ describe("flood control on the Durable Object", () => {
     const back = await join({ pid: you, secret });
     expect(back.closed).toBeNull();
     expect(welcome(back).you).toBe(you);
+  });
+});
+
+describe("flood control: junk, eviction and mixed identities", () => {
+  const errors = (ws: FakeSocket) => received(ws).filter((m) => m.t === "error").length;
+  const flood = async (send: (ws: FakeSocket, m: ClientMessage) => Promise<void>, ws: FakeSocket) => {
+    for (let i = 0; i < RATE_LIMITS.socket.capacity + RATE_LIMITS.floodDrops + 5; i++) await send(ws, { t: "setReady", ready: i % 2 === 0 });
+  };
+
+  it("charges unparseable, unknown and oversized messages, so a junk flood is closed like any other", async () => {
+    const { join, sendRaw } = await openRoom();
+    const flooder = await join({ name: "Flooder" });
+
+    for (let i = 0; i < RATE_LIMITS.socket.capacity + RATE_LIMITS.floodDrops + 5; i++) {
+      await sendRaw(flooder, i % 3 === 0 ? "not json" : i % 3 === 1 ? JSON.stringify({ t: "nope" }) : "x".repeat(300_000));
+    }
+
+    expect(flooder.closed?.code).toBe(CLOSE.flood);
+    // Junk inside the budget is still answered, a few times, not on every message.
+    expect(errors(flooder)).toBeLessThan(70);
+  });
+
+  it("still accepts a large legitimate message, like a pasted cube list", async () => {
+    const { join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+
+    await send(host, { t: "import", source: "4 Lightning Bolt\n".repeat(11_000) });
+
+    expect(received(host).filter((m) => m.t === "error" && m.message === "Invalid message.")).toEqual([]);
+  });
+
+  it("does not reset a drained budget when the object is evicted and woken", async () => {
+    const { ctx, join, send, hibernate } = await openRoom();
+    const host = await join({ name: "Host" });
+
+    // Push one socket through its long-term budget, a second of simulated time at a time.
+    for (let second = 0; second < 600 && errors(host) === 0; second++) {
+      for (let i = 0; i < 30; i++) await send(host, { t: "ping" });
+      vi.setSystemTime(Date.now() + 1000);
+      ctx.ping(host);
+    }
+    expect(errors(host)).toBeGreaterThan(0);
+
+    await hibernate();
+    const before = errors(host);
+    // Paced at 20 a second so the short-term burst limit is never what stops it: only the long-term budget can.
+    for (let second = 0; second < 10; second++) {
+      for (let i = 0; i < 20; i++) await send(host, { t: "ping" });
+      vi.setSystemTime(Date.now() + 1000);
+      ctx.ping(host);
+    }
+
+    // A fresh long-term budget (3,000) would let all 200 through silently.
+    expect(errors(host)).toBeGreaterThan(before);
+  });
+
+  it("keeps a flood penalty through eviction", async () => {
+    const { join, send, hibernate } = await openRoom();
+    await join({ name: "Host" });
+    const flooder = await join({ name: "Flooder" });
+    const { you, secret } = welcome(flooder);
+    await flood(send, flooder);
+    expect(flooder.closed?.code).toBe(CLOSE.flood);
+
+    await hibernate();
+    const refused = await join({ pid: you, secret });
+
+    expect(refused.closed?.code).toBe(CLOSE.flood);
+  });
+
+  it("refuses a penalized seat claimed behind a made-up pid", async () => {
+    const { join, send } = await openRoom();
+    await join({ name: "Host" });
+    const flooder = await join({ name: "Flooder" });
+    const { you } = welcome(flooder);
+    await flood(send, flooder);
+
+    const sneaky = await join({ pid: "made-up", claim: you });
+
+    expect(sneaky.closed?.code).toBe(CLOSE.flood);
+  });
+
+  it("writes no flood snapshot during an honest minute of dragging", async () => {
+    const { ctx, join, send } = await openRoom();
+    const host = await join({ name: "Host" });
+
+    // 20 drag-rate messages a second for a minute.
+    for (let i = 0; i < 1200; i++) {
+      await send(host, { t: "ping" });
+      vi.setSystemTime(Date.now() + 50);
+    }
+
+    expect(ctx.storage.data.has("flood")).toBe(false);
+    expect(host.closed).toBeNull();
+    expect(errors(host)).toBe(0);
   });
 });

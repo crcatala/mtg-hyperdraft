@@ -91,8 +91,11 @@ src/
   - the whole room to 10 messages/s, and to bursts of 120 state changes at 1/s sustained. State changes
     are what cost storage writes, the scarcest free-plan quota.
 
+  Every message is charged before it is read, so unparseable or oversized junk counts like a state change.
   Extra messages are dropped with a "slow down" notice. A socket that keeps going over its own limits is
-  closed, and that player can't rejoin for a minute. Dropped messages still wake the room and count as
+  closed, and that player (by player id or by the seat they claim) can't rejoin for a minute. Budgets and
+  penalties are saved to storage while anyone is being throttled, at most every 2 seconds, and restored when
+  an evicted room wakes (`FloodControl.snapshot`/`restore`), so pausing doesn't refill them. Dropped messages still wake the room and count as
   requests, so dropping alone isn't enough. A dragged group of cards is one message, however many cards.
 - **Nothing wakes a room by accident.** Room codes carry HMAC check characters, so the Worker rejects
   made-up codes without touching a Durable Object; the draft clock pauses (no alarms) while no humans are
