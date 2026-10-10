@@ -2,7 +2,18 @@ import { describe, expect, it } from "vitest";
 import { importCube } from "../src/shared/importCube";
 import type { ScryfallCard } from "../src/shared/cardSources";
 import { PRESET_CUBES, presetFor, presetSource } from "../src/shared/presets";
-import hypercube from "../public/presets/hypercube.json";
+import type { ImportResult } from "../src/shared/room";
+import { makeCard } from "./fixtures";
+
+// Stands in for the real snapshot, which is generated at build time and never committed (npm run presets:build).
+// The test checks the plumbing (path, parsing, pool and basics), not card data.
+function snapshotStandIn(poolSize: number): ImportResult {
+  const pool = Array.from({ length: poolSize }, (_, i) => makeCard(i));
+  const basicNames = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest", C: "Wastes" } as const;
+  const basics = Object.entries(basicNames).map(([, name], i) => makeCard(poolSize + i, { name, typeLine: `Basic Land — ${name}` }));
+  const basicIds = Object.fromEntries(Object.keys(basicNames).map((key, i) => [key, basics[i].id]));
+  return { name: "Hypercube", source: "stand-in", cards: [...pool, ...basics], pool: pool.map((c) => c.id), notFound: [], warnings: [], basics: basicIds };
+}
 
 function scry(name: string): ScryfallCard {
   return { id: `id-${name}`, name, layout: "normal", rarity: "common", set: "tst", collector_number: "1", type_line: "Card", colors: [] };
@@ -34,9 +45,10 @@ describe("importCube", () => {
   it("loads bundled presets from static assets without touching Scryfall", async () => {
     const preset = PRESET_CUBES[0];
     const calls: string[] = [];
+    const standIn = snapshotStandIn(preset.cards);
     const asset = async (path: string) => {
       calls.push(path);
-      return new Response(JSON.stringify(hypercube));
+      return new Response(JSON.stringify(standIn));
     };
     const res = await importCube(presetSource(preset.id), async () => { throw new Error("no network"); }, () => {}, asset);
     expect(calls).toEqual([`/presets/${preset.id}.json`]);

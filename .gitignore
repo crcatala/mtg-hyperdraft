@@ -9,3 +9,6 @@ dist/
 
 # Companion voice candidates and their audition page: auditioned, never committed
 scripts/roster/voice-candidates/
+
+# Preset cube snapshots carry Scryfall/Wizards card text: generated at build time (npm run presets:build), never committed
+public/presets/*.json

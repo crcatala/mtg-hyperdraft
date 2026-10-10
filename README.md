@@ -194,18 +194,22 @@ generally aren't accepted. See [CONTRIBUTING.md](CONTRIBUTING.md). To report a v
 
 ## Credits
 
-- Card data and images courtesy of [Scryfall](https://scryfall.com) (please respect their
-  [API guidelines](https://scryfall.com/docs/api)); cubes from [CubeCobra](https://cubecobra.com).
+- Card data and images courtesy of [Scryfall](https://scryfall.com). The app follows their
+  [API guidelines](https://scryfall.com/docs/api): it identifies itself in requests, stays under their rate
+  limits, and doesn't blur, recolor or watermark card images. Cubes come from [CubeCobra](https://cubecobra.com).
+- The bundled Hypercube starter cube is built from CubeCobra's list and Scryfall's card data when the site is
+  built or deployed. The snapshot isn't stored in this repository.
 - Mana symbols from the MIT-licensed [Mana font](https://github.com/andrewgioia/mana).
 - Rules help shows short excerpts from the [MTG Wiki](https://mtg.wiki) (CC BY-NC-SA 4.0, credited and
   linked in place) and never copies the Comprehensive Rules.
-- Background music (`public/music/`) was generated with [Suno](https://suno.com); the files carry Suno's
-  C2PA provenance metadata. Suno's terms for generated tracks depend on the plan they were made under, so
-  check the current terms before using them commercially or redistributing them outside this free project.
+- Background music (`public/music/`) was generated with [Suno](https://suno.com) on a Pro plan. Suno's terms
+  give commercial rights only to songs made on a paid plan and downloaded from Suno. The music isn't covered
+  by this project's MIT license; it stays under Suno's terms, so check them before reusing a track.
 - Sound effects and companion voices were generated with
-  [ElevenLabs](https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert).
-- Avatar and companion art is AI-generated (prompts in `scripts/roster/roster.json`); treat art was
-  generated with GPT Image.
+  [ElevenLabs](https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert) on a paid plan. Its
+  terms leave the output with the user, and paid-plan output can be used commercially.
+- Avatar and companion art is AI-generated with OpenAI's GPT Image model (prompts in
+  `scripts/roster/roster.json`).
 
 Magic: The Gathering is a trademark of Wizards of the Coast LLC. Keep it free: don't paywall or monetize
 anything built on this data.

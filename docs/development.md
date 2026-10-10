@@ -235,4 +235,12 @@ is a file in `public/music/` plus an entry in `TRACKS` (a test checks they match
 ## Bundled cubes
 
 Cubes bundled as static snapshots live in `public/presets/*.json` and are listed in
-`src/shared/presets.ts`. Refresh them, or add a new one, with `npm run presets:build`.
+`src/shared/presets.ts`. The snapshots are gitignored and generated, not committed, because they carry
+Scryfall card data:
+
+- `npm run dev` builds any missing snapshot first. Offline, it warns and carries on, and the starter cube is
+  unavailable until a build fetches it.
+- `npm run build` builds any missing snapshot (`prebuild`). An existing file is kept.
+- `npm run deploy` refreshes every snapshot first (`predeploy`). If CubeCobra or Scryfall can't be reached,
+  the deploy stops rather than shipping without the starter cube.
+- `npm run presets:build` refreshes them by hand. To add a cube, add an entry to `PRESET_CUBES`.
