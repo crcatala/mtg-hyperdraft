@@ -198,7 +198,8 @@ generally aren't accepted. See [CONTRIBUTING.md](CONTRIBUTING.md). To report a v
   [API guidelines](https://scryfall.com/docs/api): it identifies itself in requests, stays under their rate
   limits, and doesn't blur, recolor or watermark card images. Cubes come from [CubeCobra](https://cubecobra.com).
 - The bundled Hypercube starter cube is built from CubeCobra's list and Scryfall's card data when the site is
-  built or deployed. The snapshot isn't stored in this repository.
+  built or deployed. The snapshot isn't in the current tree, but earlier commits in this repository's history
+  still contain a copy of it.
 - Mana symbols from the MIT-licensed [Mana font](https://github.com/andrewgioia/mana).
 - Rules help shows short excerpts from the [MTG Wiki](https://mtg.wiki) (CC BY-NC-SA 4.0, credited and
   linked in place) and never copies the Comprehensive Rules.

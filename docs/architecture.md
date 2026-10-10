@@ -67,7 +67,7 @@ src/
   room's Durable Object. The **bundled Hypercube** (`public/presets/hypercube.json`, ~80 KB gzipped) skips
   those lookups: one click, loaded as a static file by the browser (solo) or through the Worker's `ASSETS`
   binding (online rooms). It's generated from CubeCobra and Scryfall when the site is built or deployed
-  (gitignored, so the repo never holds the card data). Refresh it, or add presets to `src/shared/presets.ts`, with
+  (gitignored, so the current tree doesn't hold the card data; earlier commits do). Refresh it, or add presets to `src/shared/presets.ts`, with
   `npm run presets:build`. **Images** are loaded lazily by each browser straight from Scryfall's CDN; until
   an image arrives, cards are drawn from their text (name, cost, type, rules, P/T).
 - **Reconnects:** your seat is remembered in `localStorage` per room, so refreshing or closing the tab
