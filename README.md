@@ -160,7 +160,8 @@ limit makes things stop working rather than sending you a bill:
 - **Rooms sleep between moves.** Room websockets hibernate, the draft clock pauses when nobody is
   connected, and forged room codes are rejected without waking a Durable Object.
 - **Every room is rate limited.** A room handles at most 10 messages/s and saves at most 1 change/s
-  sustained. A room kept awake for a whole hour uses about 450 of the 13,000 GB-s daily Durable Object
+  sustained (junk messages count too, and the limits survive the room being evicted). One change can write several
+  storage rows, so a flooded invite room is at most about 16,000 of the 100,000 daily rows per hour. A room kept awake for a whole hour uses about 450 of the 13,000 GB-s daily Durable Object
   duration limit, however hard it's flooded. Messages it drops, reconnects and new connections still
   count as requests, and these figures are per room, so they add up when several rooms are busy at once.
 - **Public rooms have a daily budget** of 12 room-hours of new rooms. Rooms opened late in the day can
