@@ -419,7 +419,10 @@ export class RoomDurableObject extends DurableObject<Env> {
       const att = ws.deserializeAttachment() as Attachment;
       return Math.max(att.active ?? 0, att.since ?? 0);
     }));
-    const sweep = presenceSweepAt(current, now, live.length, lastActivity);
+    // Public rooms never go quiet: a silently dead last player must still start the idle countdown, or
+    // the room would hold one of the few public slots until its hard expiry. They are capped at a few
+    // rooms of a few hours, so this stays a small, bounded number of wake-ups.
+    const sweep = presenceSweepAt(current, now, live.length, closeAt !== null ? now : lastActivity);
     if (sweep !== null) next = next === null ? sweep : Math.min(next, sweep);
     // Public rooms close on time even if nothing else would wake them.
     if (closeAt !== null) next = next === null ? Math.max(closeAt, now + 50) : Math.min(next, Math.max(closeAt, now + 50));

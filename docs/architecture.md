@@ -98,5 +98,6 @@ src/
   made-up codes without touching a Durable Object; the draft clock pauses (no alarms) while no humans are
   connected, so an abandoned draft waits for you; the check for dead sockets runs once a minute only while
   someone has joined or acted in the last 10 minutes (a tab left open overnight lets the room sleep, and the
-  next join or message settles presence at once); alarms are only rewritten when the deadline changes, and
+  next join or message settles presence at once; public rooms keep checking so their slot is never held by a
+  dead socket); alarms are only rewritten when the deadline changes, and
   an overdue deadline that doesn't advance backs off instead of re-firing in a loop.

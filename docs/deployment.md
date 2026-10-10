@@ -157,7 +157,9 @@ HyperDraft is built to stay inside Cloudflare's free Workers plan:
 - **Quiet rooms sleep.** A room in use checks for silently dead sockets once a minute, but only until 10
   minutes pass with no joins or messages. A tab left open overnight then lets the room hibernate instead of
   waking it every minute; its heartbeats are answered without waking it. The next join or message checks
-  right away, so a player whose device died in the meantime frees their seat at once.
+  right away, so a player whose device died in the meantime frees their seat at once. Public rooms are the
+  exception: they keep checking once a minute while anyone is connected, so a device that dies silently still
+  starts the 15-minute idle countdown and the room hands its slot back instead of holding it for 3 hours.
 - **Flood control** caps every room at 10 messages/s and 1 state change/s sustained (state changes are
   what cost storage writes). See [Architecture](architecture.md#how-it-fits-together).
 
