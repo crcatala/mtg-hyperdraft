@@ -1,9 +1,10 @@
-// Every Durable Object alarm goes through one scheduler that floors, backs off and caps it (see
-// RoomDurableObject.scheduleAlarm). A setAlarm() anywhere else can loop and bill without those
-// limits, so this fails CI if one appears. To allow a new call, route it through the scheduler
-// instead, or add it below with a comment saying what bounds it.
+// Every Durable Object alarm goes through one scheduler that floors, backs off, spaces wake-ups at least
+// 2 s apart and checks the kill switch (RoomDurableObject.scheduleAlarm). A setAlarm() anywhere else can
+// loop and bill without those limits, so this fails CI if a direct call appears outside the methods
+// below. It reads names, not types, so `storage["setAlarm"]` or an aliased method would slip past: don't.
+// To allow a new call, route it through the scheduler instead, or add it below saying what bounds it.
 import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
@@ -14,7 +15,6 @@ const SRC = fileURLToPath(new URL("../../src", import.meta.url));
 const ALLOWED: Record<string, string[]> = {
   "worker/roomObject.ts#scheduleAlarm": ["setAlarm", "deleteAlarm"],
   "worker/roomObject.ts#destroy": ["deleteAlarm"],
-  "worker/roomObject.ts#closeIfOffline": ["deleteAlarm"],
 };
 
 function sourceFiles(dir: string): string[] {
@@ -39,7 +39,7 @@ function alarmCalls() {
     const visit = (node: ts.Node) => {
       if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
         const name = node.expression.name.text;
-        if (name === "setAlarm" || name === "deleteAlarm") found.push(`${relative(SRC, file)}#${enclosing(node)}: ${name}`);
+        if (name === "setAlarm" || name === "deleteAlarm") found.push(`${relative(SRC, file).split(sep).join("/")}#${enclosing(node)}: ${name}`);
       }
       ts.forEachChild(node, visit);
     };

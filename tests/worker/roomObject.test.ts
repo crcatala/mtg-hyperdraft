@@ -6,6 +6,8 @@ import { CLOSE, type ClientMessage, type ServerMessage } from "../../src/shared/
 import { RATE_LIMITS } from "../../src/shared/rateLimit";
 import { PUBLIC_LIMITS } from "../../src/shared/publicRooms";
 import type { RoomState } from "../../src/shared/types";
+import type { ImportResult, Room } from "../../src/shared/room";
+import { basicIds, makeCube } from "../fixtures";
 
 const CODE = "TESTROOM";
 const MINUTE = 60 * 1000;
@@ -37,12 +39,14 @@ async function openRoom(opts: { public?: boolean } = {}) {
   const players = () => (ctx.storage.data.get("state") as RoomState).players;
 
   /** Lets time pass, firing alarms as they come due. `alive` keep heartbeating; others are silent. */
+  const wakeLog: number[] = [];
   const wait = async (ms: number, alive: FakeSocket[]) => {
     const end = Date.now() + ms;
     let wakes = 0;
     for (let at = ctx.storage.alarm; at !== null && at <= end; at = ctx.storage.alarm) {
       vi.setSystemTime(at);
       for (const ws of alive) ctx.ping(ws);
+      wakeLog.push(at);
       await room.alarm();
       wakes++;
     }
@@ -51,7 +55,14 @@ async function openRoom(opts: { public?: boolean } = {}) {
     return wakes;
   };
 
-  return { ctx, env, join, send, players, wait, hibernate, released, object: () => room };
+  /** The runtime later delivers a close event for each socket the room closed; the fake doesn't, so tests do. */
+  const deliverCloses = async () => {
+    for (const ws of ctx.sockets) if (ws.closed) await room.webSocketClose(ws as unknown as WebSocket);
+  };
+  /** The pure room inside the Durable Object, to set up a draft or simulate a bug. */
+  const engine = () => (room as unknown as { room: Room }).room;
+
+  return { ctx, env, join, send, players, wait, wakeLog, deliverCloses, hibernate, released, engine };
 }
 
 function received(ws: FakeSocket): ServerMessage[] {
@@ -219,36 +230,122 @@ describe("flood control on the Durable Object", () => {
   });
 });
 
+function importResult(): ImportResult {
+  const cards = Object.values(makeCube(400));
+  return { name: "Test Cube", source: "test", cards, pool: cards.filter((c) => !c.id.startsWith("basic")).map((c) => c.id), notFound: [], warnings: [], basics: basicIds };
+}
+
+/** Two players in a draft with the given fixed pick timer, neither of them picking. */
+async function timedDraft(pickTimerSec: number) {
+  const opened = await openRoom();
+  const a = await opened.join({ name: "A" });
+  const b = await opened.join({ name: "B" });
+  opened.engine().applyImport(importResult());
+  await opened.send(a, { t: "config", draft: { pickTimerSec, timerStyle: "fixed" } });
+  for (const ws of [a, b]) await opened.send(ws, { t: "setReady", ready: true });
+  expect(opened.engine().state.phase).toBe("drafting");
+  const picks = (ws: FakeSocket) => opened.engine().state.draft!.picks[welcome(ws).you].length;
+  return { ...opened, a, b, picks };
+}
+
 describe("alarm guardrails", () => {
-  it("caps how often the alarm can fire, even if the room keeps asking to be woken right away", async () => {
-    const { join, wait, object } = await openRoom();
+  it("never wakes more than once every 2 s, even if the room keeps asking to be woken right away", async () => {
+    const { join, wait, wakeLog, engine } = await openRoom();
     const a = await join({ name: "A" });
     // A bug that always "advances" with a deadline already due would otherwise re-fire every 50 ms.
-    const room = (object() as unknown as { room: { tick(): boolean; nextAlarm(): number } }).room;
+    const room = engine();
     room.tick = () => true;
     room.nextAlarm = () => Date.now();
 
     const wakes = await wait(10 * MINUTE, [a]);
 
-    expect(wakes).toBeLessThanOrEqual(10 * 30 + 1);
+    // The first wake is the presence sweep a minute in; from then on about one every 2 s: not more
+    // (the cap), and not many fewer (the room still works).
+    expect(wakes).toBeGreaterThanOrEqual(265);
+    expect(wakes).toBeLessThanOrEqual(301);
+    for (let i = 1; i < wakeLog.length; i++) expect(wakeLog[i] - wakeLog[i - 1]).toBeGreaterThanOrEqual(2000);
   });
 
-  it("turns off rooms that are already running when the kill switch is flipped", async () => {
-    const { ctx, env, join, send, wait } = await openRoom();
+  it("keeps the fastest allowed pick timer (1 s) going, auto-picking at most 2 s apart", async () => {
+    const { a, b, picks, wait, wakeLog } = await timedDraft(1);
+
+    await wait(MINUTE, [a, b]);
+
+    // Without the gap that would be 60 picks each; with it, about 30, and never a stall.
+    for (const ws of [a, b]) expect(picks(ws)).toBeGreaterThanOrEqual(29);
+    for (let i = 1; i < wakeLog.length; i++) expect(wakeLog[i] - wakeLog[i - 1]).toBeLessThanOrEqual(2000);
+  });
+
+  it("leaves normal pick timers exactly on time", async () => {
+    const { a, b, picks, wait, wakeLog, engine } = await timedDraft(30);
+    const deadline = engine().nextAlarm()!;
+
+    await wait(31 * 1000, [a, b]);
+
+    expect(wakeLog).toContain(deadline);
+    for (const ws of [a, b]) expect(picks(ws)).toBe(1);
+  });
+
+  it("turns off rooms that are already running when the kill switch is flipped, and they come back after", async () => {
+    const { ctx, env, join, send, wait, deliverCloses } = await openRoom();
     const a = await join({ name: "A" });
     const b = await join({ name: "B" });
     expect(ctx.storage.alarm).not.toBeNull();
 
     env.ONLINE_ENABLED = "false";
     await wait(2 * MINUTE, [a, b]);
-
-    expect(ctx.storage.alarm).toBeNull();
     for (const ws of [a, b]) expect(ws.closed?.code).toBe(CLOSE.offline);
+    // The close events that follow must not re-arm the alarm.
+    await deliverCloses();
+    expect(ctx.storage.alarm).toBeNull();
     // The room is kept, so it picks up again when online rooms come back.
     expect(ctx.storage.data.has("state")).toBe(true);
 
-    const before = ctx.storage.data.get("state");
+    delete env.ONLINE_ENABLED;
+    const back = await join({ pid: welcome(a).you, secret: welcome(a).secret });
+    expect(back.closed).toBeNull();
+    expect(ctx.storage.alarm).not.toBeNull();
+    await send(back, { t: "setReady", ready: true });
+    expect(back.closed).toBeNull();
+  });
+
+  it("stops a looping room for good when the kill switch is flipped", async () => {
+    const { ctx, env, join, wait, deliverCloses, engine } = await openRoom();
+    const a = await join({ name: "A" });
+    const room = engine();
+    room.tick = () => true;
+    room.nextAlarm = () => Date.now();
+    expect(await wait(2 * MINUTE, [a])).toBeGreaterThan(20);
+
+    env.ONLINE_ENABLED = "false";
+    await wait(10 * 1000, [a]);
+    // Close events, a reconnecting constructor or a stray message all schedule through the same place.
+    await deliverCloses();
+
+    expect(ctx.storage.alarm).toBeNull();
+    expect(await wait(10 * MINUTE, [])).toBe(0);
+  });
+
+  it("closes a socket that sends a message after the switch is flipped, before any alarm fires", async () => {
+    const { env, join, send } = await openRoom();
+    const a = await join({ name: "A" });
+
+    env.ONLINE_ENABLED = "false";
     await send(a, { t: "setReady", ready: true });
-    expect(ctx.storage.data.get("state")).toEqual(before);
+
+    expect(a.closed?.code).toBe(CLOSE.offline);
+  });
+
+  it("still closes a public room on time and frees its slot while the switch is off", async () => {
+    const { ctx, env, join, wait, deliverCloses, released } = await openRoom({ public: true });
+    const player = await join({ name: "Solo" });
+
+    env.ONLINE_ENABLED = "false";
+    await wait(2 * MINUTE, [player]);
+    await deliverCloses();
+    await wait(PUBLIC_LIMITS.idleMs + 5 * MINUTE, []);
+
+    expect(released).toEqual([CODE]);
+    expect(ctx.storage.data.has("state")).toBe(false);
   });
 });
