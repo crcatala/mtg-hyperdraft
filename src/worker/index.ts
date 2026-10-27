@@ -15,14 +15,12 @@
 import { inviteLabelFor, parseInviteCodes } from "../shared/invites";
 import { CLOSE } from "../shared/protocol";
 import { verifyRoomCode } from "../shared/roomCode";
-import { inviteStub, onlineEnabled, publicPoolStub, publicRoomsEnabled, roomStub, turnstileKeys, type Env } from "./env";
+import { inviteStub, OFFLINE_MESSAGE, onlineEnabled, publicPoolStub, publicRoomsEnabled, roomStub, turnstileKeys, type Env } from "./env";
 import { verifyTurnstile, visitorId } from "./publicAccess";
 import type { PublicStatus } from "../shared/publicRooms";
 export { RoomDurableObject } from "./roomObject";
 export { InviteDurableObject } from "./inviteObject";
 export { PublicPoolDurableObject } from "./publicPoolObject";
-
-const OFFLINE_MESSAGE = "Online rooms are turned off right now. Solo mode still works!";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });

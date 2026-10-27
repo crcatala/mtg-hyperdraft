@@ -4,7 +4,7 @@
 // ("My rooms").
 
 import { DurableObject } from "cloudflare:workers";
-import { inviteStub, publicPoolStub, type Env } from "./env";
+import { inviteStub, OFFLINE_MESSAGE, onlineEnabled, publicPoolStub, type Env } from "./env";
 import { CLOSE, clientMessageSchema, type ClientMessage, type ServerMessage } from "../shared/protocol";
 import { createRoomState, Room, RoomError, SeatClaimNeeded, type RoomOwner } from "../shared/room";
 import { FloodControl } from "../shared/rateLimit";
@@ -41,6 +41,12 @@ const ACTIVITY_PUSH_MS = 30 * 60 * 1000;
 /** If a pick deadline has passed but a tick couldn't advance the draft, retry this much later. */
 const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
 /**
+ * Hard ceiling on alarm wake-ups, whatever the draft or presence logic asks for: a backstop so a bug
+ * can't turn the alarm into a loop that bills a request and a write every 50 ms. Real rooms stay far
+ * below it (pick deadlines are seconds apart, presence sweeps a minute apart).
+ */
+const ALARM_WAKE_LIMIT = { max: 30, windowMs: 60 * 1000 };
+/**
  * Clients send a raw "ping" every 10 s, answered by the runtime without waking this object. A socket
  * with no ping for this long is treated as gone (sleeping laptop, dropped Wi-Fi: no close event
  * ever arrives). Generous because browsers throttle timers in background tabs to once a minute.
@@ -61,6 +67,8 @@ export class RoomDurableObject extends DurableObject<Env> {
   private flood = new FloodControl(Date.now());
   /** When presence was last settled (in memory: a room that just woke has not). */
   private sweptAt = 0;
+  /** Recent alarm wake-ups, for ALARM_WAKE_LIMIT (in memory: an object woken that often isn't evicted). */
+  private wakes: number[] = [];
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -196,6 +204,7 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): Promise<void> {
+    if (await this.closeIfOffline()) return;
     if (await this.closeIfDue()) return;
     const room = this.room;
     const att = ws.deserializeAttachment() as Attachment | null;
@@ -293,6 +302,10 @@ export class RoomDurableObject extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     if (!this.room) return;
+    if (await this.closeIfOffline()) return;
+    const now = Date.now();
+    this.wakes = this.wakes.filter((at) => at > now - ALARM_WAKE_LIMIT.windowMs);
+    this.wakes.push(now);
     if (await this.closeIfDue()) return;
     await this.sweepStaleSockets();
     const progressed = this.room.tick();
@@ -305,6 +318,25 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   // --- public-room expiry + flood control -----------------------------------------------------
+
+  /**
+   * The kill switch (ONLINE_ENABLED=false) for rooms that are already running: the Worker only stops
+   * new requests, while open sockets and alarms reach this object directly. Closes the sockets and
+   * stops the alarm, but keeps the room, so it carries on when online rooms are turned back on.
+   */
+  private async closeIfOffline(): Promise<boolean> {
+    if (onlineEnabled(this.env)) return false;
+    for (const ws of this.ctx.getWebSockets()) {
+      this.sendTo(ws, { t: "closed", code: CLOSE.offline, message: OFFLINE_MESSAGE });
+      try {
+        ws.close(CLOSE.offline, "online rooms off");
+      } catch {
+        /* already closing */
+      }
+    }
+    await this.ctx.storage.deleteAlarm();
+    return true;
+  }
 
   /**
    * Closes a public room that has reached its deadline (hard expiry, or idle for too long): tells
@@ -426,6 +458,14 @@ export class RoomDurableObject extends DurableObject<Env> {
     if (sweep !== null) next = next === null ? sweep : Math.min(next, sweep);
     // Public rooms close on time even if nothing else would wake them.
     if (closeAt !== null) next = next === null ? Math.max(closeAt, now + 50) : Math.min(next, Math.max(closeAt, now + 50));
+    // Out of wake-ups for this window: wait until the oldest one leaves it.
+    if (next !== null && this.wakes.length >= ALARM_WAKE_LIMIT.max) {
+      const allowedAt = this.wakes[this.wakes.length - ALARM_WAKE_LIMIT.max] + ALARM_WAKE_LIMIT.windowMs;
+      if (next < allowedAt) {
+        console.warn(`Room ${this.room?.state.code}: alarm woke ${this.wakes.length} times in a minute; holding it off.`);
+        next = allowedAt;
+      }
+    }
     if (next === current) return;
     if (next === null) await this.ctx.storage.deleteAlarm();
     else await this.ctx.storage.setAlarm(next);

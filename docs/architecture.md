@@ -101,4 +101,6 @@ src/
   someone has joined or acted in the last 10 minutes (a tab left open overnight lets the room sleep, and the
   next join or message settles presence at once; public rooms keep checking so their slot is never held by a
   dead socket); alarms are only rewritten when the deadline changes, and
-  an overdue deadline that doesn't advance backs off instead of re-firing in a loop.
+  an overdue deadline that doesn't advance backs off instead of re-firing in a loop. As a backstop, a room's
+  alarm fires at most 30 times a minute, only `scheduleAlarm` may set it (`tests/tooling/alarmCalls.test.ts`),
+  and the kill switch stops it.

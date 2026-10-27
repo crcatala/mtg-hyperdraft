@@ -7,5 +7,5 @@
     "types": ["vite/client"]
   },
   "include": ["src/client", "src/shared", "tests"],
-  "exclude": ["tests/worker"]
+  "exclude": ["tests/worker", "tests/tooling"]
 }

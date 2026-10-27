@@ -77,10 +77,12 @@ echo false | npx wrangler secret put ONLINE_ENABLED   # online rooms off
 npx wrangler secret delete ONLINE_ENABLED             # back on
 ```
 
-The Worker checks the switch on every new request; the rooms themselves don't. Players already in a room
-are cut off because `wrangler secret put` deploys a new version straight away, and every deploy restarts
-all Durable Objects and drops their websockets. When their browsers try to reconnect, the Worker refuses
-them, and the client stops retrying. If you use gradual deployments (`wrangler versions secret put`), the
+The Worker checks the switch on every new request. Players already in a room are cut off because
+`wrangler secret put` deploys a new version straight away, and every deploy restarts all Durable Objects and
+drops their websockets. When their browsers try to reconnect, the Worker refuses them, and the client stops
+retrying. Room alarms survive a deploy, so each room also checks the switch whenever its alarm fires (or a
+message reaches it): it closes any sockets, cancels its alarm and goes quiet, keeping its state for when
+online rooms come back. A room whose alarm was misbehaving therefore stops at its next wake-up. If you use gradual deployments (`wrangler versions secret put`), the
 switch only takes effect once that version is fully deployed.
 
 Solo mode keeps working either way: it runs entirely in the browser.
@@ -160,6 +162,10 @@ HyperDraft is built to stay inside Cloudflare's free Workers plan:
   right away, so a player whose device died in the meantime frees their seat at once. Public rooms are the
   exception: they keep checking once a minute while anyone is connected, so a device that dies silently still
   starts the 15-minute idle countdown and the room hands its slot back instead of holding it for 3 hours.
+- **Alarms are capped.** Whatever the draft clock or presence checks ask for, a room's alarm fires at most
+  30 times a minute. Real drafts stay far below that; it is a backstop so a bug can't turn the alarm into a
+  loop that writes storage every 50 ms with nobody playing. A CI test fails if code outside the room's alarm
+  scheduler sets or clears an alarm.
 - **Flood control** caps every room at 10 messages/s and 1 state change/s sustained (state changes are
   what cost storage writes). See [Architecture](architecture.md#how-it-fits-together).
 

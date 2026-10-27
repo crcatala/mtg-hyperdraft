@@ -14,7 +14,7 @@ const MINUTE = 60 * 1000;
 async function openRoom(opts: { public?: boolean } = {}) {
   const ctx = new FakeState();
   const released: string[] = [];
-  const env = {
+  const env: Record<string, unknown> = {
     INVITES: { idFromName: (name: string) => name, get: () => ({ updateRoom: async () => {} }) },
     PUBLIC_POOL: { idFromName: (name: string) => name, get: () => ({ release: async (code: string) => void released.push(code) }) },
   };
@@ -51,7 +51,7 @@ async function openRoom(opts: { public?: boolean } = {}) {
     return wakes;
   };
 
-  return { ctx, join, send, players, wait, hibernate, released };
+  return { ctx, env, join, send, players, wait, hibernate, released, object: () => room };
 }
 
 function received(ws: FakeSocket): ServerMessage[] {
@@ -216,5 +216,39 @@ describe("flood control on the Durable Object", () => {
     const back = await join({ pid: you, secret });
     expect(back.closed).toBeNull();
     expect(welcome(back).you).toBe(you);
+  });
+});
+
+describe("alarm guardrails", () => {
+  it("caps how often the alarm can fire, even if the room keeps asking to be woken right away", async () => {
+    const { join, wait, object } = await openRoom();
+    const a = await join({ name: "A" });
+    // A bug that always "advances" with a deadline already due would otherwise re-fire every 50 ms.
+    const room = (object() as unknown as { room: { tick(): boolean; nextAlarm(): number } }).room;
+    room.tick = () => true;
+    room.nextAlarm = () => Date.now();
+
+    const wakes = await wait(10 * MINUTE, [a]);
+
+    expect(wakes).toBeLessThanOrEqual(10 * 30 + 1);
+  });
+
+  it("turns off rooms that are already running when the kill switch is flipped", async () => {
+    const { ctx, env, join, send, wait } = await openRoom();
+    const a = await join({ name: "A" });
+    const b = await join({ name: "B" });
+    expect(ctx.storage.alarm).not.toBeNull();
+
+    env.ONLINE_ENABLED = "false";
+    await wait(2 * MINUTE, [a, b]);
+
+    expect(ctx.storage.alarm).toBeNull();
+    for (const ws of [a, b]) expect(ws.closed?.code).toBe(CLOSE.offline);
+    // The room is kept, so it picks up again when online rooms come back.
+    expect(ctx.storage.data.has("state")).toBe(true);
+
+    const before = ctx.storage.data.get("state");
+    await send(a, { t: "setReady", ready: true });
+    expect(ctx.storage.data.get("state")).toEqual(before);
   });
 });
