@@ -249,10 +249,14 @@ export class RoomDurableObject extends DurableObject<Env> {
 
   async webSocketClose(ws: WebSocket): Promise<void> {
     await this.handleDisconnect(ws);
+    // Kill switch on: this close cleared the pick timers and presence checks, the alarms that would have told
+    // everyone else, so tell them now.
+    await this.closeIfOffline();
   }
 
   async webSocketError(ws: WebSocket): Promise<void> {
     await this.handleDisconnect(ws);
+    await this.closeIfOffline();
   }
 
   private async handleDisconnect(ws: WebSocket) {
@@ -339,6 +343,9 @@ export class RoomDurableObject extends DurableObject<Env> {
       } catch {
         /* already closing */
       }
+      // Count them as gone now: their close events may never arrive, and with presence checks off nothing else
+      // would notice, so a public room's idle close would wait for its full lifetime. Safe to run again later.
+      await this.handleDisconnect(ws);
     }
     await this.scheduleAlarm();
     return true;

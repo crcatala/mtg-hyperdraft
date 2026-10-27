@@ -44,6 +44,8 @@ async function openRoom(opts: { public?: boolean } = {}) {
     const end = Date.now() + ms;
     let wakes = 0;
     for (let at = ctx.storage.alarm; at !== null && at <= end; at = ctx.storage.alarm) {
+      // An alarm that never moves (or a loop without its gap) fails here instead of hanging the run.
+      if (wakes >= 20_000) throw new Error(`still waking after ${wakes} wake-ups; last at ${at}`);
       vi.setSystemTime(at);
       for (const ws of alive) ctx.ping(ws);
       wakeLog.push(at);
@@ -286,6 +288,18 @@ describe("alarm guardrails", () => {
     for (const ws of [a, b]) expect(picks(ws)).toBe(1);
   });
 
+  it("runs a pick timer that falls just after another wake-up at most 2 s late", async () => {
+    const { a, b, ctx, picks, wait, wakeLog, engine } = await timedDraft(30);
+    const deadline = engine().nextAlarm()!;
+    // Something else (a presence check) wakes the room a second before the deadline.
+    ctx.storage.alarm = deadline - 1000;
+
+    await wait(31 * 1000, [a, b]);
+
+    expect(wakeLog).toEqual([deadline - 1000, deadline + 1000]);
+    for (const ws of [a, b]) expect(picks(ws)).toBe(1);
+  });
+
   it("turns off rooms that are already running when the kill switch is flipped, and they come back after", async () => {
     const { ctx, env, join, send, wait, deliverCloses } = await openRoom();
     const a = await join({ name: "A" });
@@ -326,6 +340,21 @@ describe("alarm guardrails", () => {
     expect(await wait(10 * MINUTE, [])).toBe(0);
   });
 
+  it("closes everyone when one player leaves after the switch is flipped, before any alarm fires", async () => {
+    const { ctx, env, join, deliverCloses } = await openRoom();
+    const a = await join({ name: "A" });
+    const b = await join({ name: "B" });
+
+    env.ONLINE_ENABLED = "false";
+    // A closes their tab: only their close event reaches the room.
+    a.close(1000);
+    await deliverCloses();
+
+    // Without this, the close would clear the alarm and B would sit in a frozen room until they next acted.
+    expect(b.closed?.code).toBe(CLOSE.offline);
+    expect(ctx.storage.alarm).toBeNull();
+  });
+
   it("closes a socket that sends a message after the switch is flipped, before any alarm fires", async () => {
     const { env, join, send } = await openRoom();
     const a = await join({ name: "A" });
@@ -334,6 +363,20 @@ describe("alarm guardrails", () => {
     await send(a, { t: "setReady", ready: true });
 
     expect(a.closed?.code).toBe(CLOSE.offline);
+  });
+
+  it("starts a public room's idle close as soon as the switch closes its sockets, close events or not", async () => {
+    const { ctx, env, join, wait, engine } = await openRoom({ public: true });
+    const player = await join({ name: "Solo" });
+
+    env.ONLINE_ENABLED = "false";
+    await wait(2 * MINUTE, [player]);
+
+    expect(player.closed?.code).toBe(CLOSE.offline);
+    // No close event was delivered, yet the room counts its player as gone and will close when idle, not at the end
+    // of its lifetime.
+    expect(engine().closeAt()).toBeLessThanOrEqual(Date.now() + PUBLIC_LIMITS.idleMs);
+    expect(ctx.storage.alarm).toBe(engine().closeAt());
   });
 
   it("still closes a public room on time and frees its slot while the switch is off", async () => {
