@@ -4,7 +4,7 @@
 // ("My rooms").
 
 import { DurableObject } from "cloudflare:workers";
-import { inviteStub, publicPoolStub, type Env } from "./env";
+import { inviteStub, OFFLINE_MESSAGE, onlineEnabled, publicPoolStub, type Env } from "./env";
 import { CLOSE, clientMessageSchema, type ClientMessage, type ServerMessage } from "../shared/protocol";
 import { createRoomState, Room, RoomError, SeatClaimNeeded, type RoomOwner } from "../shared/room";
 import { FloodControl } from "../shared/rateLimit";
@@ -41,6 +41,15 @@ const ACTIVITY_PUSH_MS = 30 * 60 * 1000;
 /** If a pick deadline has passed but a tick couldn't advance the draft, retry this much later. */
 const STUCK_ALARM_BACKOFF_MS = 60 * 1000;
 /**
+ * Backstop against an alarm loop: the alarm never fires within this long of its last wake-up, whatever
+ * the draft or presence logic asks for. A bug that keeps asking for "now" then costs one wake (a request
+ * and a write or two) every 2 s, about 43,000 a day, instead of one every 50 ms (1.7 million). Honest
+ * play doesn't notice: one wake auto-picks every overdue seat, so on the fastest allowed timer (1 s,
+ * fixed) auto-picks land at most 2 s late, and other deadlines are seconds to minutes apart. Why a gap
+ * and not "N per minute": see docs/architecture.md, "Alarm backstops".
+ */
+const MIN_ALARM_GAP_MS = 2000;
+/**
  * Clients send a raw "ping" every 10 s, answered by the runtime without waking this object. A socket
  * with no ping for this long is treated as gone (sleeping laptop, dropped Wi-Fi: no close event
  * ever arrives). Generous because browsers throttle timers in background tabs to once a minute.
@@ -61,6 +70,11 @@ export class RoomDurableObject extends DurableObject<Env> {
   private flood = new FloodControl(Date.now());
   /** When presence was last settled (in memory: a room that just woke has not). */
   private sweptAt = 0;
+  /**
+   * When the alarm last fired, for MIN_ALARM_GAP_MS. Memory is enough: an object is only evicted after
+   * ~10 s idle, longer than the gap, so a fresh object starting from 0 can't wake faster than allowed.
+   */
+  private lastWakeAt = 0;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -197,6 +211,7 @@ export class RoomDurableObject extends DurableObject<Env> {
 
   async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer): Promise<void> {
     if (await this.closeIfDue()) return;
+    if (await this.closeIfOffline()) return;
     const room = this.room;
     const att = ws.deserializeAttachment() as Attachment | null;
     if (!room || !att) return;
@@ -293,7 +308,9 @@ export class RoomDurableObject extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     if (!this.room) return;
+    this.lastWakeAt = Date.now();
     if (await this.closeIfDue()) return;
+    if (await this.closeIfOffline()) return;
     await this.sweepStaleSockets();
     const progressed = this.room.tick();
     if (progressed) {
@@ -305,6 +322,27 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   // --- public-room expiry + flood control -----------------------------------------------------
+
+  /**
+   * The kill switch (ONLINE_ENABLED=false) for rooms that are already running: the Worker only stops
+   * new requests, while alarms (which survive the redeploy that flipping the switch causes) and open
+   * sockets reach this object directly. Closes the sockets and lets scheduleAlarm, which also checks
+   * the switch, drop pick timers and presence checks. The room is kept, so it carries on when online
+   * rooms are turned back on; a public room still closes at its deadline and frees its slot.
+   */
+  private async closeIfOffline(): Promise<boolean> {
+    if (onlineEnabled(this.env)) return false;
+    for (const ws of this.ctx.getWebSockets()) {
+      this.sendTo(ws, { t: "closed", code: CLOSE.offline, message: OFFLINE_MESSAGE });
+      try {
+        ws.close(CLOSE.offline, "online rooms off");
+      } catch {
+        /* already closing */
+      }
+    }
+    await this.scheduleAlarm();
+    return true;
+  }
 
   /**
    * Closes a public room that has reached its deadline (hard expiry, or idle for too long): tells
@@ -397,12 +435,26 @@ export class RoomDurableObject extends DurableObject<Env> {
    * Keeps the storage alarm in line with the next pick deadline. Only writes when it changes
    * (every setAlarm/deleteAlarm is a billed write). `progressed` = false means the last tick did
    * nothing: if a deadline is still overdue, back off instead of re-firing every few milliseconds.
+   * The only place that sets the alarm (tests/tooling/alarmCalls.test.ts keeps it that way).
    */
   private async scheduleAlarm(progressed = true) {
     const current = await this.ctx.storage.getAlarm();
-    let next = this.room?.nextAlarm() ?? null;
     const now = Date.now();
     const closeAt = this.room?.closeAt() ?? null;
+    // Kill switch on: no pick timers or presence checks (whoever calls this: a late close event, the
+    // constructor), only a public room's closing time, so its slot and storage are still freed.
+    let next = onlineEnabled(this.env)
+      ? this.nextWake(current, now, closeAt, progressed)
+      : closeAt === null ? null : Math.max(closeAt, now + 50);
+    if (next !== null) next = Math.max(next, this.lastWakeAt + MIN_ALARM_GAP_MS);
+    if (next === current) return;
+    if (next === null) await this.ctx.storage.deleteAlarm();
+    else await this.ctx.storage.setAlarm(next);
+  }
+
+  /** The earliest of the next pick deadline, presence sweep and public closing time, or null. */
+  private nextWake(current: number | null, now: number, closeAt: number | null, progressed: boolean): number | null {
+    let next = this.room?.nextAlarm() ?? null;
     if (next !== null) {
       if (!progressed && next <= now) {
         console.warn(`Room ${this.room?.state.code}: pick deadline overdue but nothing advanced; backing off.`);
@@ -426,9 +478,7 @@ export class RoomDurableObject extends DurableObject<Env> {
     if (sweep !== null) next = next === null ? sweep : Math.min(next, sweep);
     // Public rooms close on time even if nothing else would wake them.
     if (closeAt !== null) next = next === null ? Math.max(closeAt, now + 50) : Math.min(next, Math.max(closeAt, now + 50));
-    if (next === current) return;
-    if (next === null) await this.ctx.storage.deleteAlarm();
-    else await this.ctx.storage.setAlarm(next);
+    return next;
   }
 
   /**

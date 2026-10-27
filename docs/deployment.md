@@ -77,11 +77,15 @@ echo false | npx wrangler secret put ONLINE_ENABLED   # online rooms off
 npx wrangler secret delete ONLINE_ENABLED             # back on
 ```
 
-The Worker checks the switch on every new request; the rooms themselves don't. Players already in a room
-are cut off because `wrangler secret put` deploys a new version straight away, and every deploy restarts
-all Durable Objects and drops their websockets. When their browsers try to reconnect, the Worker refuses
-them, and the client stops retrying. If you use gradual deployments (`wrangler versions secret put`), the
-switch only takes effect once that version is fully deployed.
+The Worker checks the switch on every new request. Players already in a room are cut off because
+`wrangler secret put` deploys a new version straight away, and every deploy restarts all Durable Objects and
+drops their websockets. When their browsers try to reconnect, the Worker refuses them, and the client stops
+retrying. Room alarms survive a deploy, so each room also checks the switch whenever its alarm fires (or a
+message reaches it): it closes any sockets and stops its pick timers and presence checks, keeping its state
+for when online rooms come back. A public room keeps only its closing-time alarm, so it still closes and
+frees its slot. A room whose alarm was misbehaving stops at its next wake-up, at most 2 s later. If you use
+gradual deployments (`wrangler versions secret put`), the switch only takes effect once that version is
+fully deployed.
 
 Solo mode keeps working either way: it runs entirely in the browser.
 
@@ -160,6 +164,11 @@ HyperDraft is built to stay inside Cloudflare's free Workers plan:
   right away, so a player whose device died in the meantime frees their seat at once. Public rooms are the
   exception: they keep checking once a minute while anyone is connected, so a device that dies silently still
   starts the 15-minute idle countdown and the room hands its slot back instead of holding it for 3 hours.
+- **Alarm wake-ups are at least 2 s apart.** Whatever the draft clock or presence checks ask for, a room's
+  alarm never fires within 2 s of its last wake-up. Honest play doesn't notice (on the fastest 1 s timer,
+  auto-picks land at most 2 s late); it's a backstop so a bug can't turn the alarm into a loop that writes
+  storage every 50 ms with nobody playing. A CI test fails if code outside the room's alarm scheduler sets
+  or clears an alarm. Why this design: [Architecture](architecture.md#alarm-backstops).
 - **Flood control** caps every room at 10 messages/s and 1 state change/s sustained (state changes are
   what cost storage writes). See [Architecture](architecture.md#how-it-fits-together).
 
@@ -178,6 +187,10 @@ The flood limits put a ceiling on what a single room can cost, even if someone h
 | Duration, 13,000 GB-s | about 450 GB-s | one Durable Object kept awake for an hour |
 | Storage writes, 100k rows | about 3,600 + bursts | 1 state change/s |
 | Requests, 100k | about 1,800 for messages handled | 10 messages/s ÷ 20 (WebSocket messages bill 20:1) |
+
+The table assumes the room's code works. If a bug made a room's alarm loop, the 2 s gap limits it to about
+1,800 wake-ups an hour (43,000 a day), each a request and a storage write or two, until you flip the kill
+switch: most of a day's free writes from one room, or roughly $3–5 a month per looping room on Paid.
 
 Duration is the one firm ceiling: it's wall-clock time, so a room awake for an hour costs the same however
 hard it's flooded, and roughly 28 room-hours awake in a day would use it up. The other two rows count only

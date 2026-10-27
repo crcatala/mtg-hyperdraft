@@ -101,4 +101,66 @@ src/
   someone has joined or acted in the last 10 minutes (a tab left open overnight lets the room sleep, and the
   next join or message settles presence at once; public rooms keep checking so their slot is never held by a
   dead socket); alarms are only rewritten when the deadline changes, and
-  an overdue deadline that doesn't advance backs off instead of re-firing in a loop.
+  an overdue deadline that doesn't advance backs off instead of re-firing in a loop. Backstops for when that
+  logic has a bug are in [Alarm backstops](#alarm-backstops).
+
+## Alarm backstops
+
+A room's alarm is its "wake me up at" timer: the next pick deadline, the next check for dead sockets, or a
+public room's closing time. It's the one cost that needs no player. Every wake-up is a billed request and a
+storage write or two, and if a bug made the room keep asking to be woken "now", it would wake every 50 ms
+(the existing floor) for as long as the bug lasted: about 1.7 million times a day per room, with nobody
+online. That is how the well-known Durable Object bills of tens of thousands of dollars happened. On the
+free plan it would use up the day's allowance and take online rooms down until midnight UTC; on Paid it
+costs money, and Cloudflare's billing alerts arrive a day late and never pause anything.
+
+Three backstops, all in `src/worker/roomObject.ts`:
+
+1. **Wake-ups at least 2 s apart** (`MIN_ALARM_GAP_MS`). `scheduleAlarm` never sets the alarm sooner than
+   2 s after the last wake-up. A looping room then costs about 43,000 wake-ups a day instead of 1.7 million.
+2. **The kill switch reaches alarms.** `ONLINE_ENABLED=false` is checked by the Worker, but alarms survive
+   the redeploy that setting it causes and go straight to the room. So `alarm()` and `webSocketMessage()`
+   check it too (`closeIfOffline`), and `scheduleAlarm` drops pick timers and presence checks while it's off,
+   whoever calls it (a late close event, the constructor). A public room keeps only its closing-time alarm,
+   so it still closes and frees its slot. The room's state is kept for when online rooms come back.
+3. **Only `scheduleAlarm` sets the alarm.** `tests/tooling/alarmCalls.test.ts` parses `src/` and fails CI on a
+   direct `setAlarm`/`deleteAlarm` call anywhere else (`destroy` may delete it). It reads names, not types,
+   so `storage["setAlarm"]` would slip past; don't write that.
+
+Each has a test in `tests/worker/roomObject.test.ts` that fails without it.
+
+### Decision: a minimum gap, not a per-minute cap (2026-10-27)
+
+The first version allowed 30 wake-ups per rolling minute. Independent review found two problems: the
+fastest allowed pick timer (1 s, fixed) wakes an idle table about once a second, so the cap would stall
+auto-picks for up to a minute; and the list of recent wake-ups lived in memory, so an object evicted
+between bursts started from zero. We compared:
+
+| Option | Breaks an allowed setting? | Worst delay to honest play | Ceiling per looping room | Safe across eviction? |
+|---|---|---|---|---|
+| 30 per minute (first version) | yes, timers under ~2 s | ~60 s | 43k wakes/day | no, needs storage writes |
+| 120 per minute | no | ~60 s | 173k/day | no |
+| Cap derived from each room's timer | no | ~60 s | 43k/day normally | no, and more code to get wrong |
+| Raise the minimum pick timer | changes the game | ~60 s | 43k/day | no |
+| **At least 2 s between wake-ups** | **no** | **2 s** | **43k/day** | **yes, with no writes** |
+| At least 1 s between wake-ups | no | 1 s | 86k/day | yes |
+
+We chose **2 s**:
+
+- **Same ceiling as before**, so the cost figures in [Deployment](deployment.md) hold: about 43,000 wake-ups a
+  day per looping room, roughly $3–5 a month on Paid instead of hundreds.
+- **Honest play doesn't notice.** One wake-up auto-picks every overdue seat (`advance` in `draft.ts`), so
+  deadlines that come due close together merge. On a 1 s fixed timer, auto-picks for idle players land at
+  most 2 s late; normal timers (30 s and up) fire exactly on time. Both are tested.
+- **Memory is enough.** The last wake-up time is kept in memory, and Cloudflare only evicts an idle object
+  after about 10 s, longer than the gap, so a fresh object starting from zero can't wake faster than allowed.
+  The per-minute version would have needed a storage write to survive eviction.
+- **Simpler**: one timestamp instead of a list, and one number for other games to adapt.
+- **2 s rather than 1 s** keeps the ceiling unchanged. 1 s would keep a 1 s timer exact at twice the ceiling,
+  which isn't worth it for a setting nobody drafts with.
+
+No cap here protects the free plan's daily allowance: even at one wake every 2 s, a looping room writes
+most of the 100,000 rows a day. The kill switch is the tool for that; the gap is what keeps a bug on Paid
+from becoming a large bill. Revisit if a feature needs alarms more often than every 2 s (lower the gap and
+update the ceiling here and in Deployment), or if Cloudflare changes how soon idle objects are evicted.
+
