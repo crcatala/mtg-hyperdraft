@@ -144,7 +144,7 @@ Online play is configured with Worker secrets (`npx wrangler secret put <NAME>`)
 |---|---|---|
 | `ROOM_CODE_SECRET` | none (required for online rooms) | Signs room codes. Changing it invalidates every existing room code. |
 | `INVITE_CODES` | none | `label:key` pairs, comma-separated. Each key lets a browser host invite rooms. Not needed if you only use public rooms. |
-| `ONLINE_ENABLED` | on | Kill switch: set to `false` to turn all online rooms off. Solo keeps working. Setting the secret redeploys the Worker, which disconnects everyone in a room. |
+| `ONLINE_ENABLED` | on | Kill switch: set to `false` to turn all online rooms off. Solo keeps working. Players already in a room see the notice at their next action, or within about a minute in an active room. |
 | `PUBLIC_ROOMS_ENABLED` | off | Set to `true` to let anyone host from the public room pool. |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | unset | Adds a Cloudflare Turnstile bot check before hosting a public room, when both are set. |
 
