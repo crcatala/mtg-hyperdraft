@@ -77,12 +77,16 @@ echo false | npx wrangler secret put ONLINE_ENABLED   # online rooms off
 npx wrangler secret delete ONLINE_ENABLED             # back on
 ```
 
-The Worker checks the switch on every new request. Players already in a room are cut off because
-`wrangler secret put` deploys a new version straight away, and every deploy restarts all Durable Objects and
-drops their websockets. When their browsers try to reconnect, the Worker refuses them, and the client stops
-retrying. Room alarms survive a deploy, so each room also checks the switch whenever its alarm fires (or a
-message reaches it): it closes any sockets and stops its pick timers and presence checks, keeping its state
-for when online rooms come back. A public room keeps only its closing-time alarm, so it still closes and
+The Worker checks the switch on every new request. `wrangler secret put` deploys a new version straight away,
+but that doesn't reliably disconnect players already in a room: in a test on 2026-10-27, an idle player's
+socket stayed open and they only saw "Online rooms are turned off" when they next did something. So each
+room checks the switch itself whenever a message reaches it or its alarm fires (alarms survive a deploy): it
+closes any sockets and stops its pick timers and presence checks, keeping its state for when online rooms
+come back. In practice an active player sees the notice within about a minute (the next presence check or
+pick deadline) and an idle one at their next action; until then they cost nothing. Browsers that reconnect
+are refused by the Worker, and the client stops retrying: it shows a **Try again** button and checks once
+more whenever the tab comes back into focus, but never polls in the background. Each check is answered by
+the Worker without waking a room. A public room keeps only its closing-time alarm, so it still closes and
 frees its slot. A room whose alarm was misbehaving stops at its next wake-up, at most 2 s later. If you use
 gradual deployments (`wrangler versions secret put`), the switch only takes effect once that version is
 fully deployed.

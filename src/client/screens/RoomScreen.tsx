@@ -79,6 +79,17 @@ export function RoomScreen({ code }: { code: string }) {
     return () => disconnect();
   }, [code, named]);
 
+  // Online rooms were switched off (the kill switch). Look again when the tab comes back into focus, and
+  // offer a button below. The Worker answers that check without waking the room; never poll in the
+  // background, since the switch is flipped exactly when traffic should drop.
+  const offline = status === "failed" && fatalCode === CLOSE.offline;
+  useEffect(() => {
+    if (!offline) return;
+    const onFocus = () => document.visibilityState === "visible" && connect(code);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => document.removeEventListener("visibilitychange", onFocus);
+  }, [offline, code]);
+
   if (!named) return <NamePrompt code={code} onDone={() => setNamed(true)} />;
 
   if (status === "claim") return <SeatPicker code={code} seats={claimSeats} />;
@@ -101,12 +112,17 @@ export function RoomScreen({ code }: { code: string }) {
                 : fatal}
             </p>
             {closed && <p className="faint small-print">Host a new one from the home page, or play solo against bots anytime.</p>}
-            {closed && (
+            {offline && (
+              <button className="btn primary" onClick={() => connect(code)}>
+                Try again
+              </button>
+            )}
+            {(closed || offline) && (
               <button className="btn" onClick={() => navigate("/solo")}>
                 <Icon name="play" /> Play solo vs bots
               </button>
             )}
-            <button className="btn primary" onClick={() => navigate("/")}>
+            <button className={offline ? "btn" : "btn primary"} onClick={() => navigate("/")}>
               Back home
             </button>
           </div>
