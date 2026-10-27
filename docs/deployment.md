@@ -84,7 +84,9 @@ room checks the switch itself whenever a message reaches it or its alarm fires (
 closes any sockets and stops its pick timers and presence checks, keeping its state for when online rooms
 come back. In practice an active player sees the notice within about a minute (the next presence check or
 pick deadline) and an idle one at their next action; until then they cost nothing. Browsers that reconnect
-are refused by the Worker, and the client stops retrying. A public room keeps only its closing-time alarm, so it still closes and
+are refused by the Worker, and the client stops retrying: it shows a **Try again** button and checks once
+more whenever the tab comes back into focus, but never polls in the background. Each check is answered by
+the Worker without waking a room. A public room keeps only its closing-time alarm, so it still closes and
 frees its slot. A room whose alarm was misbehaving stops at its next wake-up, at most 2 s later. If you use
 gradual deployments (`wrangler versions secret put`), the switch only takes effect once that version is
 fully deployed.
