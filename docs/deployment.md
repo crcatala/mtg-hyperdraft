@@ -80,9 +80,9 @@ npx wrangler secret delete ONLINE_ENABLED             # back on
 The Worker checks the switch on every new request. `wrangler secret put` deploys a new version straight away,
 but that doesn't reliably disconnect players already in a room: in a test on 2026-10-27, an idle player's
 socket stayed open and they only saw "Online rooms are turned off" when they next did something. So each
-room checks the switch itself whenever a message reaches it or its alarm fires (alarms survive a deploy): it
-closes any sockets and stops its pick timers and presence checks, keeping its state for when online rooms
-come back. In practice an active player sees the notice within about a minute (the next presence check or
+room checks the switch itself whenever a message, a close event or its alarm reaches it (alarms survive a
+deploy): it closes any sockets, counts their players as gone, and stops its pick timers and presence checks,
+keeping its state for when online rooms come back. In practice an active player sees the notice within about a minute (the next presence check or
 pick deadline) and an idle one at their next action; until then they cost nothing. Browsers that reconnect
 are refused by the Worker, and the client stops retrying: it shows a **Try again** button and checks once
 more whenever the tab comes back into focus, but never polls in the background. Each check is answered by
@@ -193,8 +193,10 @@ The flood limits put a ceiling on what a single room can cost, even if someone h
 | Requests, 100k | about 1,800 for messages handled | 10 messages/s ÷ 20 (WebSocket messages bill 20:1) |
 
 The table assumes the room's code works. If a bug made a room's alarm loop, the 2 s gap limits it to about
-1,800 wake-ups an hour (43,000 a day), each a request and a storage write or two, until you flip the kill
-switch: most of a day's free writes from one room, or roughly $3–5 a month per looping room on Paid.
+1,800 wake-ups an hour (43,000 a day) until you flip the kill switch. Each is a request (about 43% of the free
+daily requests, from one room) and a row for the alarm; if the loop also changes the room, add its state, the
+summary marker and the invite ledger, up to 4 rows. One such room can use up the free 100,000 rows a day on its
+own, which stops every room until 00:00 UTC. On Paid it's roughly $3–5 a month per looping room.
 
 Duration is the one firm ceiling: it's wall-clock time, so a room awake for an hour costs the same however
 hard it's flooded, and roughly 28 room-hours awake in a day would use it up. The other two rows count only

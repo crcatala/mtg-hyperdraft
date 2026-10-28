@@ -119,15 +119,18 @@ Three backstops, all in `src/worker/roomObject.ts`:
 1. **Wake-ups at least 2 s apart** (`MIN_ALARM_GAP_MS`). `scheduleAlarm` never sets the alarm sooner than
    2 s after the last wake-up. A looping room then costs about 43,000 wake-ups a day instead of 1.7 million.
 2. **The kill switch reaches alarms.** `ONLINE_ENABLED=false` is checked by the Worker, but alarms survive
-   the redeploy that setting it causes and go straight to the room. So `alarm()` and `webSocketMessage()`
-   check it too (`closeIfOffline`), and `scheduleAlarm` drops pick timers and presence checks while it's off,
-   whoever calls it (a late close event, the constructor). A public room keeps only its closing-time alarm,
-   so it still closes and frees its slot. The room's state is kept for when online rooms come back.
+   the redeploy that setting it causes and go straight to the room. So `alarm()`, `webSocketMessage()` and
+   close events check it too (`closeIfOffline`): one player leaving can't clear the alarm that would have told
+   the others. `scheduleAlarm` drops pick timers and presence checks while it's off, whoever calls it (a late
+   close event, the constructor). The closed sockets count as gone at once, since their close events may never
+   arrive, so a public room's idle close starts counting down; it keeps only its closing-time alarm, so it still
+   closes and frees its slot. The room's state is kept for when online rooms come back.
 3. **Only `scheduleAlarm` sets the alarm.** `tests/tooling/alarmCalls.test.ts` parses `src/` and fails CI on a
    direct `setAlarm`/`deleteAlarm` call anywhere else (`destroy` may delete it). It reads names, not types,
    so `storage["setAlarm"]` would slip past; don't write that.
 
-Each has a test in `tests/worker/roomObject.test.ts` that fails without it.
+Each has a test that fails without it: `tests/worker/roomObject.test.ts` for the first two,
+`tests/tooling/alarmCalls.test.ts` for the third.
 
 ### Decision: a minimum gap, not a per-minute cap (2026-10-27)
 
@@ -151,7 +154,8 @@ We chose **2 s**:
   day per looping room, roughly $3–5 a month on Paid instead of hundreds.
 - **Honest play doesn't notice.** One wake-up auto-picks every overdue seat (`advance` in `draft.ts`), so
   deadlines that come due close together merge. On a 1 s fixed timer, auto-picks for idle players land at
-  most 2 s late; normal timers (30 s and up) fire exactly on time. Both are tested.
+  most 2 s late; normal timers (30 s and up) fire exactly on time when the room was quiet before them, and at
+  most 2 s late when something else (a presence check) woke it in the 2 s before. All three are tested.
 - **Memory is enough.** The last wake-up time is kept in memory, and Cloudflare only evicts an idle object
   after about 10 s, longer than the gap, so a fresh object starting from zero can't wake faster than allowed.
   The per-minute version would have needed a storage write to survive eviction.
